@@ -1,6 +1,6 @@
 import React from 'react';
 import {
-  Users, BarChart2, Settings, LogOut,
+  BarChart2, Settings, LogOut,
   Archive, Trash2, UserCog, LayoutGrid
 } from 'lucide-react';
 import { useApp } from '../../contexts/AppContext';

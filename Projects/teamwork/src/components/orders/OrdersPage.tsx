@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Search, Filter, Plus } from 'lucide-react';
+import { Search, Filter } from 'lucide-react';
 import { useApp } from '../../contexts/AppContext';
 import { OrderStatus, OrderPriority } from '../../types';
 import { priorityConfig, statusConfig, formatDate, isOverdue } from '../../utils/helpers';
@@ -13,7 +13,7 @@ interface OrdersPageProps {
 
 const OrdersPage: React.FC<OrdersPageProps> = ({ archiveMode = false }) => {
   const { state } = useApp();
-  const { orders, departments, users, currentUser } = state;
+  const { orders, departments, currentUser } = state;
 
   const [search, setSearch] = useState('');
   const [filterStatus, setFilterStatus] = useState<OrderStatus | ''>('');

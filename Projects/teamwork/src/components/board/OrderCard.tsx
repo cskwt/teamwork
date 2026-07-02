@@ -39,7 +39,7 @@ const OrderCard: React.FC<OrderCardProps> = ({ order, onClick, isDragging }) => 
   };
 
   const assignedList = state.users.filter((u) => order.assignedUsers?.includes(u.id));
-  const assignee = assignedList[0];
+
   const priority = priorityConfig[order.priority];
   const overdue = isOverdue(order.dueDate) && order.status !== 'done';
 

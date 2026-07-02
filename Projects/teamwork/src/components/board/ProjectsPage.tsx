@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import {
-  Plus, Folder, LayoutGrid,
+  Plus, Folder,
   Pencil, Trash2, X,
   ShoppingCart, Palette, Zap, Printer, Truck, Building2
 } from 'lucide-react';
@@ -31,7 +31,7 @@ const COLORS = [
 
 const ProjectsPage: React.FC<ProjectsPageProps> = ({ onOpenBoard }) => {
   const { state, dispatch } = useApp();
-  const { departments, orders, currentUser, users } = state;
+  const { departments, orders, currentUser } = state;
 
   const [showModal, setShowModal] = useState(false);
   const [editDept, setEditDept] = useState<Department | null>(null);
@@ -126,7 +126,7 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ onOpenBoard }) => {
           const allDeptOrders = orders.filter((o) => !o.deletedAt && o.departmentId === dept.id && o.status !== 'cancelled');
           const lastColId = cols[cols.length - 1].id;
           const doneCount = allDeptOrders.filter((o) => o.status === lastColId).length;
-          const progress = allDeptOrders.length > 0 ? Math.round((doneCount / allDeptOrders.length) * 100) : 0;
+
           const colStats = cols.map((col) => ({
             ...col,
             count: allDeptOrders.filter((o) => o.status === col.id).length,

@@ -1,5 +1,5 @@
 import React, { useState, useRef } from 'react';
-import { X, Upload, FileText, Image, Trash2, Users, Building2, ChevronDown } from 'lucide-react';
+import { X, Upload, FileText, Image, Trash2, Users, Building2 } from 'lucide-react';
 import { useApp } from '../../contexts/AppContext';
 import { Order, OrderPriority, FileAttachment } from '../../types';
 import { generateId } from '../../utils/helpers';
@@ -108,8 +108,6 @@ const AddOrderModal: React.FC<AddOrderModalProps> = ({ departmentId, onClose }) 
 
   const formatFileSize = (bytes: number) =>
     bytes < 1024 * 1024 ? `${(bytes / 1024).toFixed(0)} KB` : `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
-
-  const selectedPriority = PRIORITY_OPTIONS.find((p) => p.value === priority)!;
 
   return (
     <div className="modal-overlay" onClick={onClose}>
