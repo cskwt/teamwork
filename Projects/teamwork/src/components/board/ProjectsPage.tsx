@@ -124,8 +124,6 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ onOpenBoard }) => {
             { id: 'done', title: 'منجز', color: '#10b981', order: 3 },
           ];
           const allDeptOrders = orders.filter((o) => !o.deletedAt && o.departmentId === dept.id && o.status !== 'cancelled');
-          const lastColId = cols[cols.length - 1].id;
-          const doneCount = allDeptOrders.filter((o) => o.status === lastColId).length;
 
           const colStats = cols.map((col) => ({
             ...col,
