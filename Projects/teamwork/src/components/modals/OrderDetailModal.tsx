@@ -320,7 +320,6 @@ const OrderDetailModal: React.FC<OrderDetailModalProps> = ({ order, onClose, dep
                   <input type="date" className="od-edit-input" value={editData.orderDate} onChange={(e) => setEditData(p => ({ ...p, orderDate: e.target.value }))} />
                 ) : <span className="od-value">{currentOrder.orderDate ? formatDate(currentOrder.orderDate) : '—'}</span>}
               </div>
-              <div className="od-detail-item od-spacer" />
               <div className="od-detail-item">
                 <span className="od-label"><Building2 size={13} /> القسم المختص</span>
                 {editing ? (
