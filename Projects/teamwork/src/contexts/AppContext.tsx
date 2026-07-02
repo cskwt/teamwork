@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useReducer, useEffect, useState } from 'react';
 import { AppState, User, Department, Order, OrderComment, OrderHistoryEntry, KanbanColumn, AppNotification } from '../types';
-import { loadState, saveState, saveSession, loadSession, clearSession } from '../utils/storage';
+import { loadState, saveState, saveSession, loadSession } from '../utils/storage';
 import { generateId } from '../utils/helpers';
 import { INITIAL_USERS, INITIAL_DEPARTMENTS, INITIAL_ORDERS } from '../data/initialData';
 
@@ -292,6 +292,20 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     if (loaded) saveState(state);
   }, [state, loaded]);
 
+  // تسجيل خروج تلقائي بعد انتهاء مدة الجلسة (ساعتان)
+  useEffect(() => {
+    if (!loaded) return;
+    const interval = setInterval(() => {
+      if (state.currentUser) {
+        const stillValid = loadSession();
+        if (!stillValid) {
+          dispatch({ type: 'LOGOUT' });
+        }
+      }
+    }, 60 * 1000); // يفحص كل دقيقة
+    return () => clearInterval(interval);
+  }, [loaded, state.currentUser]);
+
   const login = (username: string, password: string): boolean => {
     const user = state.users.find(
       (u: User) => u.username === username && u.password === password
@@ -305,7 +319,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const logout = () => {
-    clearSession();
     dispatch({ type: 'LOGOUT' });
   };
 
