@@ -192,9 +192,9 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ onOpenBoard }) => {
       {showModal && (
         <div className="modal-overlay" onClick={() => setShowModal(false)}>
           <div className="modal-panel" onClick={(e) => e.stopPropagation()}>
+            <button className="modal-close-corner" onClick={() => setShowModal(false)} title="إغلاق"><X size={18} /></button>
             <div className="modal-header">
               <h3 className="modal-heading">{editDept ? 'تعديل القسم' : 'إضافة قسم جديد'}</h3>
-              <button className="icon-btn" onClick={() => setShowModal(false)}><X size={18} /></button>
             </div>
             <div className="modal-body modal-form">
               <div className="form-group">

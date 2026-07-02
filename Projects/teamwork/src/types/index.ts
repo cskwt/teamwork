@@ -54,6 +54,7 @@ export interface Order {
   notes?: string;
   progress?: number;
   deletedAt?: string;
+  completedAt?: string;
 }
 
 export interface OrderHistoryEntry {

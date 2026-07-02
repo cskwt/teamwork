@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Home, Bell, Search, X, MessageSquare, Plus, Pencil, UserCheck, RefreshCw } from 'lucide-react';
 import { useApp } from '../../contexts/AppContext';
-import { formatDate, priorityConfig, statusConfig } from '../../utils/helpers';
+import { formatDate, priorityConfig, getColumnStatus } from '../../utils/helpers';
 
 interface TopBarProps {
   onNavigate: (page: string) => void;
@@ -142,7 +142,7 @@ const TopBar: React.FC<TopBarProps> = ({ onNavigate }) => {
                 searchResults.map((o) => {
                   const dept = departments.find((d) => d.id === o.departmentId);
                   const pr = priorityConfig[o.priority] || priorityConfig['medium'];
-                  const st = statusConfig[o.status] || statusConfig['new'];
+                  const st = getColumnStatus(o, departments);
                   return (
                     <div key={o.id} className="search-result-item" onClick={() => { setSearchQuery(''); setShowSearch(false); }}>
                       <div className="search-result-main">

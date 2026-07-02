@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Trash2, RotateCcw, AlertTriangle, X } from 'lucide-react';
 import { useApp } from '../../contexts/AppContext';
-import { priorityConfig, statusConfig } from '../../utils/helpers';
+import { priorityConfig, getColumnStatus } from '../../utils/helpers';
 import Header from '../layout/Header';
 
 const TrashPage: React.FC = () => {
@@ -63,7 +63,7 @@ const TrashPage: React.FC = () => {
               {deletedOrders.map((order) => {
                 const dept = departments.find((d) => d.id === order.departmentId);
                 const pr = priorityConfig[order.priority];
-                const st = statusConfig[order.status];
+                const st = getColumnStatus(order, departments);
                 const daysLeft = getDaysLeft(order.deletedAt!);
                 const deletedDate = new Date(order.deletedAt!).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
 

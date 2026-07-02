@@ -2,8 +2,9 @@ import localforage from 'localforage';
 import { AppState } from '../types';
 import { INITIAL_USERS, INITIAL_DEPARTMENTS, INITIAL_ORDERS } from '../data/initialData';
 
-const SESSION_KEY = 'teamwork_session';
-const SESSION_DURATION = 2 * 60 * 60 * 1000; // ساعتان بالميلي ثانية
+// ─── Session management ───────────────────────────────────────────────────────
+const SESSION_KEY      = 'teamwork_session';
+const SESSION_DURATION = 2 * 60 * 60 * 1000; // ساعتان
 
 export const saveSession = (userId: string) => {
   localStorage.setItem(SESSION_KEY, JSON.stringify({ userId, loginTime: Date.now() }));
@@ -26,6 +27,37 @@ export const clearSession = () => {
   localStorage.removeItem(SESSION_KEY);
 };
 
+// ─── Server API ───────────────────────────────────────────────────────────────
+const API_URL = 'https://cskwt.com/teamwork-api/api.php';
+const API_KEY = 'tw_Cs9kWt2026xTeAmWoRk';
+
+const serverLoad = async (): Promise<AppState | null> => {
+  try {
+    const res = await fetch(API_URL, {
+      headers: { 'X-API-Key': API_KEY },
+    });
+    if (!res.ok) return null;
+    const data = await res.json();
+    if (data && data.departments?.length) return data as AppState;
+    return null;
+  } catch { return null; }
+};
+
+const serverSave = async (state: AppState): Promise<boolean> => {
+  try {
+    const res = await fetch(API_URL, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-API-Key': API_KEY,
+      },
+      body: JSON.stringify({ ...state, currentUser: null }),
+    });
+    return res.ok;
+  } catch { return false; }
+};
+
+// ─── Local fallback (IndexedDB) ───────────────────────────────────────────────
 const DB_KEY = 'teamwork_app_data_v5';
 const OLD_LS_KEYS = ['teamwork_app_data_v4', 'teamwork_app_data_v3', 'teamwork_app_data_v2', 'teamwork_app_data'];
 
@@ -43,56 +75,58 @@ const getDefaultState = (): AppState => ({
   notifications: [],
 });
 
-// Migrate old localStorage data to IndexedDB
 const migrateFromLocalStorage = (): AppState | null => {
   for (const key of OLD_LS_KEYS) {
     try {
       const raw = localStorage.getItem(key);
       if (raw) {
         const parsed = JSON.parse(raw);
-        if (parsed?.departments?.length) {
-          console.log(`Migrating data from ${key} to IndexedDB`);
-          return { ...parsed, currentUser: null };
-        }
+        if (parsed?.departments?.length) return { ...parsed, currentUser: null };
       }
     } catch { /* skip */ }
   }
   return null;
 };
 
+// ─── Public API ───────────────────────────────────────────────────────────────
 export const loadState = async (): Promise<AppState> => {
+  // 1. Try server first
+  const fromServer = await serverLoad();
+  if (fromServer) {
+    return { ...getDefaultState(), ...fromServer, currentUser: null, notifications: fromServer.notifications || [] };
+  }
+
+  // 2. Fall back to IndexedDB (offline / first run)
   try {
-    // Try IndexedDB first
-    const state = await localforage.getItem<AppState>(DB_KEY);
-    if (state && typeof state === 'object' && (state as any).departments?.length) {
-      return {
-        ...getDefaultState(),
-        ...(state as any),
-        currentUser: null,
-        notifications: (state as any).notifications || [],
-      };
-    }
-    // Fall back to localStorage migration
-    const migrated = migrateFromLocalStorage();
-    if (migrated) {
-      const full = { ...getDefaultState(), ...migrated, currentUser: null, notifications: [] };
-      await localforage.setItem(DB_KEY, full);
+    const local = await localforage.getItem<AppState>(DB_KEY);
+    if (local && (local as any).departments?.length) {
+      const full = { ...getDefaultState(), ...(local as any), currentUser: null, notifications: (local as any).notifications || [] };
+      // Push local data to server (migration)
+      serverSave(full);
       return full;
     }
-    return getDefaultState();
-  } catch {
-    const migrated = migrateFromLocalStorage();
-    if (migrated) return { ...getDefaultState(), ...migrated, currentUser: null, notifications: [] };
-    return getDefaultState();
+  } catch { /* ignore */ }
+
+  // 3. Try old localStorage keys
+  const migrated = migrateFromLocalStorage();
+  if (migrated) {
+    const full = { ...getDefaultState(), ...migrated, currentUser: null, notifications: [] };
+    serverSave(full);
+    return full;
   }
+
+  return getDefaultState();
 };
 
 export const saveState = async (state: AppState): Promise<void> => {
-  try {
-    const toSave = { ...state, currentUser: null };
-    await localforage.setItem(DB_KEY, toSave);
-  } catch (err) {
-    console.error('Failed to save state:', err);
+  const toSave = { ...state, currentUser: null };
+
+  // Save to server (primary)
+  const saved = await serverSave(toSave);
+
+  // If server unavailable, keep local backup
+  if (!saved) {
+    try { await localforage.setItem(DB_KEY, toSave); } catch { /* ignore */ }
   }
 };
 

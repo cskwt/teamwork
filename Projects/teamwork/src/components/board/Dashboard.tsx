@@ -5,7 +5,7 @@ import {
 } from 'recharts';
 import { Package, CheckCircle, Clock, AlertTriangle, TrendingUp } from 'lucide-react';
 import { useApp } from '../../contexts/AppContext';
-import { priorityConfig, statusConfig, formatDate, isOverdue } from '../../utils/helpers';
+import { priorityConfig, getColumnStatus, formatDate, isOverdue } from '../../utils/helpers';
 import Header from '../layout/Header';
 
 interface DashboardProps {
@@ -206,7 +206,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onNavigate, onSelectDept }) => {
               <tbody>
                 {recentOrders.map((o) => {
                   const dept = departments.find((d) => d.id === o.departmentId);
-                  const st = statusConfig[o.status] || statusConfig['new'];
+                  const st = getColumnStatus(o, departments);
                   const pr = priorityConfig[o.priority] || priorityConfig['medium'];
                   const overdue = isOverdue(o.dueDate) && o.status !== 'done';
                   return (

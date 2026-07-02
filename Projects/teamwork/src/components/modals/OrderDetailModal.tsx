@@ -6,7 +6,7 @@ import {
 } from 'lucide-react';
 import { Order, Department, OrderPriority, OrderStatus } from '../../types';
 import { useApp } from '../../contexts/AppContext';
-import { priorityConfig, statusConfig, formatDate, generateId } from '../../utils/helpers';
+import { priorityConfig, getColumnStatus, formatDate, generateId } from '../../utils/helpers';
 
 interface OrderDetailModalProps {
   order: Order;
@@ -102,7 +102,7 @@ const OrderDetailModal: React.FC<OrderDetailModalProps> = ({ order, onClose, dep
   };
 
   const priority = priorityConfig[editing ? editData.priority : currentOrder.priority] || priorityConfig['medium'];
-  const status   = statusConfig[editing ? editData.status : currentOrder.status] || statusConfig['new'];
+  const status   = getColumnStatus(currentOrder, departments);
 
   const assignedUsers = users.filter((u) => currentOrder.assignedUsers?.includes(u.id));
 
@@ -129,13 +129,15 @@ const OrderDetailModal: React.FC<OrderDetailModalProps> = ({ order, onClose, dep
 
   const handleMarkDone = () => {
     if (!window.confirm('هل أنت متأكد من انتهاء الطلبية؟\nسيتم نقلها تلقائياً إلى قسم التسليم.')) return;
+    const completedAt = new Date().toISOString();
     const deliveryDept = departments.find((d) => d.name === 'قسم التسليم');
     if (deliveryDept) {
       const fromDept = departments.find((d) => d.id === currentOrder.departmentId)?.name || '';
+      dispatch({ type: 'UPDATE_ORDER', payload: { ...currentOrder, completedAt, updatedAt: completedAt } });
       dispatch({ type: 'MOVE_ORDER', payload: { orderId: order.id, status: 'new', departmentId: deliveryDept.id, triggerUserId: currentUser?.id } });
       addHistoryEntry(order.id, 'تم الانتهاء ونقل الطلبية إلى قسم التسليم', fromDept, deliveryDept.name);
     } else {
-      const updated = { ...currentOrder, status: 'done' as OrderStatus, updatedAt: new Date().toISOString() };
+      const updated = { ...currentOrder, completedAt, updatedAt: completedAt };
       dispatch({ type: 'UPDATE_ORDER', payload: updated });
       addHistoryEntry(order.id, 'تم الانتهاء من الطلبية');
     }
@@ -218,6 +220,9 @@ const OrderDetailModal: React.FC<OrderDetailModalProps> = ({ order, onClose, dep
     <div className="modal-overlay" onClick={onClose}>
       <div className="modal-panel modal-xl" onClick={(e) => e.stopPropagation()}>
 
+        {/* زر الإغلاق في الزاوية */}
+        <button className="modal-close-corner" onClick={onClose} title="إغلاق"><X size={18} /></button>
+
         {/* Header */}
         <div className="modal-header">
           <div className="modal-header-info">
@@ -226,7 +231,7 @@ const OrderDetailModal: React.FC<OrderDetailModalProps> = ({ order, onClose, dep
             <span className="badge" style={{ background: priority.bg, color: priority.color }}>{priority.label}</span>
           </div>
           <div className="modal-header-actions">
-            {currentOrder.status !== 'done' && !editing && (
+            {!currentOrder.completedAt && !editing && (
               <button className="btn-done" onClick={handleMarkDone}>
                 ✓ تم الانتهاء
               </button>
@@ -258,7 +263,6 @@ const OrderDetailModal: React.FC<OrderDetailModalProps> = ({ order, onClose, dep
             {currentUser?.role === 'admin' && (
               <button className="icon-btn icon-danger" onClick={handleDelete} title="حذف"><Trash2 size={15} /></button>
             )}
-            <button className="icon-btn" onClick={onClose}><X size={18} /></button>
           </div>
         </div>
 

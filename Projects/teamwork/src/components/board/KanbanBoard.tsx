@@ -118,11 +118,22 @@ const KanbanBoard: React.FC<KanbanBoardProps> = ({ department, onBack }) => {
     // Order move between columns
     if (!activeId.startsWith('col::')) {
       const orderId = activeId;
-      const targetColId = overId.startsWith('col::') ? overId.replace('col::', '') : overId;
       const order = orders.find((o) => o.id === orderId);
       if (!order) return;
+
+      // إذا وقع على عمود مباشرة
+      let targetColId = overId.startsWith('col::') ? overId.replace('col::', '') : null;
+
+      // إذا وقع فوق طلبية موجودة → استخرج عمودها
+      if (!targetColId) {
+        const overOrder = deptOrders.find((o) => o.id === overId);
+        if (overOrder) targetColId = overOrder.status;
+      }
+
+      if (!targetColId) return;
       const isCol = columns.some((c) => c.id === targetColId);
       if (!isCol) return;
+
       if (order.status !== targetColId) {
         const fromLabel = columns.find((c) => c.id === order.status)?.title || order.status;
         const toLabel = columns.find((c) => c.id === targetColId)?.title || targetColId;

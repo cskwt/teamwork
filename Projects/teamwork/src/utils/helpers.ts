@@ -1,4 +1,4 @@
-import { OrderPriority, OrderStatus } from '../types';
+import { OrderPriority, OrderStatus, Order, Department } from '../types';
 
 export const formatDate = (dateStr: string): string => {
   return new Date(dateStr).toLocaleString('en-GB', {
@@ -49,4 +49,21 @@ export const getInitials = (name: string): string => {
 export const isOverdue = (dueDate?: string): boolean => {
   if (!dueDate) return false;
   return new Date(dueDate) < new Date();
+};
+
+// يعيد اسم ولون العمود الذي تنتمي إليه الطلبية
+export const getColumnStatus = (
+  order: Order,
+  departments: Department[]
+): { label: string; color: string; bg: string } => {
+  const dept = departments.find((d) => d.id === order.departmentId);
+  const col = dept?.columns.find((c) => c.id === order.status);
+  if (col) {
+    return {
+      label: col.title,
+      color: col.color,
+      bg: col.color + '22',
+    };
+  }
+  return { label: order.status, color: '#6366f1', bg: '#eef2ff' };
 };
