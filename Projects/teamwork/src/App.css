@@ -932,7 +932,7 @@ textarea.form-input { padding: 10px 12px; resize: vertical; color: #111827; min-
 }
 .modal-heading { font-size: 15px; font-weight: 700; }
 .modal-header-info { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; flex: 1; }
-.modal-header-actions { display: flex; align-items: center; gap: 6px; direction: ltr; }
+.modal-header-actions { display: flex; align-items: center; gap: 6px; }
 .modal-order-id { font-size: 11px; color: var(--text-muted); font-family: monospace; }
 .modal-status, .modal-priority { font-size: 11px; font-weight: 700; padding: 3px 10px; border-radius: 20px; }
 .modal-title-section { padding: 14px 20px 0; }
