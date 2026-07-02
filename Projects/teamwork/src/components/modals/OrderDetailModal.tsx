@@ -260,8 +260,8 @@ const OrderDetailModal: React.FC<OrderDetailModalProps> = ({ order, onClose, dep
             {currentUser?.role === 'admin' && (
               <button className="icon-btn icon-danger" onClick={handleDelete} title="حذف"><Trash2 size={15} /></button>
             )}
+            <button className="modal-close-corner" onClick={onClose} title="إغلاق"><X size={16} /></button>
           </div>
-          <button className="modal-close-corner" onClick={onClose} title="إغلاق"><X size={18} /></button>
         </div>
 
         {/* Title */}
