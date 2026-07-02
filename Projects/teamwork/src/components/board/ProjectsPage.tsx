@@ -126,7 +126,7 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ onOpenBoard }) => {
           const allDeptOrders = orders.filter((o) => !o.deletedAt && o.departmentId === dept.id && o.status !== 'cancelled');
 
           const colStats = [...cols]
-            .sort((a, b) => a.order - b.order)
+            .sort((a, b) => b.order - a.order)
             .map((col) => ({
               ...col,
               count: allDeptOrders.filter((o) => o.status === col.id).length,
