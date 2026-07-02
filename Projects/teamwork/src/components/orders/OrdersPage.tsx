@@ -97,21 +97,16 @@ const OrdersPage: React.FC<OrdersPageProps> = ({ archiveMode = false }) => {
           <table className="orders-table full-table">
             <thead>
               <tr>
-                <th>رقم الطلبية</th>
-                <th>العنوان</th>
-                <th>العميل</th>
+                <th>رقم الفاتورة</th>
+                <th>اسم العميل</th>
+                <th>تاريخ استلام الطلب</th>
                 <th>القسم المختص</th>
-                <th>تاريخ الإنشاء</th>
                 <th>تاريخ التسليم</th>
-                <th>الحالة</th>
-                <th>الأولوية</th>
               </tr>
             </thead>
             <tbody>
               {sorted.map((o) => {
                 const dept = departments.find((d) => d.id === o.departmentId);
-                const st = getColumnStatus(o, departments);
-                const pr = priorityConfig[o.priority];
                 const overdue = isOverdue(o.dueDate) && o.status !== 'done';
                 return (
                   <tr
@@ -120,24 +115,21 @@ const OrdersPage: React.FC<OrdersPageProps> = ({ archiveMode = false }) => {
                     onClick={() => setSelectedOrder(o)}
                   >
                     <td className="row-num">{o.orderNumber || '—'}</td>
-                    <td className="order-title-cell">{o.title}</td>
                     <td>{o.clientName || <span className="muted">—</span>}</td>
+                    <td className="time-cell">{formatDate(o.createdAt)}</td>
                     <td>
                       <span className="dept-chip" style={{ background: dept?.color + '22', color: dept?.color }}>
                         {dept?.name}
                       </span>
                     </td>
-                    <td className="time-cell">{formatDate(o.createdAt)}</td>
                     <td className={overdue ? 'overdue-text' : ''}>
                       {o.dueDate ? formatDate(o.dueDate) : <span className="muted">—</span>}
                     </td>
-                    <td><span className="badge" style={{ background: st.bg, color: st.color }}>{st.label}</span></td>
-                    <td><span className="badge" style={{ background: pr.bg, color: pr.color }}>{pr.label}</span></td>
                   </tr>
                 );
               })}
               {sorted.length === 0 && (
-                <tr><td colSpan={8} className="empty-row">لا توجد طلبيات مطابقة للبحث</td></tr>
+                <tr><td colSpan={5} className="empty-row">لا توجد طلبيات مطابقة للبحث</td></tr>
               )}
             </tbody>
           </table>
