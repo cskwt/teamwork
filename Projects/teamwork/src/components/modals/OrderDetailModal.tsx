@@ -228,7 +228,6 @@ const OrderDetailModal: React.FC<OrderDetailModalProps> = ({ order, onClose, dep
             <span className="badge" style={{ background: priority.bg, color: priority.color }}>{priority.label}</span>
           </div>
           <div className="modal-header-actions">
-            <button className="modal-close-corner" onClick={onClose} title="إغلاق"><X size={16} /></button>
             {currentUser?.role === 'admin' && (
               <button className="icon-btn icon-danger" onClick={handleDelete} title="حذف"><Trash2 size={15} /></button>
             )}
@@ -256,6 +255,7 @@ const OrderDetailModal: React.FC<OrderDetailModalProps> = ({ order, onClose, dep
                 setEditing(true);
               }}><Pencil size={14} /> تعديل</button>
             )}
+            <button className="modal-close-corner" onClick={onClose} title="إغلاق"><X size={15} /></button>
             {!currentOrder.completedAt && !editing && (
               <button className="btn-done" onClick={handleMarkDone}>
                 ✓ تم الانتهاء
