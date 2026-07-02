@@ -458,9 +458,8 @@ textarea.form-input { padding: 10px 12px; resize: vertical; color: #111827; min-
 
 .dpc-stats {
   display: grid; grid-template-columns: repeat(3, 1fr);
-  gap: 6px; margin-bottom: 12px; direction: ltr;
+  gap: 6px; margin-bottom: 12px;
 }
-.dpc-stat { direction: rtl; }
 .dpc-stat {
   display: flex; flex-direction: column; align-items: center; gap: 3px;
   padding: 10px 6px; background: #f9fafb; border-radius: var(--radius-sm);
