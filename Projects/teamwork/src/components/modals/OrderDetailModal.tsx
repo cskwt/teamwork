@@ -220,9 +220,6 @@ const OrderDetailModal: React.FC<OrderDetailModalProps> = ({ order, onClose, dep
     <div className="modal-overlay" onClick={onClose}>
       <div className="modal-panel modal-xl" onClick={(e) => e.stopPropagation()}>
 
-        {/* زر الإغلاق في الزاوية */}
-        <button className="modal-close-corner" onClick={onClose} title="إغلاق"><X size={18} /></button>
-
         {/* Header */}
         <div className="modal-header">
           <div className="modal-header-info">
@@ -263,6 +260,7 @@ const OrderDetailModal: React.FC<OrderDetailModalProps> = ({ order, onClose, dep
             {currentUser?.role === 'admin' && (
               <button className="icon-btn icon-danger" onClick={handleDelete} title="حذف"><Trash2 size={15} /></button>
             )}
+            <button className="modal-close-corner" onClick={onClose} title="إغلاق"><X size={18} /></button>
           </div>
         </div>
 

@@ -112,9 +112,9 @@ const AddOrderModal: React.FC<AddOrderModalProps> = ({ departmentId, onClose }) 
   return (
     <div className="modal-overlay" onClick={onClose}>
       <div className="modal-panel modal-xl" onClick={(e) => e.stopPropagation()}>
-        <button className="modal-close-corner" onClick={onClose} title="إغلاق"><X size={18} /></button>
         <div className="modal-header">
           <h3 className="modal-heading">إضافة طلبية جديدة</h3>
+          <button className="modal-close-corner" onClick={onClose} title="إغلاق"><X size={18} /></button>
         </div>
 
         <form onSubmit={handleSubmit}>
