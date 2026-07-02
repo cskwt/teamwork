@@ -244,6 +244,7 @@ interface AppContextType {
   logout: () => void;
   addHistoryEntry: (orderId: string, action: string, from?: string, to?: string) => void;
   loaded: boolean;
+  refreshData: () => Promise<void>;
 }
 
 const AppContext = createContext<AppContextType | null>(null);
@@ -296,6 +297,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const logout = () => dispatch({ type: 'LOGOUT' });
 
+  const refreshData = async () => {
+    const currentUser = state.currentUser;
+    const saved = await loadState();
+    dispatch({ type: 'INIT_STATE', payload: saved });
+    if (currentUser) dispatch({ type: 'LOGIN', payload: currentUser });
+  };
+
   const addHistoryEntry = (orderId: string, action: string, from?: string, to?: string) => {
     if (!state.currentUser) return;
     const entry: OrderHistoryEntry = {
@@ -311,7 +319,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   return (
-    <AppContext.Provider value={{ state, dispatch, login, logout, addHistoryEntry, loaded }}>
+    <AppContext.Provider value={{ state, dispatch, login, logout, addHistoryEntry, loaded, refreshData }}>
       {children}
     </AppContext.Provider>
   );

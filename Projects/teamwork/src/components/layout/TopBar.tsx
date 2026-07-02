@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Home, Bell, Search, X, MessageSquare, Plus, Pencil, UserCheck } from 'lucide-react';
+import { Home, Bell, Search, X, MessageSquare, Plus, Pencil, UserCheck, RefreshCw } from 'lucide-react';
 import { useApp } from '../../contexts/AppContext';
 import { formatDate, priorityConfig, statusConfig } from '../../utils/helpers';
 
@@ -8,7 +8,8 @@ interface TopBarProps {
 }
 
 const TopBar: React.FC<TopBarProps> = ({ onNavigate }) => {
-  const { state, dispatch } = useApp();
+  const { state, dispatch, refreshData } = useApp();
+  const [refreshing, setRefreshing] = useState(false);
   const { orders, departments, currentUser, notifications: allNotifs } = state;
   const [showNotif, setShowNotif] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
@@ -66,6 +67,18 @@ const TopBar: React.FC<TopBarProps> = ({ onNavigate }) => {
         <button className="topbar-icon-btn" onClick={() => onNavigate('dashboard')} title="الرئيسية">
           <Home size={18} />
           <span>الرئيسية</span>
+        </button>
+        <button
+          className="topbar-icon-btn"
+          title="تحديث البيانات"
+          onClick={async () => {
+            setRefreshing(true);
+            await refreshData();
+            setTimeout(() => setRefreshing(false), 600);
+          }}
+          style={{ opacity: refreshing ? 0.5 : 1 }}
+        >
+          <RefreshCw size={17} style={{ transition: 'transform 0.6s', transform: refreshing ? 'rotate(360deg)' : 'none' }} />
         </button>
         <div className="notif-wrap" ref={notifRef}>
           <button className="topbar-icon-btn notif-btn" onClick={handleOpenNotif} title="الإشعارات">
