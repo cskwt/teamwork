@@ -2,6 +2,30 @@ import localforage from 'localforage';
 import { AppState } from '../types';
 import { INITIAL_USERS, INITIAL_DEPARTMENTS, INITIAL_ORDERS } from '../data/initialData';
 
+const SESSION_KEY = 'teamwork_session';
+const SESSION_DURATION = 2 * 60 * 60 * 1000; // ساعتان بالميلي ثانية
+
+export const saveSession = (userId: string) => {
+  localStorage.setItem(SESSION_KEY, JSON.stringify({ userId, loginTime: Date.now() }));
+};
+
+export const loadSession = (): string | null => {
+  try {
+    const raw = localStorage.getItem(SESSION_KEY);
+    if (!raw) return null;
+    const { userId, loginTime } = JSON.parse(raw);
+    if (Date.now() - loginTime > SESSION_DURATION) {
+      localStorage.removeItem(SESSION_KEY);
+      return null;
+    }
+    return userId;
+  } catch { return null; }
+};
+
+export const clearSession = () => {
+  localStorage.removeItem(SESSION_KEY);
+};
+
 const DB_KEY = 'teamwork_app_data_v5';
 const OLD_LS_KEYS = ['teamwork_app_data_v4', 'teamwork_app_data_v3', 'teamwork_app_data_v2', 'teamwork_app_data'];
 

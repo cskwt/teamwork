@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useReducer, useEffect, useState } from 'react';
 import { AppState, User, Department, Order, OrderComment, OrderHistoryEntry, KanbanColumn, AppNotification } from '../types';
-import { loadState, saveState } from '../utils/storage';
+import { loadState, saveState, saveSession, loadSession, clearSession } from '../utils/storage';
 import { generateId } from '../utils/helpers';
 import { INITIAL_USERS, INITIAL_DEPARTMENTS, INITIAL_ORDERS } from '../data/initialData';
 
@@ -275,6 +275,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       });
       dispatch({ type: 'INIT_STATE', payload: { ...saved, departments: migratedDepts } });
       dispatch({ type: 'PURGE_OLD_TRASH' });
+
+      // استعادة الجلسة إذا كانت صالحة
+      const sessionUserId = loadSession();
+      if (sessionUserId) {
+        const sessionUser = saved.users.find((u) => u.id === sessionUserId);
+        if (sessionUser) dispatch({ type: 'LOGIN', payload: sessionUser });
+      }
+
       setLoaded(true);
     });
   }, []);
@@ -286,16 +294,20 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const login = (username: string, password: string): boolean => {
     const user = state.users.find(
-      (u) => u.username === username && u.password === password
+      (u: User) => u.username === username && u.password === password
     );
     if (user) {
       dispatch({ type: 'LOGIN', payload: user });
+      saveSession(user.id);
       return true;
     }
     return false;
   };
 
-  const logout = () => dispatch({ type: 'LOGOUT' });
+  const logout = () => {
+    clearSession();
+    dispatch({ type: 'LOGOUT' });
+  };
 
   const refreshData = async () => {
     const currentUser = state.currentUser;
