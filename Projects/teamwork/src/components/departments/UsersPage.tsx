@@ -231,6 +231,7 @@ const UsersPage: React.FC = () => {
                 <div className="form-group">
                   <label className="form-label">الدور</label>
                   <select className="form-input" value={role} onChange={(e) => setRole(e.target.value as UserRole)}>
+                    <option value="member">عضو</option>
                     <option value="manager">مدير قسم</option>
                     <option value="admin">مدير النظام</option>
                   </select>
