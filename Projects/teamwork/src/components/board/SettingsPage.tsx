@@ -1,5 +1,5 @@
 import React, { useState, useRef } from 'react';
-import { User, Lock, Download, Upload, Trash2, Camera, Save, Eye, EyeOff, AlertTriangle } from 'lucide-react';
+import { User, Lock, Download, Upload, Trash2, Camera, Save, Eye, EyeOff, AlertTriangle, RefreshCw } from 'lucide-react';
 import { useApp } from '../../contexts/AppContext';
 import Header from '../layout/Header';
 import { clearState, saveState } from '../../utils/storage';
@@ -58,6 +58,18 @@ const SettingsPage: React.FC = () => {
     setOldPassword(''); setNewPassword(''); setConfirmPassword('');
     setPassMsg('تم تغيير كلمة المرور بنجاح ✓');
     setTimeout(() => setPassMsg(''), 3000);
+  };
+
+  const [syncing, setSyncing] = useState(false);
+  const [syncMsg, setSyncMsg] = useState('');
+
+  const handleSync = async () => {
+    setSyncing(true);
+    setSyncMsg('');
+    await saveState(state);
+    setSyncing(false);
+    setSyncMsg('تم مزامنة البيانات مع السيرفر بنجاح ✓');
+    setTimeout(() => setSyncMsg(''), 4000);
   };
 
   const handleExport = () => {
@@ -170,6 +182,16 @@ const SettingsPage: React.FC = () => {
               <h3>إدارة البيانات</h3>
             </div>
             <div className="settings-form">
+              <div className="settings-data-item">
+                <div>
+                  <p className="settings-data-title">مزامنة مع السيرفر</p>
+                  <p className="settings-data-desc">رفع بيانات هذا الجهاز إلى السيرفر لتظهر على جميع الأجهزة</p>
+                  {syncMsg && <p style={{ color: '#16a34a', fontSize: 12, marginTop: 4 }}>{syncMsg}</p>}
+                </div>
+                <button className="btn-primary" onClick={handleSync} disabled={syncing}>
+                  <RefreshCw size={15} className={syncing ? 'spin' : ''} /> {syncing ? 'جاري المزامنة...' : 'مزامنة'}
+                </button>
+              </div>
               <div className="settings-data-item">
                 <div>
                   <p className="settings-data-title">تصدير البيانات</p>
