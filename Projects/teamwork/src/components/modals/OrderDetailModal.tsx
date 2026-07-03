@@ -253,7 +253,7 @@ const OrderDetailModal: React.FC<OrderDetailModalProps> = ({ order, onClose, dep
               }}><Pencil size={14} /> تعديل</button>
             )}
             {currentUser?.role === 'admin' && (
-              <button className="icon-btn icon-danger" onClick={handleDelete} title="حذف"><Trash2 size={15} /></button>
+              <button className="modal-delete-btn" onClick={handleDelete} title="حذف"><Trash2 size={15} /></button>
             )}
             {!currentOrder.completedAt && !editing && (
               <button className="btn-done" onClick={handleMarkDone}>
