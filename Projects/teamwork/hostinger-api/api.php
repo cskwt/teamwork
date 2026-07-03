@@ -27,8 +27,8 @@ if ($providedKey !== API_KEY) {
 
 // Database configuration
 $host    = 'localhost';
-$db      = 'u805159754_teamwork';
-$user    = 'u805159754_teamwork';
+$db      = 'u805159754_tw';
+$user    = 'u805159754_tw';
 $pass    = 'Teamwork@2026';
 $charset = 'utf8mb4';
 
