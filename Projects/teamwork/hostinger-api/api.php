@@ -29,7 +29,7 @@ if ($providedKey !== API_KEY) {
 $host    = 'localhost';
 $db      = 'u805159754_teamwork';
 $user    = 'u805159754_teamwork';
-$pass    = 'Ahmad986';
+$pass    = 'Teamwork@2026';
 $charset = 'utf8mb4';
 
 try {
@@ -41,7 +41,7 @@ try {
     );
 } catch (\PDOException $e) {
     http_response_code(500);
-    echo json_encode(['error' => 'Database connection failed']);
+    echo json_encode(['error' => 'Database connection failed', 'detail' => $e->getMessage()]);
     exit();
 }
 
