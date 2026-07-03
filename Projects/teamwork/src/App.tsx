@@ -11,6 +11,7 @@ import DepartmentsPage from './components/departments/DepartmentsPage';
 import UsersPage from './components/departments/UsersPage';
 import TrashPage from './components/board/TrashPage';
 import SettingsPage from './components/board/SettingsPage';
+import NotificationPopup from './components/layout/NotificationPopup';
 import './App.css';
 
 const AppInner: React.FC = () => {
@@ -69,6 +70,7 @@ const AppInner: React.FC = () => {
 
   return (
     <div className="app-root">
+      <NotificationPopup />
       <TopBar onNavigate={handleNavigate} />
       <div className="app-body">
         {/* Sidebar on the RIGHT (RTL) */}

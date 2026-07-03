@@ -1295,6 +1295,41 @@ textarea.form-input { padding: 10px 12px; resize: vertical; color: #111827; min-
 .notif-panel { position: fixed; top: 56px; left: 16px; width: 320px; background: #fff; border: 1px solid #e5e7eb; border-radius: 12px; box-shadow: 0 8px 30px rgba(0,0,0,.12); z-index: 1000; overflow: hidden; max-height: calc(100vh - 80px); overflow-y: auto; }
 .notif-panel-header { display: flex; align-items: center; gap: 8px; padding: 14px 16px; border-bottom: 1px solid #f3f4f6; font-size: 14px; font-weight: 700; color: #111827; }
 .notif-count-badge { background: #ef4444; color: #fff; font-size: 10px; font-weight: 700; border-radius: 99px; padding: 1px 6px; margin-right: auto; }
+
+/* Notification Popup */
+.notif-popup-overlay {
+  position: fixed; inset: 0; z-index: 9999;
+  display: flex; align-items: center; justify-content: center;
+  pointer-events: none;
+}
+.notif-popup {
+  background: #fff; border-radius: 14px;
+  box-shadow: 0 8px 40px rgba(0,0,0,.18);
+  padding: 20px 24px; width: 320px; max-width: 90vw;
+  direction: rtl; pointer-events: all;
+  animation: popupIn .25s ease;
+}
+@keyframes popupIn {
+  from { transform: scale(.85); opacity: 0; }
+  to   { transform: scale(1);   opacity: 1; }
+}
+.notif-popup-header {
+  display: flex; align-items: center; gap: 8px;
+  margin-bottom: 14px;
+}
+.notif-popup-header span { font-size: 14px; font-weight: 700; color: #111827; flex: 1; }
+.notif-popup-close { background: none; border: none; cursor: pointer; color: #9ca3af; padding: 2px; display: flex; }
+.notif-popup-close:hover { color: #374151; }
+.notif-popup-body { display: flex; align-items: flex-start; gap: 10px; margin-bottom: 10px; }
+.notif-popup-icon { font-size: 22px; flex-shrink: 0; }
+.notif-popup-msg { font-size: 14px; color: #374151; margin: 0; line-height: 1.6; }
+.notif-popup-client { font-size: 12px; color: #6b7280; margin: 0 0 14px; }
+.notif-popup-btn {
+  width: 100%; padding: 10px; border-radius: 8px; border: none;
+  background: #6366f1; color: #fff; font-size: 14px; font-weight: 700;
+  cursor: pointer; transition: background .15s;
+}
+.notif-popup-btn:hover { background: #4f46e5; }
 .notif-empty { display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 28px 16px; color: #9ca3af; }
 .notif-empty p { font-size: 13px; font-weight: 600; color: #374151; margin: 0; }
 .notif-empty span { font-size: 12px; }
