@@ -8,7 +8,6 @@ const NotificationPopup: React.FC = () => {
   const { currentUser, notifications } = state;
   const [popup, setPopup] = useState<AppNotification | null>(null);
   const prevCountRef = useRef(0);
-  const timerRef = useRef<NodeJS.Timeout | null>(null);
 
   useEffect(() => {
     if (!currentUser) return;
@@ -19,9 +18,6 @@ const NotificationPopup: React.FC = () => {
       // عرض آخر إشعار جديد
       const latest = myNotifs[myNotifs.length - 1];
       setPopup(latest);
-
-      if (timerRef.current) clearTimeout(timerRef.current);
-      timerRef.current = setTimeout(() => setPopup(null), 6000);
     }
 
     prevCountRef.current = count;
@@ -29,7 +25,6 @@ const NotificationPopup: React.FC = () => {
 
   const handleDismiss = () => {
     setPopup(null);
-    if (timerRef.current) clearTimeout(timerRef.current);
     if (currentUser) dispatch({ type: 'MARK_NOTIFICATIONS_READ', payload: currentUser.id });
   };
 
