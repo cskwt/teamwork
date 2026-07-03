@@ -228,12 +228,6 @@ const OrderDetailModal: React.FC<OrderDetailModalProps> = ({ order, onClose, dep
             <span className="badge" style={{ background: priority.bg, color: priority.color }}>{priority.label}</span>
           </div>
           <div className="modal-header-actions">
-            {!currentOrder.completedAt && !editing && (
-              <button className="btn-done" onClick={handleMarkDone}>
-                ✓ تم الانتهاء
-              </button>
-            )}
-            <button className="modal-close-corner" onClick={onClose} title="إغلاق"><X size={15} /></button>
             {editing ? (
               <>
                 <button className="btn-primary btn-sm" onClick={handleSaveEdit}><Save size={14} /> حفظ</button>
@@ -261,6 +255,12 @@ const OrderDetailModal: React.FC<OrderDetailModalProps> = ({ order, onClose, dep
             {currentUser?.role === 'admin' && (
               <button className="icon-btn icon-danger" onClick={handleDelete} title="حذف"><Trash2 size={15} /></button>
             )}
+            {!currentOrder.completedAt && !editing && (
+              <button className="btn-done" onClick={handleMarkDone}>
+                ✓ تم الانتهاء
+              </button>
+            )}
+            <button className="modal-close-corner" onClick={onClose} title="إغلاق"><X size={15} /></button>
           </div>
         </div>
 
