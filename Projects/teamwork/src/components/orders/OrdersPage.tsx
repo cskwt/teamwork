@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { Search, Filter } from 'lucide-react';
 import { useApp } from '../../contexts/AppContext';
 import { OrderStatus, OrderPriority } from '../../types';
-import { priorityConfig, getColumnStatus, formatDate, isOverdue } from '../../utils/helpers';
+import { formatDate, isOverdue } from '../../utils/helpers';
 import Header from '../layout/Header';
 import AddOrderModal from '../modals/AddOrderModal';
 import OrderDetailModal from '../modals/OrderDetailModal';
