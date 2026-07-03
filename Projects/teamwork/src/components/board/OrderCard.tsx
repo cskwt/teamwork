@@ -10,6 +10,7 @@ interface OrderCardProps {
   order: Order;
   onClick: () => void;
   isDragging?: boolean;
+  canDrag?: boolean;
 }
 
 const CircleProgress: React.FC<{ value: number }> = ({ value }) => {
@@ -28,9 +29,10 @@ const CircleProgress: React.FC<{ value: number }> = ({ value }) => {
   );
 };
 
-const OrderCard: React.FC<OrderCardProps> = ({ order, onClick, isDragging }) => {
+const OrderCard: React.FC<OrderCardProps> = ({ order, onClick, isDragging, canDrag }) => {
   const { state } = useApp();
-  const { attributes, listeners, setNodeRef, transform, transition, isDragging: sortDragging } = useSortable({ id: order.id });
+  const isDragAllowed = canDrag !== undefined ? canDrag : state.currentUser?.role === 'admin';
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging: sortDragging } = useSortable({ id: order.id, disabled: !isDragAllowed });
 
   const style = {
     transform: CSS.Transform.toString(transform),
@@ -47,9 +49,9 @@ const OrderCard: React.FC<OrderCardProps> = ({ order, onClick, isDragging }) => 
     <div
       ref={setNodeRef}
       style={style}
-      {...attributes}
-      {...listeners}
-      className={`order-card ${isDragging ? 'card-dragging' : ''} ${overdue ? 'card-overdue' : ''}`}
+      {...(isDragAllowed ? attributes : {})}
+      {...(isDragAllowed ? listeners : {})}
+      className={`order-card ${isDragging ? 'card-dragging' : ''} ${overdue ? 'card-overdue' : ''} ${!isDragAllowed ? 'card-no-drag' : ''}`}
       onClick={(e) => { e.stopPropagation(); onClick(); }}
     >
       {overdue && (
