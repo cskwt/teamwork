@@ -45,13 +45,13 @@ const NotificationPopup: React.FC = () => {
           <span>إشعار جديد</span>
           <button className="notif-popup-close" onClick={handleDismiss}><X size={14} /></button>
         </div>
+        {popup.clientName && (
+          <p className="notif-popup-client">#{popup.orderNumber} — {popup.clientName}</p>
+        )}
         <div className="notif-popup-body">
           <span className="notif-popup-icon">{typeIcon[popup.type] || '🔔'}</span>
           <p className="notif-popup-msg">{popup.message}</p>
         </div>
-        {popup.clientName && (
-          <p className="notif-popup-client">#{popup.orderNumber} — {popup.clientName}</p>
-        )}
         <button className="notif-popup-btn" onClick={handleDismiss}>تم</button>
       </div>
     </div>
