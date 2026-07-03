@@ -2,7 +2,7 @@ import React, { useState, useRef } from 'react';
 import { User, Lock, Download, Upload, Trash2, Camera, Save, Eye, EyeOff, AlertTriangle } from 'lucide-react';
 import { useApp } from '../../contexts/AppContext';
 import Header from '../layout/Header';
-import { clearState } from '../../utils/storage';
+import { clearState, saveState } from '../../utils/storage';
 
 const SettingsPage: React.FC = () => {
   const { state, dispatch } = useApp();
@@ -75,12 +75,14 @@ const SettingsPage: React.FC = () => {
     const file = e.target.files?.[0];
     if (!file) return;
     const reader = new FileReader();
-    reader.onload = (ev) => {
+    reader.onload = async (ev) => {
       try {
         const data = JSON.parse(ev.target?.result as string);
         if (data.users && data.departments && data.orders) {
+          const newState = { ...state, ...data, currentUser: state.currentUser };
           dispatch({ type: 'INIT_STATE' as any, payload: { ...data, currentUser: null } });
-          alert('تم استيراد البيانات بنجاح. سيتم إعادة تحميل الصفحة.');
+          await saveState(newState);
+          alert('تم استيراد البيانات بنجاح وحفظها على السيرفر. سيتم إعادة تحميل الصفحة.');
           window.location.reload();
         } else { alert('الملف غير صالح'); }
       } catch { alert('خطأ في قراءة الملف'); }
