@@ -42,10 +42,12 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ onOpenBoard }) => {
 
   const isAdmin = currentUser?.role === 'admin';
 
-  const visibleDepts = isAdmin
+  const isManager = currentUser?.role === 'manager';
+
+  const visibleDepts = (isAdmin || isManager)
     ? departments
     : departments.filter(
-        (d) => d.managerId === currentUser?.id || d.id === currentUser?.departmentId
+        (d) => d.id === currentUser?.departmentId
       );
 
   const openAdd = () => {

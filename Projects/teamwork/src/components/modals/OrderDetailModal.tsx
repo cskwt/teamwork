@@ -208,12 +208,14 @@ const OrderDetailModal: React.FC<OrderDetailModalProps> = ({ order, onClose, dep
     }
   };
 
+  const canTransfer = currentUser?.role === 'admin';
+
   const tabs = [
     { id: 'details',  label: 'التفاصيل' },
     { id: 'files',    label: `الملفات (${(currentOrder.orderForms?.length || 0) + (currentOrder.invoice ? 1 : 0)})` },
     { id: 'chat',     label: `الدردشة (${currentOrder.comments.length})` },
     { id: 'history',  label: 'السجل' },
-    { id: 'transfer', label: 'نقل' },
+    ...(canTransfer ? [{ id: 'transfer' as const, label: 'نقل' }] : []),
   ] as const;
 
   return (
