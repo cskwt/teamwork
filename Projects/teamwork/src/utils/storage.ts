@@ -90,24 +90,36 @@ const migrateFromLocalStorage = (): AppState | null => {
 
 // ─── Public API ───────────────────────────────────────────────────────────────
 export const loadState = async (): Promise<AppState> => {
-  // 1. Try server first
-  const fromServer = await serverLoad();
+  // Load both sources in parallel
+  const [fromServer, localRaw] = await Promise.all([
+    serverLoad(),
+    localforage.getItem<AppState>(DB_KEY).catch(() => null),
+  ]);
+
+  const local = localRaw as AppState | null;
+  const serverOrders = fromServer?.orders?.length ?? 0;
+  const localOrders  = local?.orders?.length ?? 0;
+
+  // If local has MORE data than server → push local to server and use it
+  if (local && local.departments?.length && localOrders > serverOrders) {
+    const full = { ...getDefaultState(), ...local, currentUser: null, notifications: local.notifications || [] };
+    serverSave(full); // sync to server in background
+    return full;
+  }
+
+  // Server has equal or more data → use server
   if (fromServer) {
     return { ...getDefaultState(), ...fromServer, currentUser: null, notifications: fromServer.notifications || [] };
   }
 
-  // 2. Fall back to IndexedDB (offline / first run)
-  try {
-    const local = await localforage.getItem<AppState>(DB_KEY);
-    if (local && (local as any).departments?.length) {
-      const full = { ...getDefaultState(), ...(local as any), currentUser: null, notifications: (local as any).notifications || [] };
-      // Push local data to server (migration)
-      serverSave(full);
-      return full;
-    }
-  } catch { /* ignore */ }
+  // Fallback: local only
+  if (local && local.departments?.length) {
+    const full = { ...getDefaultState(), ...local, currentUser: null, notifications: local.notifications || [] };
+    serverSave(full);
+    return full;
+  }
 
-  // 3. Try old localStorage keys
+  // Last resort: old localStorage keys
   const migrated = migrateFromLocalStorage();
   if (migrated) {
     const full = { ...getDefaultState(), ...migrated, currentUser: null, notifications: [] };
