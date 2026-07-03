@@ -31,7 +31,11 @@ const CircleProgress: React.FC<{ value: number }> = ({ value }) => {
 
 const OrderCard: React.FC<OrderCardProps> = ({ order, onClick, isDragging, canDrag }) => {
   const { state } = useApp();
-  const isDragAllowed = canDrag !== undefined ? canDrag : state.currentUser?.role === 'admin';
+  const { currentUser } = state;
+  const isOwnDept = currentUser?.departmentId === order.departmentId;
+  const isDragAllowed = canDrag !== undefined ? canDrag :
+    currentUser?.role === 'admin' ||
+    (currentUser?.role === 'manager' && isOwnDept);
   const { attributes, listeners, setNodeRef, transform, transition, isDragging: sortDragging } = useSortable({ id: order.id, disabled: !isDragAllowed });
 
   const style = {

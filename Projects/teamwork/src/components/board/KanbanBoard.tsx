@@ -115,8 +115,9 @@ const KanbanBoard: React.FC<KanbanBoardProps> = ({ department, onBack }) => {
       return;
     }
 
-    // Order move between columns (admin only)
-    if (!activeId.startsWith('col::') && currentUser?.role !== 'admin') return;
+    // Block order moves for non-admin unless it's the manager's own department
+    const isOwnDept = currentUser?.departmentId === department.id;
+    if (!activeId.startsWith('col::') && currentUser?.role !== 'admin' && !(currentUser?.role === 'manager' && isOwnDept)) return;
 
     if (!activeId.startsWith('col::')) {
       const orderId = activeId;
