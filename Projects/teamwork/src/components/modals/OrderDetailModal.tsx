@@ -227,14 +227,17 @@ const OrderDetailModal: React.FC<OrderDetailModalProps> = ({ order, onClose, dep
             <span className="badge" style={{ background: status.bg, color: status.color }}>{status.label}</span>
             <span className="badge" style={{ background: priority.bg, color: priority.color }}>{priority.label}</span>
           </div>
-          <div className="modal-header-actions">
-            {currentUser?.role === 'admin' && (
-              <button className="icon-btn icon-danger" onClick={handleDelete} title="حذف"><Trash2 size={15} /></button>
+          <div className="modal-header-actions" style={{direction:'ltr'}}>
+            {!currentOrder.completedAt && !editing && (
+              <button className="btn-done" onClick={handleMarkDone}>
+                ✓ تم الانتهاء
+              </button>
             )}
+            <button className="modal-close-corner" onClick={onClose} title="إغلاق"><X size={15} /></button>
             {editing ? (
               <>
-                <button className="btn-secondary btn-sm" onClick={() => setEditing(false)}>إلغاء</button>
                 <button className="btn-primary btn-sm" onClick={handleSaveEdit}><Save size={14} /> حفظ</button>
+                <button className="btn-secondary btn-sm" onClick={() => setEditing(false)}>إلغاء</button>
               </>
             ) : (
               <button className="btn-secondary btn-sm" onClick={() => {
@@ -255,11 +258,8 @@ const OrderDetailModal: React.FC<OrderDetailModalProps> = ({ order, onClose, dep
                 setEditing(true);
               }}><Pencil size={14} /> تعديل</button>
             )}
-            <button className="modal-close-corner" onClick={onClose} title="إغلاق"><X size={15} /></button>
-            {!currentOrder.completedAt && !editing && (
-              <button className="btn-done" onClick={handleMarkDone}>
-                ✓ تم الانتهاء
-              </button>
+            {currentUser?.role === 'admin' && (
+              <button className="icon-btn icon-danger" onClick={handleDelete} title="حذف"><Trash2 size={15} /></button>
             )}
           </div>
         </div>
