@@ -18,6 +18,7 @@ const Sidebar: React.FC<SidebarProps> = ({ activePage, onNavigate }) => {
   const { currentUser } = state;
 
   const isAdmin = currentUser?.role === 'admin';
+  const isManager = currentUser?.role === 'manager';
 
   const navItems = [
     { id: 'dashboard', label: 'لوحة الإنجاز', icon: <BarChart2 size={18} /> },
@@ -80,6 +81,19 @@ const Sidebar: React.FC<SidebarProps> = ({ activePage, onNavigate }) => {
                 <span className="nav-icon-box">{item.icon}</span>
               </button>
             ))}
+          </>
+        )}
+
+        {isManager && (
+          <>
+            <div className="nav-divider" />
+            <button
+              className={`nav-item ${activePage === 'settings' ? 'active' : ''}`}
+              onClick={() => onNavigate('settings')}
+            >
+              <span>الإعدادات</span>
+              <span className="nav-icon-box"><Settings size={18} /></span>
+            </button>
           </>
         )}
       </nav>
