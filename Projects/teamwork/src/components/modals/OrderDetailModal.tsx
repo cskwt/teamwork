@@ -227,7 +227,7 @@ const OrderDetailModal: React.FC<OrderDetailModalProps> = ({ order, onClose, dep
             <span className="badge" style={{ background: status.bg, color: status.color }}>{status.label}</span>
             <span className="badge" style={{ background: priority.bg, color: priority.color }}>{priority.label}</span>
           </div>
-          <div className="modal-header-actions" style={{direction:'ltr'}}>
+          <div className="modal-header-actions">
             {!currentOrder.completedAt && !editing && (
               <button className="btn-done" onClick={handleMarkDone}>
                 ✓ تم الانتهاء
