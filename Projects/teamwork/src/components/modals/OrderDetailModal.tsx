@@ -208,7 +208,8 @@ const OrderDetailModal: React.FC<OrderDetailModalProps> = ({ order, onClose, dep
     }
   };
 
-  const canTransfer = currentUser?.role === 'admin';
+  const canTransfer = currentUser?.role === 'admin' ||
+    (currentUser?.role === 'manager' && currentOrder.departmentId === currentUser?.departmentId);
 
   const tabs = [
     { id: 'details',  label: 'التفاصيل' },
