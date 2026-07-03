@@ -765,7 +765,7 @@ textarea.form-input { padding: 10px 12px; resize: vertical; color: #111827; min-
    ======================================== */
 .table-card { background: #ffffff; border-radius: var(--radius); border: 1px solid #e5e7eb; overflow: hidden; }
 .orders-table-wrap { overflow-x: auto; }
-.orders-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+.orders-table { width: 100%; border-collapse: collapse; font-size: 13px; direction: rtl; }
 .orders-table th {
   text-align: right; padding: 9px 12px;
   background: #f9fafb; color: var(--text-muted);
