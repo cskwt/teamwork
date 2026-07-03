@@ -1265,7 +1265,7 @@ textarea.form-input { padding: 10px 12px; resize: vertical; color: #111827; min-
 .btn-perm-delete:hover { background: #fee2e2; }
 .btn-danger { display: flex; align-items: center; gap: 6px; background: #ef4444; color: #fff; border: none; border-radius: 7px; padding: 7px 13px; font-size: 12px; font-weight: 600; cursor: pointer; transition: background .15s; }
 .btn-danger:hover { background: #dc2626; }
-.btn-done { display: flex; align-items: center; gap: 6px; background: #16a34a; color: #fff; border: none; border-radius: 8px; padding: 8px 18px; font-size: 13px; font-weight: 700; cursor: pointer; transition: background .15s, transform .1s; box-shadow: 0 2px 8px rgba(22,163,74,.3); }
+.btn-done { display: flex; align-items: center; gap: 6px; background: #16a34a; color: #fff; border: none; border-radius: 8px; height: 36px; padding: 0 18px; font-size: 13px; font-weight: 700; cursor: pointer; transition: background .15s, transform .1s; box-shadow: 0 2px 8px rgba(22,163,74,.3); }
 .btn-done:hover { background: #15803d; transform: translateY(-1px); }
 .trash-confirm { display: flex; align-items: center; gap: 8px; font-size: 12px; color: #ef4444; font-weight: 600; }
 .dept-chip { font-size: 11px; font-weight: 600; border-radius: 5px; padding: 2px 8px; }
