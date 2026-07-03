@@ -1,11 +1,11 @@
 <?php
 // Allow requests from the React app
 $origin = $_SERVER['HTTP_ORIGIN'] ?? '';
-$allowed = ['https://teamwork.cskwt.com', 'http://localhost:3000'];
+$allowed = ['https://teamwork.csapp.io', 'https://csapp.io', 'http://localhost:3000'];
 if (in_array($origin, $allowed)) {
     header("Access-Control-Allow-Origin: $origin");
 } else {
-    header("Access-Control-Allow-Origin: https://teamwork.cskwt.com");
+    header("Access-Control-Allow-Origin: https://teamwork.csapp.io");
 }
 header('Access-Control-Allow-Methods: GET, POST, OPTIONS');
 header('Access-Control-Allow-Headers: Content-Type, X-API-Key');
