@@ -22,15 +22,13 @@ const AppInner: React.FC = () => {
   const [activeDeptId, setActiveDeptId] = useState<string | null>(departments[0]?.id || null);
 
   if (!loaded) return (
-    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100vh', flexDirection: 'column', gap: 24, background: '#0f172a' }}>
-      <div style={{ background: '#000', borderRadius: '50%', padding: 0, width: 110, height: 110, display: 'flex', alignItems: 'center', justifyContent: 'center', animation: 'spin 1.6s linear infinite' }}>
-        <img
-          src={require('./assets/teamwork-logo-spin.png')}
-          alt="loading"
-          style={{ width: 110, height: 110, objectFit: 'contain', mixBlendMode: 'screen', borderRadius: '50%' }}
-        />
-      </div>
-      <p style={{ color: '#94a3b8', fontSize: 15, fontWeight: 500 }}>جاري تحميل البيانات...</p>
+    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100vh', flexDirection: 'column', gap: 24, background: '#f8fafc' }}>
+      <img
+        src={require('./assets/teamwork-logo-spin.png')}
+        alt="loading"
+        style={{ width: 120, height: 120, objectFit: 'contain', animation: 'spin 1.6s linear infinite' }}
+      />
+      <p style={{ color: '#6b7280', fontSize: 15, fontWeight: 500 }}>جاري تحميل البيانات...</p>
       <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
     </div>
   );
