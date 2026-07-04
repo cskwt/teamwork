@@ -118,7 +118,7 @@ const OrderCard: React.FC<OrderCardProps> = ({ order, onClick, isDragging, canDr
           )}
         </div>
         <div className="card-assignees">
-          {assignedList.length > 0 ? assignedList.slice(0, 3).map((u) => (
+          {assignedList.length > 0 ? assignedList.map((u) => (
             <div key={u.id} className="card-assignee" title={u.fullName}>
               {u.avatar
                 ? <img src={u.avatar} alt="" style={{ width: '100%', height: '100%', borderRadius: '50%', objectFit: 'cover' }} />
@@ -128,9 +128,6 @@ const OrderCard: React.FC<OrderCardProps> = ({ order, onClick, isDragging, canDr
             <div className="card-assignee card-unassigned" title="غير معين">
               <User size={13} />
             </div>
-          )}
-          {assignedList.length > 3 && (
-            <div className="card-assignee card-more">+{assignedList.length - 3}</div>
           )}
         </div>
       </div>
