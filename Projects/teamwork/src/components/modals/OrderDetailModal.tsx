@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import {
   X, MessageSquare, Clock, Send, ArrowRightLeft,
   Trash2, Calendar, FileText, Image, Download, User, Users,
-  Building2, Tag, Hash, Save, Pencil
+  Building2, Tag, Hash, Save, Pencil, Archive
 } from 'lucide-react';
 import { Order, Department, OrderPriority, OrderStatus } from '../../types';
 import { useApp } from '../../contexts/AppContext';
@@ -144,6 +144,20 @@ const OrderDetailModal: React.FC<OrderDetailModalProps> = ({ order, onClose, dep
     onClose();
   };
 
+  const handleArchive = () => {
+    if (!window.confirm('هل تريد نقل هذه الطلبية إلى الأرشيف؟')) return;
+    const now = new Date().toISOString();
+    const updated = {
+      ...currentOrder,
+      status: 'done' as OrderStatus,
+      completedAt: currentOrder.completedAt || now,
+      updatedAt: now,
+    };
+    dispatch({ type: 'UPDATE_ORDER', payload: updated });
+    addHistoryEntry(order.id, 'تم أرشفة الطلبية');
+    onClose();
+  };
+
   const handleTransfer = () => {
     if (!transferDept || transferDept === order.departmentId) return;
     const from = departments.find((d) => d.id === order.departmentId)?.name || '';
@@ -258,6 +272,12 @@ const OrderDetailModal: React.FC<OrderDetailModalProps> = ({ order, onClose, dep
             )}
             {currentUser?.role === 'admin' && (
               <button className="modal-delete-btn" onClick={handleDelete} title="حذف"><Trash2 size={15} /></button>
+            )}
+            {(currentUser?.role === 'admin' || currentUser?.role === 'manager') && currentOrder.status !== 'done' && !editing && (
+              <button className="modal-archive-btn" onClick={handleArchive} title="نقل للأرشيف">
+                <Archive size={15} />
+                <span>أرشفة</span>
+              </button>
             )}
             {!currentOrder.completedAt && !editing && (
               <button className="btn-done" onClick={handleMarkDone}>
