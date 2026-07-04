@@ -31,7 +31,7 @@ export const clearSession = () => {
 const API_URL = 'https://csapp.io/teamwork-api/api.php';
 const API_KEY = 'tw_Cs9kWt2026xTeAmWoRk';
 
-const serverLoad = async (): Promise<AppState | null> => {
+export const serverLoad = async (): Promise<AppState | null> => {
   try {
     const res = await fetch(API_URL, {
       headers: { 'X-API-Key': API_KEY },

@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useReducer, useEffect, useState } from 'react';
 import { AppState, User, Department, Order, OrderComment, OrderHistoryEntry, KanbanColumn, AppNotification } from '../types';
-import { loadState, saveState, saveSession, loadSession } from '../utils/storage';
+import { loadState, saveState, saveSession, loadSession, serverLoad } from '../utils/storage';
 import { generateId } from '../utils/helpers';
 import { INITIAL_USERS, INITIAL_DEPARTMENTS, INITIAL_ORDERS } from '../data/initialData';
 
@@ -360,10 +360,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const refreshData = async () => {
-    const currentUser = state.currentUser;
-    const saved = await loadState();
-    dispatch({ type: 'INIT_STATE', payload: saved });
-    if (currentUser) dispatch({ type: 'LOGIN', payload: currentUser });
+    const serverData = await serverLoad();
+    if (serverData) {
+      dispatch({ type: 'SYNC_STATE', payload: serverData });
+    }
   };
 
   const addHistoryEntry = (orderId: string, action: string, from?: string, to?: string) => {
