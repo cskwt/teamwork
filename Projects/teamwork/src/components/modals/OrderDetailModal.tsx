@@ -367,43 +367,6 @@ const OrderDetailModal: React.FC<OrderDetailModalProps> = ({ order, onClose, dep
                 )}
               </div>
             )}
-            {!editing && (
-              <div style={{ position: 'relative' }}>
-                <button
-                  className={`modal-icon-btn ${showProgressPopover ? 'modal-icon-btn--active' : ''}`}
-                  title={`نسبة الإنجاز: ${currentOrder.progress || 0}%`}
-                  onClick={() => setShowProgressPopover((v) => !v)}
-                  style={{ gap: 4, minWidth: 52, fontSize: 11, fontWeight: 700 }}
-                >
-                  <Gauge size={14} />
-                  <span>{currentOrder.progress || 0}%</span>
-                </button>
-                {showProgressPopover && (
-                  <div className="transfer-popover" style={{ minWidth: 220 }}>
-                    <p className="transfer-popover-label">نسبة الإنجاز: <b>{editData.progress}%</b></p>
-                    <input
-                      type="range" min={0} max={100} step={5}
-                      value={editData.progress}
-                      onChange={(e) => setEditData(p => ({ ...p, progress: Number(e.target.value) }))}
-                      style={{ width: '100%', accentColor: '#6366f1' }}
-                    />
-                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, color: '#9ca3af', marginTop: -4 }}>
-                      <span>0%</span><span>50%</span><span>100%</span>
-                    </div>
-                    <button
-                      className="transfer-popover-btn"
-                      onClick={() => {
-                        const now = new Date().toISOString();
-                        dispatch({ type: 'UPDATE_ORDER', payload: { ...currentOrder, progress: editData.progress, updatedAt: now }, silent: true } as any);
-                        setShowProgressPopover(false);
-                      }}
-                    >
-                      حفظ ✓
-                    </button>
-                  </div>
-                )}
-              </div>
-            )}
             {currentOrder.status !== 'done' && !editing && department.name !== 'قسم التسليم' && (
               <button className="modal-icon-btn modal-icon-btn--green" onClick={handleMarkDone} title="تم الانتهاء">
                 <CheckCheck size={15} />
@@ -538,15 +501,6 @@ const OrderDetailModal: React.FC<OrderDetailModalProps> = ({ order, onClose, dep
                     </span>
                   </span>
                 )}
-              </div>
-              <div className="od-detail-item od-full">
-                <span className="od-label">نسبة الإنجاز</span>
-                <div className="od-progress-row">
-                  <div className="od-progress-bar-wrap">
-                    <div className="od-progress-bar-fill" style={{ width: `${currentOrder.progress || 0}%` }} />
-                  </div>
-                  <span className="od-progress-pct">{currentOrder.progress || 0}%</span>
-                </div>
               </div>
               <div className="od-detail-item od-full">
                 <span className="od-label">الملاحظات</span>
