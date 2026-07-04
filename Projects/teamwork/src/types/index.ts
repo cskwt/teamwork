@@ -42,6 +42,7 @@ export interface Order {
   departmentId: string;
   departmentIds?: string[];
   groupId?: string;
+  originDepartmentId?: string;
   assignedUsers: string[];
   createdBy: string;
   createdAt: string;

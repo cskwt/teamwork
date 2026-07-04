@@ -234,6 +234,9 @@ const OrderDetailModal: React.FC<OrderDetailModalProps> = ({ order, onClose, dep
           id: generateId(),
           departmentId: deptId,
           departmentIds: [deptId],
+          originDepartmentId: isDelivery
+            ? (currentOrder.originDepartmentId || currentOrder.departmentId)
+            : deptId,
           status: 'new' as any,
           completedAt: isDelivery ? currentOrder.completedAt : undefined,
           updatedAt: now,

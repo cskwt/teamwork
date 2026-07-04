@@ -96,6 +96,7 @@ const AddOrderModal: React.FC<AddOrderModalProps> = ({ departmentId, onClose }) 
         priority,
         departmentId: deptId,
         departmentIds: [deptId],
+        originDepartmentId: deptId,
         groupId,
         assignedUsers,
         createdBy: currentUser.id,

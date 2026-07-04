@@ -106,7 +106,10 @@ const OrdersPage: React.FC<OrdersPageProps> = ({ archiveMode = false }) => {
             </thead>
             <tbody>
               {sorted.map((o) => {
-                const dept = departments.find((d) => d.id === o.departmentId);
+                const displayDeptId = archiveMode
+                  ? (o.originDepartmentId || o.departmentId)
+                  : o.departmentId;
+                const dept = departments.find((d) => d.id === displayDeptId);
                 const overdue = isOverdue(o.dueDate) && o.status !== 'done';
                 return (
                   <tr
