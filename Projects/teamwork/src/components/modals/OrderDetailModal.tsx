@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import {
   X, MessageSquare, Clock, Send, ArrowRightLeft,
   Trash2, Calendar, FileText, Image, Download, User, Users,
-  Building2, Tag, Hash, Save, Pencil, Archive, CheckCheck, Gauge, Upload
+  Building2, Tag, Hash, Save, Pencil, Archive, CheckCheck, Upload
 } from 'lucide-react';
 import { Order, Department, OrderPriority, OrderStatus } from '../../types';
 import { useApp } from '../../contexts/AppContext';
@@ -21,7 +21,6 @@ const OrderDetailModal: React.FC<OrderDetailModalProps> = ({ order, onClose, dep
   const [comment, setComment] = useState('');
   const [transferDept, setTransferDept] = useState('');
   const [showTransferPopover, setShowTransferPopover] = useState(false);
-  const [showProgressPopover, setShowProgressPopover] = useState(false);
   const [editing, setEditing] = useState(false);
 
   const rawOrder = state.orders.find((o) => o.id === order.id) || order;
