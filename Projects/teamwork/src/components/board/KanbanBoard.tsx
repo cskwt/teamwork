@@ -81,11 +81,19 @@ const KanbanBoard: React.FC<KanbanBoardProps> = ({ department, onBack }) => {
     useSensor(PointerSensor, { activationConstraint: { distance: 8 } })
   );
 
+  const isDeliveryDept = department.name === 'قسم التسليم';
+
+  const DEFAULT_COL: KanbanColumnType = { id: 'new', title: 'الطلبيات الجديدة', color: '#6366f1', order: 0 };
+
   const deptOrders = orders.filter((o) => {
     const ids = o.departmentIds?.length ? o.departmentIds : [o.departmentId];
     return ids.includes(department.id) && !o.deletedAt;
   });
-  const columns = [...department.columns].sort((a, b) => b.order - a.order);
+
+  // Exclude 'new' column from user-managed columns (it's always rendered separately)
+  const columns = [...department.columns]
+    .filter((c) => c.id !== 'new')
+    .sort((a, b) => b.order - a.order);
   const colSortableIds = columns.map((c) => `col::${c.id}`);
 
   const handleDragStart = (event: DragStartEvent) => {
@@ -177,6 +185,17 @@ const KanbanBoard: React.FC<KanbanBoardProps> = ({ department, onBack }) => {
       >
         <SortableContext items={colSortableIds} strategy={horizontalListSortingStrategy}>
           <div className="kanban-board">
+            {/* Default "New Orders" column – fixed, no drag, no delete */}
+            {!isDeliveryDept && (
+              <KanbanColumn
+                column={DEFAULT_COL}
+                orders={deptOrders.filter((o) => o.status === 'new')}
+                onOrderClick={(o) => setSelectedOrder(o)}
+                department={department}
+                isDefault
+              />
+            )}
+
             {/* Add Column */}
             {showAddCol ? (
               <div className="kanban-col col-add-form">

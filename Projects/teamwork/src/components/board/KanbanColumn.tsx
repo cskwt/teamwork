@@ -16,9 +16,10 @@ interface KanbanColumnProps {
   orders: Order[];
   onOrderClick: (order: Order) => void;
   department: Department;
+  isDefault?: boolean;
 }
 
-const KanbanColumn: React.FC<KanbanColumnProps> = ({ column, orders, onOrderClick, department }) => {
+const KanbanColumn: React.FC<KanbanColumnProps> = ({ column, orders, onOrderClick, department, isDefault }) => {
   const { dispatch } = useApp();
   const { setNodeRef, isOver } = useDroppable({ id: column.id });
   const [editing, setEditing] = useState(false);
@@ -78,12 +79,16 @@ const KanbanColumn: React.FC<KanbanColumnProps> = ({ column, orders, onOrderClic
               <span className="col-count" style={{ color: column.color }}>
                 {orders.length}
               </span>
-              <button className="col-action-btn" onClick={() => setEditing(true)} title="تعديل">
-                <Pencil size={12} />
-              </button>
-              <button className="col-action-btn col-action-danger" onClick={handleDelete} title="حذف">
-                <Trash2 size={12} />
-              </button>
+              {!isDefault && (
+                <>
+                  <button className="col-action-btn" onClick={() => setEditing(true)} title="تعديل">
+                    <Pencil size={12} />
+                  </button>
+                  <button className="col-action-btn col-action-danger" onClick={handleDelete} title="حذف">
+                    <Trash2 size={12} />
+                  </button>
+                </>
+              )}
             </div>
             <div className="col-header-left">
               <span className="col-title">{column.title}</span>
