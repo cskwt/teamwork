@@ -1348,6 +1348,10 @@ textarea.form-input { padding: 10px 12px; resize: vertical; color: #111827; min-
 .search-clear-btn { background: none; border: none; cursor: pointer; color: #9ca3af; display: flex; align-items: center; padding: 0 4px; }
 .search-clear-btn:hover { color: #374151; }
 .search-results-panel { position: absolute; top: calc(100% + 8px); right: 0; width: 380px; background: #fff; border: 1px solid #e5e7eb; border-radius: 12px; box-shadow: 0 8px 30px rgba(0,0,0,.12); z-index: 200; overflow: hidden; }
+.search-results-header { padding: 8px 14px; font-size: 11px; font-weight: 600; color: #6b7280; background: #f9fafb; border-bottom: 1px solid #f3f4f6; text-align: right; }
+.search-results-list { max-height: 420px; overflow-y: auto; }
+.search-results-list::-webkit-scrollbar { width: 4px; }
+.search-results-list::-webkit-scrollbar-thumb { background: #d1d5db; border-radius: 2px; }
 .search-no-results { padding: 16px; text-align: center; font-size: 13px; color: #9ca3af; }
 .search-result-item { padding: 10px 14px; border-bottom: 1px solid #f3f4f6; cursor: pointer; transition: background .1s; }
 .search-result-item:hover { background: #f9fafb; }

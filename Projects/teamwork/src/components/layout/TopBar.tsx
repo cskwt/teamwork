@@ -27,7 +27,7 @@ const TopBar: React.FC<TopBarProps> = ({ onNavigate }) => {
     ? orders.filter((o) => !o.deletedAt && (
         o.orderNumber?.toLowerCase().includes(searchQuery.toLowerCase()) ||
         o.clientName?.toLowerCase().includes(searchQuery.toLowerCase())
-      )).slice(0, 8)
+      ))
     : [];
 
   const notifIcon = (type: string) => {
@@ -143,7 +143,12 @@ const TopBar: React.FC<TopBarProps> = ({ onNavigate }) => {
               {searchResults.length === 0 ? (
                 <div className="search-no-results">لا توجد نتائج لـ "{searchQuery}"</div>
               ) : (
-                searchResults.map((o) => {
+                <>
+                  <div className="search-results-header">
+                    {searchResults.length} نتيجة
+                  </div>
+                  <div className="search-results-list">
+                {searchResults.map((o) => {
                   const dept = departments.find((d) => d.id === o.departmentId);
                   const pr = priorityConfig[o.priority] || priorityConfig['medium'];
                   const st = getColumnStatus(o, departments);
@@ -160,7 +165,9 @@ const TopBar: React.FC<TopBarProps> = ({ onNavigate }) => {
                       </div>
                     </div>
                   );
-                })
+                })}
+                  </div>
+                </>
               )}
             </div>
           )}
