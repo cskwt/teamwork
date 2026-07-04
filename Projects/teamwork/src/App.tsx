@@ -22,9 +22,13 @@ const AppInner: React.FC = () => {
   const [activeDeptId, setActiveDeptId] = useState<string | null>(departments[0]?.id || null);
 
   if (!loaded) return (
-    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100vh', flexDirection: 'column', gap: 16 }}>
-      <div style={{ width: 40, height: 40, border: '4px solid #e5e7eb', borderTopColor: '#6366f1', borderRadius: '50%', animation: 'spin 0.8s linear infinite' }} />
-      <p style={{ color: '#6b7280', fontSize: 14 }}>جاري تحميل البيانات...</p>
+    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100vh', flexDirection: 'column', gap: 20, background: '#f8fafc' }}>
+      <img
+        src={require('./assets/teamwork-logo-spin.png')}
+        alt="loading"
+        style={{ width: 90, height: 90, objectFit: 'contain', animation: 'spin 1.4s linear infinite' }}
+      />
+      <p style={{ color: '#6b7280', fontSize: 15, fontWeight: 500 }}>جاري تحميل البيانات...</p>
       <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
     </div>
   );
