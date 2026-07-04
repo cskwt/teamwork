@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import {
   X, MessageSquare, Clock, Send, ArrowRightLeft,
   Trash2, Calendar, FileText, Image, Download, User, Users,
-  Building2, Tag, Hash, Save, Pencil, Archive
+  Building2, Tag, Hash, Save, Pencil, Archive, CheckCheck
 } from 'lucide-react';
 import { Order, Department, OrderPriority, OrderStatus } from '../../types';
 import { useApp } from '../../contexts/AppContext';
@@ -248,11 +248,11 @@ const OrderDetailModal: React.FC<OrderDetailModalProps> = ({ order, onClose, dep
           <div className="modal-header-actions">
             {editing ? (
               <>
-                <button className="btn-primary btn-sm" onClick={handleSaveEdit}><Save size={14} /> حفظ</button>
-                <button className="btn-secondary btn-sm" onClick={() => setEditing(false)}>إلغاء</button>
+                <button className="modal-icon-btn modal-icon-btn--green" onClick={handleSaveEdit} title="حفظ"><Save size={15} /></button>
+                <button className="modal-icon-btn" onClick={() => setEditing(false)} title="إلغاء"><X size={15} /></button>
               </>
             ) : (
-              <button className="btn-secondary btn-sm" onClick={() => {
+              <button className="modal-icon-btn" title="تعديل" onClick={() => {
                 setEditData({
                   orderNumber: currentOrder.orderNumber,
                   clientName: currentOrder.clientName,
@@ -268,20 +268,19 @@ const OrderDetailModal: React.FC<OrderDetailModalProps> = ({ order, onClose, dep
                   assignedUsers: currentOrder.assignedUsers || [],
                 });
                 setEditing(true);
-              }}><Pencil size={14} /> تعديل</button>
+              }}><Pencil size={15} /></button>
             )}
             {currentUser?.role === 'admin' && (
-              <button className="modal-delete-btn" onClick={handleDelete} title="حذف"><Trash2 size={15} /></button>
+              <button className="modal-icon-btn modal-icon-btn--danger" onClick={handleDelete} title="حذف"><Trash2 size={15} /></button>
             )}
             {(currentUser?.role === 'admin' || currentUser?.role === 'manager') && currentOrder.status !== 'done' && !editing && (
-              <button className="modal-archive-btn" onClick={handleArchive} title="نقل للأرشيف">
+              <button className="modal-icon-btn modal-icon-btn--purple" onClick={handleArchive} title="أرشفة">
                 <Archive size={15} />
-                <span>أرشفة</span>
               </button>
             )}
             {!currentOrder.completedAt && !editing && (
-              <button className="btn-done" onClick={handleMarkDone}>
-                ✓ تم الانتهاء
+              <button className="modal-icon-btn modal-icon-btn--green" onClick={handleMarkDone} title="تم الانتهاء">
+                <CheckCheck size={15} />
               </button>
             )}
             <button className="modal-close-corner" onClick={onClose} title="إغلاق"><X size={15} /></button>
