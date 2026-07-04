@@ -231,7 +231,7 @@ const OrderDetailModal: React.FC<OrderDetailModalProps> = ({ order, onClose, dep
     { id: 'files',    label: `الملفات (${(currentOrder.orderForms?.length || 0) + (currentOrder.invoices?.length || 0) + (currentOrder.invoice ? 1 : 0)})` },
     { id: 'chat',     label: `الدردشة (${currentOrder.comments.length})` },
     { id: 'history',  label: 'السجل' },
-    ...(canTransfer ? [{ id: 'transfer' as const, label: 'نقل' }] : []),
+    ...(canTransfer ? [{ id: 'transfer' as const, label: 'نقل', icon: true }] : []),
   ] as const;
 
   return (
@@ -301,9 +301,10 @@ const OrderDetailModal: React.FC<OrderDetailModalProps> = ({ order, onClose, dep
           {tabs.map((t) => (
             <button
               key={t.id}
-              className={`modal-tab ${activeTab === t.id ? 'tab-active' : ''}`}
+              className={`modal-tab ${activeTab === t.id ? 'tab-active' : ''} ${'icon' in t && t.icon ? 'tab-transfer' : ''}`}
               onClick={() => setActiveTab(t.id)}
             >
+              {'icon' in t && t.icon && <ArrowRightLeft size={13} />}
               {t.label}
             </button>
           ))}

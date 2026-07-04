@@ -975,6 +975,8 @@ textarea.form-input { padding: 10px 12px; resize: vertical; color: #111827; min-
 .modal-tab { padding: 7px 14px; font-size: 13px; font-weight: 600; color: var(--text-muted); border-radius: var(--radius-sm) var(--radius-sm) 0 0; border-bottom: 2px solid transparent; transition: all .12s; }
 .modal-tab:hover { color: var(--primary); }
 .tab-active { color: var(--primary); border-bottom-color: var(--primary); background: #eef2ff; }
+.tab-transfer { display: inline-flex; align-items: center; gap: 5px; }
+.tab-transfer svg { color: #6366f1; }
 .modal-body { padding: 20px; }
 .modal-form { display: flex; flex-direction: column; gap: 12px; }
 .modal-footer { display: flex; gap: 8px; justify-content: flex-end; padding-top: 8px; }
