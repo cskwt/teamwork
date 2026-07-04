@@ -2,6 +2,8 @@ import React, { useState, useRef, useEffect } from 'react';
 import { Home, Bell, Search, X, MessageSquare, Plus, Pencil, UserCheck, RefreshCw } from 'lucide-react';
 import { useApp } from '../../contexts/AppContext';
 import { formatDate, priorityConfig, getColumnStatus } from '../../utils/helpers';
+import { Order } from '../../types';
+import OrderDetailModal from '../modals/OrderDetailModal';
 
 interface TopBarProps {
   onNavigate: (page: string) => void;
@@ -14,6 +16,7 @@ const TopBar: React.FC<TopBarProps> = ({ onNavigate }) => {
   const [showNotif, setShowNotif] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [showSearch, setShowSearch] = useState(false);
+  const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
   const notifRef = useRef<HTMLDivElement>(null);
   const searchRef = useRef<HTMLDivElement>(null);
 
@@ -62,6 +65,7 @@ const TopBar: React.FC<TopBarProps> = ({ onNavigate }) => {
   }, []);
 
   return (
+    <>
     <header className="topbar-global">
       <div className="topbar-right">
         <button className="topbar-icon-btn" onClick={() => onNavigate('dashboard')} title="الرئيسية">
@@ -144,7 +148,7 @@ const TopBar: React.FC<TopBarProps> = ({ onNavigate }) => {
                   const pr = priorityConfig[o.priority] || priorityConfig['medium'];
                   const st = getColumnStatus(o, departments);
                   return (
-                    <div key={o.id} className="search-result-item" onClick={() => { setSearchQuery(''); setShowSearch(false); }}>
+                    <div key={o.id} className="search-result-item" onClick={() => { setSelectedOrder(o); setSearchQuery(''); setShowSearch(false); }}>
                       <div className="search-result-main">
                         <span className="search-result-num">#{o.orderNumber}</span>
                         <span className="search-result-name">{o.clientName}</span>
@@ -163,6 +167,15 @@ const TopBar: React.FC<TopBarProps> = ({ onNavigate }) => {
         </div>
       </div>
     </header>
+
+    {selectedOrder && departments.find((d) => d.id === selectedOrder.departmentId) && (
+      <OrderDetailModal
+        order={selectedOrder}
+        department={departments.find((d) => d.id === selectedOrder.departmentId)!}
+        onClose={() => setSelectedOrder(null)}
+      />
+    )}
+    </>
   );
 };
 
