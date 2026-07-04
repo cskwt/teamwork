@@ -148,6 +148,23 @@ const OrderDetailModal: React.FC<OrderDetailModalProps> = ({ order, onClose, dep
     onClose();
   };
 
+  const handleDeleteOrderForm = (fileId: string) => {
+    if (!window.confirm('هل تريد حذف هذا الملف؟')) return;
+    const updated = { ...currentOrder, orderForms: currentOrder.orderForms.filter((f) => f.id !== fileId), updatedAt: new Date().toISOString() };
+    dispatch({ type: 'UPDATE_ORDER', payload: updated });
+  };
+
+  const handleDeleteInvoice = (invoiceId?: string) => {
+    if (!window.confirm('هل تريد حذف هذه الفاتورة؟')) return;
+    let updated: typeof currentOrder;
+    if (!invoiceId) {
+      updated = { ...currentOrder, invoice: undefined, updatedAt: new Date().toISOString() };
+    } else {
+      updated = { ...currentOrder, invoices: (currentOrder.invoices || []).filter((i) => i.id !== invoiceId), updatedAt: new Date().toISOString() };
+    }
+    dispatch({ type: 'UPDATE_ORDER', payload: updated });
+  };
+
   const handleArchive = () => {
     if (!window.confirm('هل تريد نقل هذه الطلبية إلى الأرشيف؟')) return;
     const now = new Date().toISOString();
@@ -552,6 +569,11 @@ const OrderDetailModal: React.FC<OrderDetailModalProps> = ({ order, onClose, dep
                           <button className="od-action-btn" onClick={() => handleOpenFile(f.dataUrl, f.name)} title="تحميل">
                             <Download size={15} /> تحميل
                           </button>
+                          {(currentUser?.role === 'admin' || currentUser?.role === 'manager') && (
+                            <button className="od-action-btn od-action-btn--danger" onClick={() => handleDeleteOrderForm(f.id)} title="حذف">
+                              <Trash2 size={15} /> مسح
+                            </button>
+                          )}
                         </div>
                       </div>
                     ))}
@@ -576,6 +598,9 @@ const OrderDetailModal: React.FC<OrderDetailModalProps> = ({ order, onClose, dep
                       <div className="od-file-row-actions">
                         <button className="od-action-btn" onClick={() => handlePreviewFile(currentOrder.invoice?.dataUrl, currentOrder.invoice?.name || 'فاتورة')} title="عرض"><Image size={15} /> عرض</button>
                         <button className="od-action-btn" onClick={() => handleOpenFile(currentOrder.invoice?.dataUrl, currentOrder.invoice?.name || 'فاتورة')} title="تحميل"><Download size={15} /> تحميل</button>
+                        {(currentUser?.role === 'admin' || currentUser?.role === 'manager') && (
+                          <button className="od-action-btn od-action-btn--danger" onClick={() => handleDeleteInvoice()} title="حذف"><Trash2 size={15} /> مسح</button>
+                        )}
                       </div>
                     </div>
                   )}
@@ -590,6 +615,9 @@ const OrderDetailModal: React.FC<OrderDetailModalProps> = ({ order, onClose, dep
                       <div className="od-file-row-actions">
                         <button className="od-action-btn" onClick={() => handlePreviewFile(inv.dataUrl, inv.name)} title="عرض"><Image size={15} /> عرض</button>
                         <button className="od-action-btn" onClick={() => handleOpenFile(inv.dataUrl, inv.name)} title="تحميل"><Download size={15} /> تحميل</button>
+                        {(currentUser?.role === 'admin' || currentUser?.role === 'manager') && (
+                          <button className="od-action-btn od-action-btn--danger" onClick={() => handleDeleteInvoice(inv.id)} title="حذف"><Trash2 size={15} /> مسح</button>
+                        )}
                       </div>
                     </div>
                   ))}
