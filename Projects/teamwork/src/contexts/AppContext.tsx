@@ -158,10 +158,15 @@ const reducer = (state: AppState, action: Action): AppState => {
         ...state,
         orders: state.orders.map((o) => {
           if (o.id !== action.payload.orderId) return o;
+          const newDeptId = action.payload.departmentId ?? o.departmentId;
+          const newDeptIds = action.payload.departmentId
+            ? [action.payload.departmentId]
+            : o.departmentIds;
           return {
             ...o,
             status: action.payload.status as any,
-            departmentId: action.payload.departmentId ?? o.departmentId,
+            departmentId: newDeptId,
+            departmentIds: newDeptIds,
             updatedAt: new Date().toISOString(),
           };
         }),
