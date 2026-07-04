@@ -19,7 +19,7 @@ const OrderDetailModal: React.FC<OrderDetailModalProps> = ({ order, onClose, dep
   const { users, departments, currentUser } = state;
   const [activeTab, setActiveTab] = useState<'details' | 'files' | 'chat' | 'history'>('details');
   const [comment, setComment] = useState('');
-  const [transferDept, setTransferDept] = useState('');
+  const [transferDepts, setTransferDepts] = useState<string[]>([]);
   const [showTransferPopover, setShowTransferPopover] = useState(false);
   const [showProgressPopover, setShowProgressPopover] = useState(false);
   const [editing, setEditing] = useState(false);
@@ -211,15 +211,41 @@ const OrderDetailModal: React.FC<OrderDetailModalProps> = ({ order, onClose, dep
   };
 
   const handleTransfer = () => {
-    if (!transferDept || transferDept === order.departmentId) return;
-    const from    = departments.find((d) => d.id === order.departmentId)?.name || '';
-    const toDept  = departments.find((d) => d.id === transferDept);
-    const isDelivery = toDept?.name === 'قسم التسليم';
-    dispatch({ type: 'MOVE_ORDER', payload: { orderId: order.id, status: 'new', departmentId: transferDept, triggerUserId: currentUser?.id } });
-    if (!isDelivery && currentOrder.completedAt) {
-      dispatch({ type: 'UPDATE_ORDER', payload: { ...currentOrder, completedAt: undefined, updatedAt: new Date().toISOString() }, silent: true } as any);
+    if (transferDepts.length === 0) return;
+    const from = departments.find((d) => d.id === order.departmentId)?.name || '';
+    const now  = new Date().toISOString();
+
+    if (transferDepts.length === 1) {
+      // Single dept → move the existing order
+      const toDept    = departments.find((d) => d.id === transferDepts[0]);
+      const isDelivery = toDept?.name === 'قسم التسليم';
+      dispatch({ type: 'MOVE_ORDER', payload: { orderId: order.id, status: 'new', departmentId: transferDepts[0], triggerUserId: currentUser?.id } });
+      if (!isDelivery && currentOrder.completedAt) {
+        dispatch({ type: 'UPDATE_ORDER', payload: { ...currentOrder, completedAt: undefined, updatedAt: now }, silent: true } as any);
+      }
+      addHistoryEntry(order.id, 'نقل إلى قسم آخر', from, toDept?.name || '');
+    } else {
+      // Multiple depts → create independent copy per dept, delete original
+      transferDepts.forEach((deptId) => {
+        const toDept    = departments.find((d) => d.id === deptId);
+        const isDelivery = toDept?.name === 'قسم التسليم';
+        const newOrder: Order = {
+          ...currentOrder,
+          id: generateId(),
+          departmentId: deptId,
+          departmentIds: [deptId],
+          status: 'new' as any,
+          completedAt: isDelivery ? currentOrder.completedAt : undefined,
+          updatedAt: now,
+          comments: [],
+          history: [],
+        };
+        dispatch({ type: 'ADD_ORDER', payload: newOrder, triggerUserId: currentUser?.id } as any);
+        addHistoryEntry(newOrder.id, `نُقلت من ${from}`, from, toDept?.name || '');
+      });
+      // Delete the original order
+      dispatch({ type: 'DELETE_ORDER', payload: order.id });
     }
-    addHistoryEntry(order.id, 'نقل إلى قسم آخر', from, toDept?.name || '');
     onClose();
   };
 
@@ -344,24 +370,34 @@ const OrderDetailModal: React.FC<OrderDetailModalProps> = ({ order, onClose, dep
                   <ArrowRightLeft size={15} />
                 </button>
                 {showTransferPopover && (
-                  <div className="transfer-popover">
+                  <div className="transfer-popover" style={{ minWidth: 240 }}>
                     <p className="transfer-popover-label">نقل إلى قسم:</p>
-                    <select
-                      className="transfer-popover-select"
-                      value={transferDept}
-                      onChange={(e) => setTransferDept(e.target.value)}
-                    >
-                      <option value="">اختر القسم</option>
-                      {departments.filter((d) => d.id !== order.departmentId).map((d) => (
-                        <option key={d.id} value={d.id}>{d.name}</option>
-                      ))}
-                    </select>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 6, maxHeight: 260, overflowY: 'auto' }}>
+                      {departments.filter((d) => d.id !== order.departmentId).map((d) => {
+                        const sel = transferDepts.includes(d.id);
+                        return (
+                          <button
+                            key={d.id}
+                            type="button"
+                            className={`user-pick-btn ${sel ? 'user-selected' : ''}`}
+                            style={{ padding: '7px 10px' }}
+                            onClick={() => setTransferDepts((prev) =>
+                              sel ? prev.filter((id) => id !== d.id) : [...prev, d.id]
+                            )}
+                          >
+                            <div style={{ width: 10, height: 10, borderRadius: '50%', background: d.color, flexShrink: 0 }} />
+                            <span style={{ flex: 1, textAlign: 'right', fontSize: 13, fontWeight: 600 }}>{d.name}</span>
+                            {sel && <span style={{ color: 'var(--primary)', fontSize: 13 }}>✓</span>}
+                          </button>
+                        );
+                      })}
+                    </div>
                     <button
                       className="transfer-popover-btn"
-                      disabled={!transferDept}
-                      onClick={() => { handleTransfer(); setShowTransferPopover(false); }}
+                      disabled={transferDepts.length === 0}
+                      onClick={() => { handleTransfer(); setShowTransferPopover(false); setTransferDepts([]); }}
                     >
-                      نقل ↵
+                      {transferDepts.length > 1 ? `نقل إلى ${transferDepts.length} أقسام ↵` : 'نقل ↵'}
                     </button>
                   </div>
                 )}
