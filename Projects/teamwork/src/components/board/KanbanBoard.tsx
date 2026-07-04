@@ -83,7 +83,10 @@ const KanbanBoard: React.FC<KanbanBoardProps> = ({ department, onBack }) => {
 
   const isDeliveryDept = department.name === 'قسم التسليم';
 
-  const DEFAULT_COL: KanbanColumnType = { id: 'new', title: 'الطلبيات الجديدة', color: '#6366f1', order: 0 };
+  // Fixed default column: "الطلبيات الجاهزة" for delivery, "الطلبيات الجديدة" for others
+  const DEFAULT_COL: KanbanColumnType = isDeliveryDept
+    ? { id: 'new', title: 'الطلبيات الجاهزة', color: '#10b981', order: 0 }
+    : { id: 'new', title: 'الطلبيات الجديدة', color: '#6366f1', order: 0 };
 
   const deptOrders = orders.filter((o) => o.departmentId === department.id && !o.deletedAt);
 
@@ -225,16 +228,14 @@ const KanbanBoard: React.FC<KanbanBoardProps> = ({ department, onBack }) => {
               />
             ))}
 
-            {/* Default "New Orders" column – last in DOM = rightmost (first in Arabic) */}
-            {!isDeliveryDept && (
-              <KanbanColumn
-                column={DEFAULT_COL}
-                orders={deptOrders.filter((o) => o.status === 'new')}
-                onOrderClick={(o) => setSelectedOrder(o)}
-                department={department}
-                isDefault
-              />
-            )}
+            {/* Default fixed column – rightmost (first in Arabic). "الطلبيات الجاهزة" for delivery, "الطلبيات الجديدة" for others */}
+            <KanbanColumn
+              column={DEFAULT_COL}
+              orders={deptOrders.filter((o) => o.status === 'new')}
+              onOrderClick={(o) => setSelectedOrder(o)}
+              department={department}
+              isDefault
+            />
           </div>
         </SortableContext>
 
