@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import {
   X, MessageSquare, Clock, Send, ArrowRightLeft,
   Trash2, Calendar, FileText, Image, Download, User, Users,
-  Building2, Tag, Hash, Save, Pencil, Archive, CheckCheck, Gauge
+  Building2, Tag, Hash, Save, Pencil, Archive, CheckCheck, Gauge, Upload
 } from 'lucide-react';
 import { Order, Department, OrderPriority, OrderStatus } from '../../types';
 import { useApp } from '../../contexts/AppContext';
@@ -153,6 +153,36 @@ const OrderDetailModal: React.FC<OrderDetailModalProps> = ({ order, onClose, dep
     if (!window.confirm('هل تريد حذف هذا الملف؟')) return;
     const updated = { ...currentOrder, orderForms: currentOrder.orderForms.filter((f) => f.id !== fileId), updatedAt: new Date().toISOString() };
     dispatch({ type: 'UPDATE_ORDER', payload: updated });
+  };
+
+  const handleUploadOrderForm = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
+    Array.from(files).forEach((file) => {
+      const reader = new FileReader();
+      reader.onload = () => {
+        const newFile = { id: generateId(), name: file.name, size: file.size, type: file.type, dataUrl: reader.result as string };
+        const updated = { ...currentOrder, orderForms: [...(currentOrder.orderForms || []), newFile], updatedAt: new Date().toISOString() };
+        dispatch({ type: 'UPDATE_ORDER', payload: updated });
+      };
+      reader.readAsDataURL(file);
+    });
+    e.target.value = '';
+  };
+
+  const handleUploadInvoice = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
+    Array.from(files).forEach((file) => {
+      const reader = new FileReader();
+      reader.onload = () => {
+        const newInv = { id: generateId(), name: file.name, size: file.size, type: file.type, dataUrl: reader.result as string };
+        const updated = { ...currentOrder, invoices: [...(currentOrder.invoices || []), newInv], updatedAt: new Date().toISOString() };
+        dispatch({ type: 'UPDATE_ORDER', payload: updated });
+      };
+      reader.readAsDataURL(file);
+    });
+    e.target.value = '';
   };
 
   const handleDeleteInvoice = (invoiceId?: string) => {
@@ -484,7 +514,7 @@ const OrderDetailModal: React.FC<OrderDetailModalProps> = ({ order, onClose, dep
                 <span className="od-label">الأولوية</span>
                 {editing ? (
                   <div className="priority-picker" style={{ marginTop: 4 }}>
-                    {(Object.entries(priorityConfig) as [OrderPriority, { label: string; color: string; bg: string }][]).map(([k, v]) => (
+                    {(['urgent', 'high', 'medium', 'low'] as OrderPriority[]).map((k) => { const v = priorityConfig[k]; return (
                       <button
                         key={k}
                         type="button"
@@ -499,7 +529,7 @@ const OrderDetailModal: React.FC<OrderDetailModalProps> = ({ order, onClose, dep
                       >
                         {v.label}
                       </button>
-                    ))}
+                    ); })}
                   </div>
                 ) : (
                   <span className="od-value">
@@ -575,7 +605,15 @@ const OrderDetailModal: React.FC<OrderDetailModalProps> = ({ order, onClose, dep
             <div className="od-files-section">
               {/* Order Forms */}
               <div className="od-files-group">
-                <h4 className="od-files-title"><Image size={15} /> نماذج الطلبية</h4>
+                <div className="od-files-title-row">
+                  <h4 className="od-files-title"><Image size={15} /> نماذج الطلبية</h4>
+                  {(currentUser?.role === 'admin' || currentUser?.role === 'manager') && (
+                    <label className="od-upload-btn" title="رفع ملف">
+                      <Upload size={13} /> رفع
+                      <input type="file" multiple accept=".pdf,.jpg,.jpeg,.png,.gif,.webp,.ai,.cdr,.psd,.svg" style={{ display: 'none' }} onChange={handleUploadOrderForm} />
+                    </label>
+                  )}
+                </div>
                 {currentOrder.orderForms?.length > 0 ? (
                   <div className="od-file-rows">
                     {currentOrder.orderForms.map((f) => (
@@ -614,7 +652,15 @@ const OrderDetailModal: React.FC<OrderDetailModalProps> = ({ order, onClose, dep
 
               {/* Invoices */}
               <div className="od-files-group">
-                <h4 className="od-files-title"><FileText size={15} /> الفواتير</h4>
+                <div className="od-files-title-row">
+                  <h4 className="od-files-title"><FileText size={15} /> الفواتير</h4>
+                  {(currentUser?.role === 'admin' || currentUser?.role === 'manager') && (
+                    <label className="od-upload-btn" title="رفع فاتورة">
+                      <Upload size={13} /> رفع
+                      <input type="file" multiple accept=".pdf,.jpg,.jpeg,.png,.gif,.webp" style={{ display: 'none' }} onChange={handleUploadInvoice} />
+                    </label>
+                  )}
+                </div>
                 <div className="od-file-rows">
                   {/* Legacy single invoice */}
                   {currentOrder.invoice && (
