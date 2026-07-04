@@ -6,7 +6,8 @@ export interface User {
   password: string;
   fullName: string;
   role: UserRole;
-  departmentId?: string;
+  departmentId?: string;   // legacy - kept for backward compat
+  departmentIds?: string[]; // new multi-department support
   avatar?: string;
   createdAt: string;
 }
@@ -47,6 +48,7 @@ export interface Order {
   dueDate?: string;
   orderForms: FileAttachment[];
   invoice?: FileAttachment;
+  invoices?: FileAttachment[];
   fileExtensions: string;
   tags: string[];
   comments: OrderComment[];

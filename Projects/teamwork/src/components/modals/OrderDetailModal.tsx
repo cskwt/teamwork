@@ -208,12 +208,13 @@ const OrderDetailModal: React.FC<OrderDetailModalProps> = ({ order, onClose, dep
     }
   };
 
+  const userDeptIds = currentUser?.departmentIds?.length ? currentUser.departmentIds : (currentUser?.departmentId ? [currentUser.departmentId] : []);
   const canTransfer = currentUser?.role === 'admin' ||
-    (currentUser?.role === 'manager' && currentOrder.departmentId === currentUser?.departmentId);
+    (currentUser?.role === 'manager' && userDeptIds.includes(currentOrder.departmentId));
 
   const tabs = [
     { id: 'details',  label: 'التفاصيل' },
-    { id: 'files',    label: `الملفات (${(currentOrder.orderForms?.length || 0) + (currentOrder.invoice ? 1 : 0)})` },
+    { id: 'files',    label: `الملفات (${(currentOrder.orderForms?.length || 0) + (currentOrder.invoices?.length || 0) + (currentOrder.invoice ? 1 : 0)})` },
     { id: 'chat',     label: `الدردشة (${currentOrder.comments.length})` },
     { id: 'history',  label: 'السجل' },
     ...(canTransfer ? [{ id: 'transfer' as const, label: 'نقل' }] : []),
@@ -454,30 +455,42 @@ const OrderDetailModal: React.FC<OrderDetailModalProps> = ({ order, onClose, dep
                 )}
               </div>
 
-              {/* Invoice */}
+              {/* Invoices */}
               <div className="od-files-group">
-                <h4 className="od-files-title"><FileText size={15} /> الفاتورة</h4>
-                {currentOrder.invoice ? (
-                  <div className="od-file-row">
-                    <div className="od-file-row-icon">
-                      <FileText size={22} color="#10b981" />
+                <h4 className="od-files-title"><FileText size={15} /> الفواتير</h4>
+                <div className="od-file-rows">
+                  {/* Legacy single invoice */}
+                  {currentOrder.invoice && (
+                    <div className="od-file-row">
+                      <div className="od-file-row-icon"><FileText size={22} color="#10b981" /></div>
+                      <div className="od-file-row-info">
+                        <span className="od-file-name">{currentOrder.invoice.name}</span>
+                        <span className="od-file-size">{formatFileSize(currentOrder.invoice.size)}</span>
+                      </div>
+                      <div className="od-file-row-actions">
+                        <button className="od-action-btn" onClick={() => handlePreviewFile(currentOrder.invoice?.dataUrl, currentOrder.invoice?.name || 'فاتورة')} title="عرض"><Image size={15} /> عرض</button>
+                        <button className="od-action-btn" onClick={() => handleOpenFile(currentOrder.invoice?.dataUrl, currentOrder.invoice?.name || 'فاتورة')} title="تحميل"><Download size={15} /> تحميل</button>
+                      </div>
                     </div>
-                    <div className="od-file-row-info">
-                      <span className="od-file-name">{currentOrder.invoice.name}</span>
-                      <span className="od-file-size">{formatFileSize(currentOrder.invoice.size)}</span>
+                  )}
+                  {/* Multiple invoices */}
+                  {currentOrder.invoices?.map((inv) => (
+                    <div key={inv.id} className="od-file-row">
+                      <div className="od-file-row-icon"><FileText size={22} color="#10b981" /></div>
+                      <div className="od-file-row-info">
+                        <span className="od-file-name">{inv.name}</span>
+                        <span className="od-file-size">{formatFileSize(inv.size)}</span>
+                      </div>
+                      <div className="od-file-row-actions">
+                        <button className="od-action-btn" onClick={() => handlePreviewFile(inv.dataUrl, inv.name)} title="عرض"><Image size={15} /> عرض</button>
+                        <button className="od-action-btn" onClick={() => handleOpenFile(inv.dataUrl, inv.name)} title="تحميل"><Download size={15} /> تحميل</button>
+                      </div>
                     </div>
-                    <div className="od-file-row-actions">
-                      <button className="od-action-btn" onClick={() => handlePreviewFile(currentOrder.invoice?.dataUrl, currentOrder.invoice?.name || 'فاتورة')} title="عرض">
-                        <Image size={15} /> عرض
-                      </button>
-                      <button className="od-action-btn" onClick={() => handleOpenFile(currentOrder.invoice?.dataUrl, currentOrder.invoice?.name || 'فاتورة')} title="تحميل">
-                        <Download size={15} /> تحميل
-                      </button>
-                    </div>
-                  </div>
-                ) : (
-                  <p className="od-empty-files">لم يتم رفع فاتورة</p>
-                )}
+                  ))}
+                  {!currentOrder.invoice && (!currentOrder.invoices || currentOrder.invoices.length === 0) && (
+                    <p className="od-empty-files">لم يتم رفع فاتورة</p>
+                  )}
+                </div>
               </div>
             </div>
           )}

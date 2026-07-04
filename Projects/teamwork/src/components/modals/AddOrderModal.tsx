@@ -39,7 +39,7 @@ const AddOrderModal: React.FC<AddOrderModalProps> = ({ departmentId, onClose }) 
   const [fileExtensions, setFileExtensions] = useState('');
   const [notes, setNotes] = useState('');
   const [orderForms, setOrderForms] = useState<FileAttachment[]>([]);
-  const [invoice, setInvoice] = useState<FileAttachment | null>(null);
+  const [invoices, setInvoices] = useState<FileAttachment[]>([]);
   const [uploading, setUploading] = useState(false);
 
   const formsRef = useRef<HTMLInputElement>(null);
@@ -66,12 +66,15 @@ const AddOrderModal: React.FC<AddOrderModalProps> = ({ departmentId, onClose }) 
   };
 
   const handleInvoiceUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    const dataUrl = await readFileAsDataUrl(file);
-    setInvoice({ id: generateId(), name: file.name, type: file.type, size: file.size, dataUrl });
+    const files = Array.from(e.target.files || []);
+    for (const file of files) {
+      const dataUrl = await readFileAsDataUrl(file);
+      setInvoices((prev) => [...prev, { id: generateId(), name: file.name, type: file.type, size: file.size, dataUrl }]);
+    }
     e.target.value = '';
   };
+
+  const removeInvoice = (id: string) => setInvoices((prev) => prev.filter((f) => f.id !== id));
 
   const removeForm = (id: string) => setOrderForms((prev) => prev.filter((f) => f.id !== id));
 
@@ -94,7 +97,7 @@ const AddOrderModal: React.FC<AddOrderModalProps> = ({ departmentId, onClose }) 
       updatedAt: new Date().toISOString(),
       dueDate: dueDate ? new Date(dueDate).toISOString() : undefined,
       orderForms,
-      invoice: invoice || undefined,
+      invoices: invoices.length > 0 ? invoices : undefined,
       fileExtensions: fileExtensions.trim(),
       notes: notes.trim(),
       tags: [],
@@ -164,26 +167,27 @@ const AddOrderModal: React.FC<AddOrderModalProps> = ({ departmentId, onClose }) 
               {/* Upload Invoice */}
               <div className="form-group">
                 <label className="form-label"><FileText size={13} /> رفع الفاتورة (PDF)</label>
-                {invoice ? (
+                {invoices.length > 0 && (
                   <div className="file-list">
-                    <div className="file-item">
-                      <div className="file-icon-box invoice-icon"><FileText size={18} /></div>
-                      <div className="file-info">
-                        <span className="file-name">{invoice.name}</span>
-                        <span className="file-size">{formatFileSize(invoice.size)}</span>
+                    {invoices.map((inv) => (
+                      <div key={inv.id} className="file-item">
+                        <div className="file-icon-box invoice-icon"><FileText size={18} /></div>
+                        <div className="file-info">
+                          <span className="file-name">{inv.name}</span>
+                          <span className="file-size">{formatFileSize(inv.size)}</span>
+                        </div>
+                        <button type="button" className="file-remove" onClick={() => removeInvoice(inv.id)}>
+                          <Trash2 size={13} />
+                        </button>
                       </div>
-                      <button type="button" className="file-remove" onClick={() => setInvoice(null)}>
-                        <Trash2 size={13} />
-                      </button>
-                    </div>
-                  </div>
-                ) : (
-                  <div className="upload-zone upload-zone-sm" onClick={() => invoiceRef.current?.click()}>
-                    <Upload size={18} />
-                    <span>رفع الفاتورة</span>
-                    <input ref={invoiceRef} type="file" accept=".pdf" onChange={handleInvoiceUpload} hidden />
+                    ))}
                   </div>
                 )}
+                <div className="upload-zone upload-zone-sm" onClick={() => invoiceRef.current?.click()}>
+                  <Upload size={18} />
+                  <span>{invoices.length > 0 ? 'إضافة فاتورة أخرى' : 'رفع الفاتورة'}</span>
+                  <input ref={invoiceRef} type="file" accept=".pdf" multiple onChange={handleInvoiceUpload} hidden />
+                </div>
               </div>
 
               {/* Assign Users */}
