@@ -267,12 +267,12 @@ const AddOrderModal: React.FC<AddOrderModalProps> = ({ departmentId, onClose }) 
               {/* Order Date + Due Date */}
               <div className="form-row">
                 <div className="form-group">
-                  <label className="form-label">تاريخ الطلب</label>
-                  <input type="date" className="form-input" value={orderDate} onChange={(e) => setOrderDate(e.target.value)} />
-                </div>
-                <div className="form-group">
                   <label className="form-label">موعد التسليم</label>
                   <input type="date" className="form-input" value={dueDate} onChange={(e) => setDueDate(e.target.value)} min={orderDate} />
+                </div>
+                <div className="form-group">
+                  <label className="form-label">تاريخ الطلب</label>
+                  <input type="date" className="form-input" value={orderDate} onChange={(e) => setOrderDate(e.target.value)} />
                 </div>
               </div>
 
