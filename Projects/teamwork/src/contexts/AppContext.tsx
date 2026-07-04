@@ -147,9 +147,10 @@ const reducer = (state: AppState, action: Action): AppState => {
         const msg = isDeptChange
           ? `نُقلت طلبية: ${movedOrder.clientName} إلى قسم ${newDept?.name || targetDeptId}`
           : `تغيير عمود: ${movedOrder.clientName} من ${oldCol?.title || movedOrder.status} إلى ${newCol?.title || action.payload.status}`;
+        const triggerUid = action.payload.triggerUserId;
         const receivers = new Set<string>([
-          ...state.users.filter((u) => u.departmentId === movedOrder.departmentId || u.departmentId === targetDeptId).map((u) => u.id),
-          ...(movedOrder.assignedUsers || []),
+          ...state.users.filter((u) => (u.departmentId === movedOrder.departmentId || u.departmentId === targetDeptId) && u.id !== triggerUid).map((u) => u.id),
+          ...(movedOrder.assignedUsers || []).filter((uid) => uid !== triggerUid),
         ]);
         return Array.from(receivers).map((uid) => makeNotif('updated', uid, movedOrder, msg));
       })() : [];
@@ -169,12 +170,14 @@ const reducer = (state: AppState, action: Action): AppState => {
     }
     case 'ADD_COMMENT': {
       const commentOrder = state.orders.find((o) => o.id === action.payload.orderId);
-      const chatNotifs: AppNotification[] = commentOrder
-        ? (commentOrder.assignedUsers || [])
-            .filter((uid) => uid !== action.triggerUserId)
-            .map((uid) => makeNotif('chat', uid, commentOrder,
-              `رسالة جديدة في طلبية: ${commentOrder.clientName} — رقم ${commentOrder.orderNumber}`))
-        : [];
+      const chatNotifs: AppNotification[] = commentOrder ? (() => {
+        const chatReceivers = new Set<string>([
+          ...state.users.filter((u) => u.departmentId === commentOrder.departmentId && u.id !== action.triggerUserId).map((u) => u.id),
+          ...(commentOrder.assignedUsers || []).filter((uid) => uid !== action.triggerUserId),
+        ]);
+        return Array.from(chatReceivers).map((uid) => makeNotif('chat', uid, commentOrder,
+          `رسالة جديدة في طلبية: ${commentOrder.clientName} — رقم ${commentOrder.orderNumber}`));
+      })() : [];
       return {
         ...state,
         orders: state.orders.map((o) => {
