@@ -17,9 +17,10 @@ interface OrderDetailModalProps {
 const OrderDetailModal: React.FC<OrderDetailModalProps> = ({ order, onClose, department }) => {
   const { state, dispatch, addHistoryEntry } = useApp();
   const { users, departments, currentUser } = state;
-  const [activeTab, setActiveTab] = useState<'details' | 'files' | 'chat' | 'history' | 'transfer'>('details');
+  const [activeTab, setActiveTab] = useState<'details' | 'files' | 'chat' | 'history'>('details');
   const [comment, setComment] = useState('');
   const [transferDept, setTransferDept] = useState('');
+  const [showTransferPopover, setShowTransferPopover] = useState(false);
   const [editing, setEditing] = useState(false);
 
   const rawOrder = state.orders.find((o) => o.id === order.id) || order;
@@ -231,7 +232,6 @@ const OrderDetailModal: React.FC<OrderDetailModalProps> = ({ order, onClose, dep
     { id: 'files',    label: `الملفات (${(currentOrder.orderForms?.length || 0) + (currentOrder.invoices?.length || 0) + (currentOrder.invoice ? 1 : 0)})` },
     { id: 'chat',     label: `الدردشة (${currentOrder.comments.length})` },
     { id: 'history',  label: 'السجل' },
-    ...(canTransfer ? [{ id: 'transfer' as const, label: 'نقل', icon: true }] : []),
   ] as const;
 
   return (
@@ -277,6 +277,39 @@ const OrderDetailModal: React.FC<OrderDetailModalProps> = ({ order, onClose, dep
               <button className="modal-icon-btn modal-icon-btn--purple" onClick={handleArchive} title="أرشفة">
                 <Archive size={15} />
               </button>
+            )}
+            {canTransfer && !editing && (
+              <div style={{ position: 'relative' }}>
+                <button
+                  className={`modal-icon-btn ${showTransferPopover ? 'modal-icon-btn--active' : ''}`}
+                  title="نقل إلى قسم آخر"
+                  onClick={() => setShowTransferPopover((v) => !v)}
+                >
+                  <ArrowRightLeft size={15} />
+                </button>
+                {showTransferPopover && (
+                  <div className="transfer-popover">
+                    <p className="transfer-popover-label">نقل إلى قسم:</p>
+                    <select
+                      className="transfer-popover-select"
+                      value={transferDept}
+                      onChange={(e) => setTransferDept(e.target.value)}
+                    >
+                      <option value="">اختر القسم</option>
+                      {departments.filter((d) => d.id !== order.departmentId).map((d) => (
+                        <option key={d.id} value={d.id}>{d.name}</option>
+                      ))}
+                    </select>
+                    <button
+                      className="transfer-popover-btn"
+                      disabled={!transferDept}
+                      onClick={() => { handleTransfer(); setShowTransferPopover(false); }}
+                    >
+                      نقل ↵
+                    </button>
+                  </div>
+                )}
+              </div>
             )}
             {!currentOrder.completedAt && !editing && (
               <button className="modal-icon-btn modal-icon-btn--green" onClick={handleMarkDone} title="تم الانتهاء">
@@ -608,22 +641,6 @@ const OrderDetailModal: React.FC<OrderDetailModalProps> = ({ order, onClose, dep
             </div>
           )}
 
-          {/* ── TRANSFER TAB ────────────────────────── */}
-          {activeTab === 'transfer' && (
-            <div className="transfer-section">
-              <div className="transfer-icon"><ArrowRightLeft size={32} /></div>
-              <h3>نقل الطلبية إلى قسم آخر</h3>
-              <p className="transfer-note">القسم الحالي: <b>{department.name}</b></p>
-              <p className="transfer-note transfer-warning">عند النقل ستُحوَّل الطلبية إلى عمود "جديد" في القسم الهدف</p>
-              <select className="transfer-select" value={transferDept} onChange={(e) => setTransferDept(e.target.value)}>
-                <option value="">اختر القسم</option>
-                {departments.filter((d) => d.id !== order.departmentId).map((d) => (
-                  <option key={d.id} value={d.id}>{d.name}</option>
-                ))}
-              </select>
-              <button className="btn-primary" onClick={handleTransfer} disabled={!transferDept}>نقل الطلبية</button>
-            </div>
-          )}
         </div>
       </div>
     </div>
