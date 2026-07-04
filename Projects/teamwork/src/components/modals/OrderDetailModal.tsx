@@ -152,7 +152,7 @@ const OrderDetailModal: React.FC<OrderDetailModalProps> = ({ order, onClose, dep
   const handleDeleteOrderForm = (fileId: string) => {
     if (!window.confirm('هل تريد حذف هذا الملف؟')) return;
     const updated = { ...currentOrder, orderForms: currentOrder.orderForms.filter((f) => f.id !== fileId), updatedAt: new Date().toISOString() };
-    dispatch({ type: 'UPDATE_ORDER', payload: updated });
+    dispatch({ type: 'UPDATE_ORDER', payload: updated, silent: true } as any);
   };
 
   const handleUploadOrderForm = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -163,7 +163,7 @@ const OrderDetailModal: React.FC<OrderDetailModalProps> = ({ order, onClose, dep
       reader.onload = () => {
         const newFile = { id: generateId(), name: file.name, size: file.size, type: file.type, dataUrl: reader.result as string };
         const updated = { ...currentOrder, orderForms: [...(currentOrder.orderForms || []), newFile], updatedAt: new Date().toISOString() };
-        dispatch({ type: 'UPDATE_ORDER', payload: updated });
+        dispatch({ type: 'UPDATE_ORDER', payload: updated, silent: true } as any);
       };
       reader.readAsDataURL(file);
     });
@@ -178,7 +178,7 @@ const OrderDetailModal: React.FC<OrderDetailModalProps> = ({ order, onClose, dep
       reader.onload = () => {
         const newInv = { id: generateId(), name: file.name, size: file.size, type: file.type, dataUrl: reader.result as string };
         const updated = { ...currentOrder, invoices: [...(currentOrder.invoices || []), newInv], updatedAt: new Date().toISOString() };
-        dispatch({ type: 'UPDATE_ORDER', payload: updated });
+        dispatch({ type: 'UPDATE_ORDER', payload: updated, silent: true } as any);
       };
       reader.readAsDataURL(file);
     });
@@ -193,7 +193,7 @@ const OrderDetailModal: React.FC<OrderDetailModalProps> = ({ order, onClose, dep
     } else {
       updated = { ...currentOrder, invoices: (currentOrder.invoices || []).filter((i) => i.id !== invoiceId), updatedAt: new Date().toISOString() };
     }
-    dispatch({ type: 'UPDATE_ORDER', payload: updated });
+    dispatch({ type: 'UPDATE_ORDER', payload: updated, silent: true } as any);
   };
 
   const handleArchive = () => {
@@ -394,7 +394,7 @@ const OrderDetailModal: React.FC<OrderDetailModalProps> = ({ order, onClose, dep
                       className="transfer-popover-btn"
                       onClick={() => {
                         const now = new Date().toISOString();
-                        dispatch({ type: 'UPDATE_ORDER', payload: { ...currentOrder, progress: editData.progress, updatedAt: now } });
+                        dispatch({ type: 'UPDATE_ORDER', payload: { ...currentOrder, progress: editData.progress, updatedAt: now }, silent: true } as any);
                         setShowProgressPopover(false);
                       }}
                     >

@@ -33,7 +33,7 @@ type Action =
   | { type: 'LOGIN'; payload: User }
   | { type: 'LOGOUT' }
   | { type: 'ADD_ORDER'; payload: Order; triggerUserId?: string }
-  | { type: 'UPDATE_ORDER'; payload: Order; triggerUserId?: string; prevAssignedUsers?: string[] }
+  | { type: 'UPDATE_ORDER'; payload: Order; triggerUserId?: string; prevAssignedUsers?: string[]; silent?: boolean }
   | { type: 'DELETE_ORDER'; payload: string }
   | { type: 'MOVE_ORDER'; payload: { orderId: string; status: string; departmentId?: string; triggerUserId?: string } }
   | { type: 'ADD_COMMENT'; payload: { orderId: string; comment: OrderComment }; triggerUserId?: string }
@@ -94,6 +94,9 @@ const reducer = (state: AppState, action: Action): AppState => {
     }
     case 'UPDATE_ORDER': {
       const updated = action.payload;
+      if (action.silent) {
+        return { ...state, orders: state.orders.map((o) => (o.id === updated.id ? updated : o)) };
+      }
       const newlyAssigned = (updated.assignedUsers || []).filter(
         (uid) => !(action.prevAssignedUsers || []).includes(uid) && uid !== action.triggerUserId
       );
