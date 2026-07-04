@@ -333,10 +333,9 @@ const OrderDetailModal: React.FC<OrderDetailModalProps> = ({ order, onClose, dep
           {tabs.map((t) => (
             <button
               key={t.id}
-              className={`modal-tab ${activeTab === t.id ? 'tab-active' : ''} ${'icon' in t && t.icon ? 'tab-transfer' : ''}`}
+              className={`modal-tab ${activeTab === t.id ? 'tab-active' : ''}`}
               onClick={() => setActiveTab(t.id)}
             >
-              {'icon' in t && t.icon && <ArrowRightLeft size={13} />}
               {t.label}
             </button>
           ))}
