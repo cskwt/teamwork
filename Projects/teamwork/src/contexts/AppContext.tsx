@@ -58,19 +58,33 @@ const reducer = (state: AppState, action: Action): AppState => {
   switch (action.type) {
     case 'INIT_STATE':
       return { ...action.payload, currentUser: null, notifications: action.payload.notifications || [] };
-    case 'SYNC_STATE':
+    case 'SYNC_STATE': {
+      // Merge orders: keep the newer version of each order (by updatedAt) to avoid race conditions
+      const serverOrders = action.payload.orders || [];
+      const localOrders  = state.orders;
+      const serverMap    = new Map(serverOrders.map((o: Order) => [o.id, o]));
+      const localMap     = new Map(localOrders.map((o: Order) => [o.id, o]));
+      const allIds       = new Set([...Array.from(serverMap.keys()), ...Array.from(localMap.keys())]);
+      const mergedOrders = Array.from(allIds).map((id) => {
+        const srv = serverMap.get(id);
+        const loc = localMap.get(id);
+        if (!srv) return loc!;
+        if (!loc) return srv;
+        return (srv.updatedAt || '') >= (loc.updatedAt || '') ? srv : loc;
+      });
       return {
         ...state,
         users: action.payload.users || state.users,
         departments: action.payload.departments || state.departments,
-        orders: action.payload.orders || state.orders,
+        orders: mergedOrders,
         notifications: [
           ...state.notifications,
           ...(action.payload.notifications || []).filter(
-            (n) => !state.notifications.find((existing) => existing.id === n.id)
+            (n: AppNotification) => !state.notifications.find((existing) => existing.id === n.id)
           ),
         ],
       };
+    }
     case 'LOGIN':
       return { ...state, currentUser: action.payload };
     case 'LOGOUT':

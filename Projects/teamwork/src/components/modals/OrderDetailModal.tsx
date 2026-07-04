@@ -138,12 +138,12 @@ const OrderDetailModal: React.FC<OrderDetailModalProps> = ({ order, onClose, dep
     const deliveryDept = departments.find((d) => d.name === 'قسم التسليم');
     if (deliveryDept) {
       const fromDept = departments.find((d) => d.id === currentOrder.departmentId)?.name || '';
-      dispatch({ type: 'UPDATE_ORDER', payload: { ...currentOrder, completedAt, updatedAt: completedAt } });
+      dispatch({ type: 'UPDATE_ORDER', payload: { ...currentOrder, completedAt, updatedAt: completedAt }, silent: true } as any);
       dispatch({ type: 'MOVE_ORDER', payload: { orderId: order.id, status: 'new', departmentId: deliveryDept.id, triggerUserId: currentUser?.id } });
       addHistoryEntry(order.id, 'تم الانتهاء ونقل الطلبية إلى قسم التسليم', fromDept, deliveryDept.name);
     } else {
       const updated = { ...currentOrder, completedAt, updatedAt: completedAt };
-      dispatch({ type: 'UPDATE_ORDER', payload: updated });
+      dispatch({ type: 'UPDATE_ORDER', payload: updated, silent: true } as any);
       addHistoryEntry(order.id, 'تم الانتهاء من الطلبية');
     }
     onClose();
@@ -217,7 +217,7 @@ const OrderDetailModal: React.FC<OrderDetailModalProps> = ({ order, onClose, dep
     const isDelivery = toDept?.name === 'قسم التسليم';
     dispatch({ type: 'MOVE_ORDER', payload: { orderId: order.id, status: 'new', departmentId: transferDept, triggerUserId: currentUser?.id } });
     if (!isDelivery && currentOrder.completedAt) {
-      dispatch({ type: 'UPDATE_ORDER', payload: { ...currentOrder, completedAt: undefined, updatedAt: new Date().toISOString() } });
+      dispatch({ type: 'UPDATE_ORDER', payload: { ...currentOrder, completedAt: undefined, updatedAt: new Date().toISOString() }, silent: true } as any);
     }
     addHistoryEntry(order.id, 'نقل إلى قسم آخر', from, toDept?.name || '');
     onClose();
