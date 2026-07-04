@@ -410,9 +410,24 @@ const OrderDetailModal: React.FC<OrderDetailModalProps> = ({ order, onClose, dep
               <div className="od-detail-item">
                 <span className="od-label">الأولوية</span>
                 {editing ? (
-                  <select className="od-edit-input" value={editData.priority} onChange={(e) => setEditData(p => ({ ...p, priority: e.target.value as OrderPriority }))}>
-                    {Object.entries(priorityConfig).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
-                  </select>
+                  <div className="priority-picker" style={{ marginTop: 4 }}>
+                    {(Object.entries(priorityConfig) as [OrderPriority, { label: string; color: string; bg: string }][]).map(([k, v]) => (
+                      <button
+                        key={k}
+                        type="button"
+                        className={`priority-opt ${editData.priority === k ? 'priority-active' : ''}`}
+                        style={{
+                          background: editData.priority === k ? v.bg : '#f9fafb',
+                          color: v.color,
+                          borderColor: editData.priority === k ? v.color : '#e5e7eb',
+                          fontWeight: editData.priority === k ? 700 : 500,
+                        }}
+                        onClick={() => setEditData(p => ({ ...p, priority: k }))}
+                      >
+                        {v.label}
+                      </button>
+                    ))}
+                  </div>
                 ) : (
                   <span className="od-value">
                     <span className="badge" style={{ background: priorityConfig[currentOrder.priority].bg, color: priorityConfig[currentOrder.priority].color }}>

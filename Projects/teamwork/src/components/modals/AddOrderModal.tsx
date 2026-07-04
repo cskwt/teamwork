@@ -34,7 +34,7 @@ const AddOrderModal: React.FC<AddOrderModalProps> = ({ departmentId, onClose }) 
   const [orderDate, setOrderDate] = useState(new Date().toISOString().slice(0, 10));
   const [dueDate, setDueDate] = useState('');
   const [selectedDept, setSelectedDept] = useState(departmentId);
-  const [priority, setPriority] = useState<OrderPriority>('medium');
+  const [priority, setPriority] = useState<OrderPriority>('low');
   const [assignedUsers, setAssignedUsers] = useState<string[]>([]);
   const [fileExtensions, setFileExtensions] = useState('');
   const [notes, setNotes] = useState('');
@@ -307,7 +307,12 @@ const AddOrderModal: React.FC<AddOrderModalProps> = ({ departmentId, onClose }) 
                         key={p.value}
                         type="button"
                         className={`priority-opt ${priority === p.value ? 'priority-active' : ''}`}
-                        style={priority === p.value ? { background: p.bg, color: p.color, borderColor: p.color } : {}}
+                        style={{
+                          background: priority === p.value ? p.bg : '#f9fafb',
+                          color: p.color,
+                          borderColor: priority === p.value ? p.color : '#e5e7eb',
+                          fontWeight: priority === p.value ? 700 : 500,
+                        }}
                         onClick={() => setPriority(p.value)}
                       >
                         {p.label}
