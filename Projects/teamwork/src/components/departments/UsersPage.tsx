@@ -245,21 +245,27 @@ const UsersPage: React.FC = () => {
                 </div>
                 <div className="form-group">
                   <label className="form-label">القسم</label>
-                  <div className="dept-checkboxes">
-                    {departments.map((d) => (
-                      <label key={d.id} className="dept-checkbox-item">
-                        <input
-                          type="checkbox"
-                          checked={selectedDeptIds.includes(d.id)}
-                          onChange={(e) => {
-                            if (e.target.checked) setSelectedDeptIds(prev => [...prev, d.id]);
-                            else setSelectedDeptIds(prev => prev.filter(id => id !== d.id));
+                  <div className="users-picker">
+                    {departments.map((d) => {
+                      const selected = selectedDeptIds.includes(d.id);
+                      return (
+                        <button
+                          key={d.id}
+                          type="button"
+                          className={`user-pick-btn ${selected ? 'user-selected' : ''}`}
+                          onClick={() => {
+                            if (selected) setSelectedDeptIds(prev => prev.filter(id => id !== d.id));
+                            else setSelectedDeptIds(prev => [...prev, d.id]);
                           }}
-                        />
-                        <span className="dept-checkbox-dot" style={{ background: d.color }} />
-                        {d.name}
-                      </label>
-                    ))}
+                        >
+                          <div className="user-pick-avatar" style={{ background: d.color, width: 14, height: 14, borderRadius: '50%', flexShrink: 0 }} />
+                          <div className="user-pick-info">
+                            <span className="user-pick-name">{d.name}</span>
+                          </div>
+                          {selected && <div className="user-pick-check">✓</div>}
+                        </button>
+                      );
+                    })}
                   </div>
                 </div>
               </div>
