@@ -33,7 +33,7 @@ const AddOrderModal: React.FC<AddOrderModalProps> = ({ departmentId, onClose }) 
   const [description, setDescription] = useState('');
   const [orderDate, setOrderDate] = useState(new Date().toISOString().slice(0, 10));
   const [dueDate, setDueDate] = useState('');
-  const [selectedDept, setSelectedDept] = useState(departmentId);
+  const [selectedDepts, setSelectedDepts] = useState<string[]>(departmentId ? [departmentId] : []);
   const [priority, setPriority] = useState<OrderPriority>('low');
   const [assignedUsers, setAssignedUsers] = useState<string[]>([]);
   const [fileExtensions, setFileExtensions] = useState('');
@@ -89,7 +89,8 @@ const AddOrderModal: React.FC<AddOrderModalProps> = ({ departmentId, onClose }) 
       description: description.trim(),
       status: 'new',
       priority,
-      departmentId: selectedDept,
+      departmentId: selectedDepts[0] || '',
+      departmentIds: selectedDepts,
       assignedUsers,
       createdBy: currentUser.id,
       createdAt: new Date().toISOString(),
@@ -281,13 +282,15 @@ const AddOrderModal: React.FC<AddOrderModalProps> = ({ departmentId, onClose }) 
                   <label className="form-label"><Building2 size={13} /> القسم المختص</label>
                   <div className="users-picker">
                     {departments.filter((d) => d.name !== 'قسم التسليم').map((d) => {
-                      const selected = selectedDept === d.id;
+                      const selected = selectedDepts.includes(d.id);
                       return (
                         <button
                           key={d.id}
                           type="button"
                           className={`user-pick-btn ${selected ? 'user-selected' : ''}`}
-                          onClick={() => setSelectedDept(d.id)}
+                          onClick={() => setSelectedDepts(prev =>
+                            selected ? prev.filter(id => id !== d.id) : [...prev, d.id]
+                          )}
                         >
                           <div style={{ width: 12, height: 12, borderRadius: '50%', background: d.color, flexShrink: 0 }} />
                           <div className="user-pick-info">

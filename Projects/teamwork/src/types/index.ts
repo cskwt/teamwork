@@ -40,6 +40,7 @@ export interface Order {
   status: OrderStatus;
   priority: OrderPriority;
   departmentId: string;
+  departmentIds?: string[];
   assignedUsers: string[];
   createdBy: string;
   createdAt: string;

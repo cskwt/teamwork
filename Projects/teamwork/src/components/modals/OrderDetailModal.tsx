@@ -45,6 +45,7 @@ const OrderDetailModal: React.FC<OrderDetailModalProps> = ({ order, onClose, dep
     notes: currentOrder.notes || '',
     progress: currentOrder.progress ?? 0,
     departmentId: currentOrder.departmentId,
+    departmentIds: currentOrder.departmentIds?.length ? currentOrder.departmentIds : [currentOrder.departmentId],
     priority: currentOrder.priority as OrderPriority,
     status: currentOrder.status as OrderStatus,
     assignedUsers: currentOrder.assignedUsers || [],
@@ -62,6 +63,7 @@ const OrderDetailModal: React.FC<OrderDetailModalProps> = ({ order, onClose, dep
         notes: currentOrder.notes || '',
         progress: currentOrder.progress ?? 0,
         departmentId: currentOrder.departmentId,
+        departmentIds: currentOrder.departmentIds?.length ? currentOrder.departmentIds : [currentOrder.departmentId],
         priority: currentOrder.priority as OrderPriority,
         status: currentOrder.status as OrderStatus,
         assignedUsers: currentOrder.assignedUsers || [],
@@ -82,7 +84,8 @@ const OrderDetailModal: React.FC<OrderDetailModalProps> = ({ order, onClose, dep
       fileExtensions: editData.fileExtensions,
       notes: editData.notes,
       progress: editData.progress,
-      departmentId: editData.departmentId,
+      departmentId: editData.departmentIds[0] || editData.departmentId,
+      departmentIds: editData.departmentIds,
       priority: editData.priority,
       status: editData.status,
       assignedUsers: editData.assignedUsers,
@@ -263,6 +266,7 @@ const OrderDetailModal: React.FC<OrderDetailModalProps> = ({ order, onClose, dep
                   notes: currentOrder.notes || '',
                   progress: currentOrder.progress ?? 0,
                   departmentId: currentOrder.departmentId,
+                  departmentIds: currentOrder.departmentIds?.length ? currentOrder.departmentIds : [currentOrder.departmentId],
                   priority: currentOrder.priority as OrderPriority,
                   status: currentOrder.status as OrderStatus,
                   assignedUsers: currentOrder.assignedUsers || [],
@@ -381,13 +385,18 @@ const OrderDetailModal: React.FC<OrderDetailModalProps> = ({ order, onClose, dep
                 {editing ? (
                   <div className="users-picker" style={{ marginTop: 4 }}>
                     {departments.filter((d) => d.name !== 'قسم التسليم').map((d) => {
-                      const selected = editData.departmentId === d.id;
+                      const selected = editData.departmentIds.includes(d.id);
                       return (
                         <button
                           key={d.id}
                           type="button"
                           className={`user-pick-btn ${selected ? 'user-selected' : ''}`}
-                          onClick={() => setEditData(p => ({ ...p, departmentId: d.id }))}
+                          onClick={() => setEditData(p => ({
+                            ...p,
+                            departmentIds: selected
+                              ? p.departmentIds.filter(id => id !== d.id)
+                              : [...p.departmentIds, d.id],
+                          }))}
                         >
                           <div style={{ width: 12, height: 12, borderRadius: '50%', background: d.color, flexShrink: 0 }} />
                           <div className="user-pick-info">

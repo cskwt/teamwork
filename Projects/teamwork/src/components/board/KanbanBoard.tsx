@@ -81,7 +81,10 @@ const KanbanBoard: React.FC<KanbanBoardProps> = ({ department, onBack }) => {
     useSensor(PointerSensor, { activationConstraint: { distance: 8 } })
   );
 
-  const deptOrders = orders.filter((o) => o.departmentId === department.id && !o.deletedAt);
+  const deptOrders = orders.filter((o) => {
+    const ids = o.departmentIds?.length ? o.departmentIds : [o.departmentId];
+    return ids.includes(department.id) && !o.deletedAt;
+  });
   const columns = [...department.columns].sort((a, b) => b.order - a.order);
   const colSortableIds = columns.map((c) => `col::${c.id}`);
 
