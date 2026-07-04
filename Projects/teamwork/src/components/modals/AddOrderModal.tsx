@@ -10,8 +10,8 @@ interface AddOrderModalProps {
 }
 
 const PRIORITY_OPTIONS: { value: OrderPriority; label: string; color: string; bg: string }[] = [
-  { value: 'medium', label: 'متوسطة',  color: '#d97706', bg: '#fffbeb' },
   { value: 'low',    label: 'عادية',   color: '#16a34a', bg: '#f0fdf4' },
+  { value: 'medium', label: 'متوسطة',  color: '#d97706', bg: '#fffbeb' },
   { value: 'high',   label: 'عالية',   color: '#ea580c', bg: '#fff7ed' },
   { value: 'urgent', label: 'قصوى',    color: '#dc2626', bg: '#fef2f2' },
 ];
