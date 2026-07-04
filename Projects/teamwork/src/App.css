@@ -1124,7 +1124,7 @@ textarea.form-input { padding: 10px 12px; resize: vertical; color: #111827; min-
 .file-remove:hover { background: #2a0a0a; color: var(--danger); }
 
 /* Users Picker */
-.users-picker { display: flex; flex-direction: column; gap: 6px; max-height: 200px; overflow-y: auto; }
+.users-picker { display: flex; flex-direction: column; gap: 6px; }
 .users-picker::-webkit-scrollbar { width: 3px; }
 .users-picker::-webkit-scrollbar-thumb { background: #2a2a2a; }
 .user-pick-btn {
