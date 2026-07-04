@@ -115,7 +115,7 @@ const AddOrderModal: React.FC<AddOrderModalProps> = ({ departmentId, onClose }) 
 
   return (
     <div className="modal-overlay" onClick={onClose}>
-      <div className="modal-panel modal-xl" onClick={(e) => e.stopPropagation()}>
+      <div className="modal-panel modal-2xl" onClick={(e) => e.stopPropagation()}>
         <div className="modal-header">
           <h3 className="modal-heading">إضافة طلبية جديدة</h3>
           <button className="modal-close-corner" onClick={onClose} title="إغلاق"><X size={18} /></button>
@@ -276,32 +276,34 @@ const AddOrderModal: React.FC<AddOrderModalProps> = ({ departmentId, onClose }) 
                 </div>
               </div>
 
-              {/* Department + Priority */}
-              <div className="form-row">
-                <div className="form-group">
-                  <label className="form-label"><Building2 size={13} /> القسم المختص</label>
-                  <div className="users-picker">
-                    {departments.filter((d) => d.name !== 'قسم التسليم').map((d) => {
-                      const selected = selectedDepts.includes(d.id);
-                      return (
-                        <button
-                          key={d.id}
-                          type="button"
-                          className={`user-pick-btn ${selected ? 'user-selected' : ''}`}
-                          onClick={() => setSelectedDepts(prev =>
-                            selected ? prev.filter(id => id !== d.id) : [...prev, d.id]
-                          )}
-                        >
-                          <div style={{ width: 12, height: 12, borderRadius: '50%', background: d.color, flexShrink: 0 }} />
-                          <div className="user-pick-info">
-                            <span className="user-pick-name">{d.name}</span>
-                          </div>
-                          {selected && <div className="user-pick-check">✓</div>}
-                        </button>
-                      );
-                    })}
-                  </div>
+              {/* Department - Full Width */}
+              <div className="form-group">
+                <label className="form-label"><Building2 size={13} /> القسم المختص</label>
+                <div className="dept-picker-grid">
+                  {departments.filter((d) => d.name !== 'قسم التسليم').map((d) => {
+                    const selected = selectedDepts.includes(d.id);
+                    return (
+                      <button
+                        key={d.id}
+                        type="button"
+                        className={`user-pick-btn ${selected ? 'user-selected' : ''}`}
+                        onClick={() => setSelectedDepts(prev =>
+                          selected ? prev.filter(id => id !== d.id) : [...prev, d.id]
+                        )}
+                      >
+                        <div style={{ width: 12, height: 12, borderRadius: '50%', background: d.color, flexShrink: 0 }} />
+                        <div className="user-pick-info">
+                          <span className="user-pick-name">{d.name}</span>
+                        </div>
+                        {selected && <div className="user-pick-check">✓</div>}
+                      </button>
+                    );
+                  })}
                 </div>
+              </div>
+
+              {/* Priority + File Extensions */}
+              <div className="form-row">
                 <div className="form-group">
                   <label className="form-label">الأولوية</label>
                   <div className="priority-picker">
@@ -323,33 +325,30 @@ const AddOrderModal: React.FC<AddOrderModalProps> = ({ departmentId, onClose }) 
                     ))}
                   </div>
                 </div>
+                <div className="form-group">
+                  <label className="form-label">امتداد الملفات المطلوبة</label>
+                  <textarea
+                    className="form-input"
+                    value={fileExtensions}
+                    onChange={(e) => setFileExtensions(e.target.value)}
+                    placeholder="مثال: PDF, AI, CDR, PNG"
+                    style={{ resize: 'none', flex: 1, minHeight: 80 }}
+                  />
+                </div>
               </div>
 
+              {/* Notes */}
+              <div className="form-group">
+                <label className="form-label">الملاحظات</label>
+                <textarea
+                  className="form-input"
+                  value={notes}
+                  onChange={(e) => setNotes(e.target.value)}
+                  placeholder="أضف ملاحظات إضافية للطلبية..."
+                  style={{ resize: 'none', minHeight: 72 }}
+                />
+              </div>
 
-            </div>
-          </div>
-
-          {/* File Extensions + Notes - Full Width */}
-          <div style={{ display: 'flex', gap: '12px', padding: '0 20px 16px' }}>
-            <div className="form-group" style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
-              <label className="form-label">امتداد الملفات المطلوبة</label>
-              <textarea
-                className="form-input"
-                value={fileExtensions}
-                onChange={(e) => setFileExtensions(e.target.value)}
-                placeholder="مثال: PDF, AI, CDR, PNG"
-                style={{ resize: 'none', minHeight: 100 }}
-              />
-            </div>
-            <div className="form-group" style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
-              <label className="form-label">الملاحظات</label>
-              <textarea
-                className="form-input"
-                value={notes}
-                onChange={(e) => setNotes(e.target.value)}
-                placeholder="أضف ملاحظات إضافية للطلبية..."
-                style={{ resize: 'none', minHeight: 100 }}
-              />
             </div>
           </div>
 
