@@ -273,7 +273,7 @@ const OrderDetailModal: React.FC<OrderDetailModalProps> = ({ order, onClose, dep
             {currentUser?.role === 'admin' && (
               <button className="modal-icon-btn modal-icon-btn--danger" onClick={handleDelete} title="حذف"><Trash2 size={15} /></button>
             )}
-            {(currentUser?.role === 'admin' || currentUser?.role === 'manager') && currentOrder.status !== 'done' && !editing && (
+            {(currentUser?.role === 'admin' || currentUser?.role === 'manager') && currentOrder.status !== 'done' && !editing && department.name === 'قسم التسليم' && (
               <button className="modal-icon-btn modal-icon-btn--purple" onClick={handleArchive} title="أرشفة">
                 <Archive size={15} />
               </button>
