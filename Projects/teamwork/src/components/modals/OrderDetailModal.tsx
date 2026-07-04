@@ -205,7 +205,7 @@ const OrderDetailModal: React.FC<OrderDetailModalProps> = ({ order, onClose, dep
       completedAt: currentOrder.completedAt || now,
       updatedAt: now,
     };
-    dispatch({ type: 'UPDATE_ORDER', payload: updated });
+    dispatch({ type: 'UPDATE_ORDER', payload: updated, silent: true } as any);
     addHistoryEntry(order.id, 'تم أرشفة الطلبية');
     onClose();
   };
