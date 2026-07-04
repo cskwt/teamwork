@@ -98,6 +98,7 @@ export interface AppNotification {
   orderNumber: string;
   clientName: string;
   message: string;
+  commentText?: string;
   createdAt: string;
   read: boolean;
 }

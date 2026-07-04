@@ -52,6 +52,11 @@ const NotificationPopup: React.FC = () => {
           <span className="notif-popup-icon">{typeIcon[popup.type] || '🔔'}</span>
           <p className="notif-popup-msg">{popup.message}</p>
         </div>
+        {popup.commentText && (
+          <div className="notif-popup-comment">
+            <p className="notif-popup-comment-text">"{popup.commentText}"</p>
+          </div>
+        )}
         <button className="notif-popup-btn" onClick={handleDismiss}>تم</button>
       </div>
     </div>

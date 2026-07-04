@@ -175,8 +175,11 @@ const reducer = (state: AppState, action: Action): AppState => {
           ...state.users.filter((u) => u.departmentId === commentOrder.departmentId && u.id !== action.triggerUserId).map((u) => u.id),
           ...(commentOrder.assignedUsers || []).filter((uid) => uid !== action.triggerUserId),
         ]);
-        return Array.from(chatReceivers).map((uid) => makeNotif('chat', uid, commentOrder,
-          `رسالة جديدة في طلبية: ${commentOrder.clientName} — رقم ${commentOrder.orderNumber}`));
+        return Array.from(chatReceivers).map((uid) => ({
+          ...makeNotif('chat', uid, commentOrder,
+            `رسالة جديدة في طلبية: ${commentOrder.clientName} — رقم ${commentOrder.orderNumber}`),
+          commentText: action.payload.comment.text,
+        }));
       })() : [];
       return {
         ...state,

@@ -1388,6 +1388,20 @@ textarea.form-input { padding: 10px 12px; resize: vertical; color: #111827; min-
 .notif-popup-icon { font-size: 22px; flex-shrink: 0; }
 .notif-popup-msg { font-size: 16px; color: #374151; margin: 0; line-height: 1.6; }
 .notif-popup-client { font-size: 15px; font-weight: 700; color: #111827; margin: 0 0 14px; }
+.notif-popup-comment {
+  background: #f3f4f6;
+  border-right: 3px solid #6366f1;
+  border-radius: 6px;
+  padding: 10px 12px;
+  margin-top: 10px;
+}
+.notif-popup-comment-text {
+  font-size: 14px;
+  color: #374151;
+  margin: 0;
+  line-height: 1.5;
+  font-style: italic;
+}
 .notif-popup-btn {
   width: 100%; padding: 10px; border-radius: 8px; border: none;
   background: #16a34a; color: #fff; font-size: 14px; font-weight: 700;
