@@ -41,6 +41,7 @@ export interface Order {
   priority: OrderPriority;
   departmentId: string;
   departmentIds?: string[];
+  groupId?: string;
   assignedUsers: string[];
   createdBy: string;
   createdAt: string;

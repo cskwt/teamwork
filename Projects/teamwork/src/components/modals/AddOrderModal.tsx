@@ -81,32 +81,39 @@ const AddOrderModal: React.FC<AddOrderModalProps> = ({ departmentId, onClose }) 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!orderNumber.trim() || !clientName.trim() || !currentUser) return;
-    const newOrder: Order = {
-      id: generateId(),
-      orderNumber: orderNumber.trim(),
-      clientName: clientName.trim(),
-      title: `#${orderNumber.trim()} - ${clientName.trim()}`,
-      description: description.trim(),
-      status: 'new',
-      priority,
-      departmentId: selectedDepts[0] || '',
-      departmentIds: selectedDepts,
-      assignedUsers,
-      createdBy: currentUser.id,
-      createdAt: new Date().toISOString(),
-      orderDate: new Date(orderDate).toISOString(),
-      updatedAt: new Date().toISOString(),
-      dueDate: dueDate ? new Date(dueDate).toISOString() : undefined,
-      orderForms,
-      invoices: invoices.length > 0 ? invoices : undefined,
-      fileExtensions: fileExtensions.trim(),
-      notes: notes.trim(),
-      tags: [],
-      comments: [],
-      history: [],
-    };
-    dispatch({ type: 'ADD_ORDER', payload: newOrder, triggerUserId: state.currentUser?.id } as any);
-    addHistoryEntry(newOrder.id, 'إنشاء الطلبية');
+    const now = new Date().toISOString();
+    // If multiple departments selected, create one independent order per department
+    const depts = selectedDepts.length > 0 ? selectedDepts : [''];
+    const groupId = depts.length > 1 ? generateId() : undefined;
+    depts.forEach((deptId) => {
+      const newOrder: Order = {
+        id: generateId(),
+        orderNumber: orderNumber.trim(),
+        clientName: clientName.trim(),
+        title: `#${orderNumber.trim()} - ${clientName.trim()}`,
+        description: description.trim(),
+        status: 'new',
+        priority,
+        departmentId: deptId,
+        departmentIds: [deptId],
+        groupId,
+        assignedUsers,
+        createdBy: currentUser.id,
+        createdAt: now,
+        orderDate: new Date(orderDate).toISOString(),
+        updatedAt: now,
+        dueDate: dueDate ? new Date(dueDate).toISOString() : undefined,
+        orderForms,
+        invoices: invoices.length > 0 ? invoices : undefined,
+        fileExtensions: fileExtensions.trim(),
+        notes: notes.trim(),
+        tags: [],
+        comments: [],
+        history: [],
+      };
+      dispatch({ type: 'ADD_ORDER', payload: newOrder, triggerUserId: state.currentUser?.id } as any);
+      addHistoryEntry(newOrder.id, 'إنشاء الطلبية');
+    });
     onClose();
   };
 
