@@ -185,17 +185,6 @@ const KanbanBoard: React.FC<KanbanBoardProps> = ({ department, onBack }) => {
       >
         <SortableContext items={colSortableIds} strategy={horizontalListSortingStrategy}>
           <div className="kanban-board">
-            {/* Default "New Orders" column – fixed, no drag, no delete */}
-            {!isDeliveryDept && (
-              <KanbanColumn
-                column={DEFAULT_COL}
-                orders={deptOrders.filter((o) => o.status === 'new')}
-                onOrderClick={(o) => setSelectedOrder(o)}
-                department={department}
-                isDefault
-              />
-            )}
-
             {/* Add Column */}
             {showAddCol ? (
               <div className="kanban-col col-add-form">
@@ -238,6 +227,17 @@ const KanbanBoard: React.FC<KanbanBoardProps> = ({ department, onBack }) => {
                 department={department}
               />
             ))}
+
+            {/* Default "New Orders" column – last in DOM = rightmost (first in Arabic) */}
+            {!isDeliveryDept && (
+              <KanbanColumn
+                column={DEFAULT_COL}
+                orders={deptOrders.filter((o) => o.status === 'new')}
+                onOrderClick={(o) => setSelectedOrder(o)}
+                department={department}
+                isDefault
+              />
+            )}
           </div>
         </SortableContext>
 
