@@ -376,12 +376,28 @@ const OrderDetailModal: React.FC<OrderDetailModalProps> = ({ order, onClose, dep
                   <input type="date" className="od-edit-input" value={editData.orderDate} onChange={(e) => setEditData(p => ({ ...p, orderDate: e.target.value }))} />
                 ) : <span className="od-value">{currentOrder.orderDate ? formatDate(currentOrder.orderDate) : '—'}</span>}
               </div>
-              <div className="od-detail-item">
+              <div className="od-detail-item od-full">
                 <span className="od-label"><Building2 size={13} /> القسم المختص</span>
                 {editing ? (
-                  <select className="od-edit-input" value={editData.departmentId} onChange={(e) => setEditData(p => ({ ...p, departmentId: e.target.value }))}>
-                    {departments.map((d) => <option key={d.id} value={d.id}>{d.name}</option>)}
-                  </select>
+                  <div className="users-picker" style={{ marginTop: 4 }}>
+                    {departments.map((d) => {
+                      const selected = editData.departmentId === d.id;
+                      return (
+                        <button
+                          key={d.id}
+                          type="button"
+                          className={`user-pick-btn ${selected ? 'user-selected' : ''}`}
+                          onClick={() => setEditData(p => ({ ...p, departmentId: d.id }))}
+                        >
+                          <div style={{ width: 12, height: 12, borderRadius: '50%', background: d.color, flexShrink: 0 }} />
+                          <div className="user-pick-info">
+                            <span className="user-pick-name">{d.name}</span>
+                          </div>
+                          {selected && <div className="user-pick-check">✓</div>}
+                        </button>
+                      );
+                    })}
+                  </div>
                 ) : <span className="od-value">{departments.find(d => d.id === currentOrder.departmentId)?.name || department.name}</span>}
               </div>
               <div className="od-detail-item od-full">

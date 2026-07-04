@@ -279,11 +279,25 @@ const AddOrderModal: React.FC<AddOrderModalProps> = ({ departmentId, onClose }) 
               <div className="form-row">
                 <div className="form-group">
                   <label className="form-label"><Building2 size={13} /> القسم المختص</label>
-                  <select className="form-input" value={selectedDept} onChange={(e) => setSelectedDept(e.target.value)}>
-                    {departments.map((d) => (
-                      <option key={d.id} value={d.id}>{d.name}</option>
-                    ))}
-                  </select>
+                  <div className="users-picker">
+                    {departments.map((d) => {
+                      const selected = selectedDept === d.id;
+                      return (
+                        <button
+                          key={d.id}
+                          type="button"
+                          className={`user-pick-btn ${selected ? 'user-selected' : ''}`}
+                          onClick={() => setSelectedDept(d.id)}
+                        >
+                          <div style={{ width: 12, height: 12, borderRadius: '50%', background: d.color, flexShrink: 0 }} />
+                          <div className="user-pick-info">
+                            <span className="user-pick-name">{d.name}</span>
+                          </div>
+                          {selected && <div className="user-pick-check">✓</div>}
+                        </button>
+                      );
+                    })}
+                  </div>
                 </div>
                 <div className="form-group">
                   <label className="form-label">الأولوية</label>
