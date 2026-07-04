@@ -51,12 +51,26 @@ type Action =
   | { type: 'PERMANENT_DELETE'; payload: string }
   | { type: 'PURGE_OLD_TRASH' }
   | { type: 'MARK_NOTIFICATIONS_READ'; payload: string }  // userId
-  | { type: 'INIT_STATE'; payload: AppState };
+  | { type: 'INIT_STATE'; payload: AppState }
+  | { type: 'SYNC_STATE'; payload: AppState };
 
 const reducer = (state: AppState, action: Action): AppState => {
   switch (action.type) {
     case 'INIT_STATE':
       return { ...action.payload, currentUser: null, notifications: action.payload.notifications || [] };
+    case 'SYNC_STATE':
+      return {
+        ...state,
+        users: action.payload.users || state.users,
+        departments: action.payload.departments || state.departments,
+        orders: action.payload.orders || state.orders,
+        notifications: [
+          ...state.notifications,
+          ...(action.payload.notifications || []).filter(
+            (n) => !state.notifications.find((existing) => existing.id === n.id)
+          ),
+        ],
+      };
     case 'LOGIN':
       return { ...state, currentUser: action.payload };
     case 'LOGOUT':
@@ -291,6 +305,29 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   useEffect(() => {
     if (loaded) saveState(state);
   }, [state, loaded]);
+
+  // مزامنة تلقائية من السيرفر كل 20 ثانية
+  useEffect(() => {
+    if (!loaded) return;
+    const getSignature = (orders: Order[]) => {
+      if (!orders?.length) return '0';
+      const maxUpdated = orders.reduce((max, o) => (o.updatedAt > max ? o.updatedAt : max), '');
+      return `${orders.length}:${maxUpdated}`;
+    };
+    const poll = async () => {
+      try {
+        const serverData = await serverLoad();
+        if (!serverData) return;
+        const serverSig = getSignature(serverData.orders || []);
+        const localSig  = getSignature(state.orders || []);
+        if (serverSig !== localSig) {
+          dispatch({ type: 'SYNC_STATE', payload: serverData });
+        }
+      } catch { /* silent */ }
+    };
+    const interval = setInterval(poll, 20000);
+    return () => clearInterval(interval);
+  }, [loaded, state.orders]);
 
   // تسجيل خروج تلقائي بعد انتهاء مدة الجلسة (ساعتان)
   useEffect(() => {
