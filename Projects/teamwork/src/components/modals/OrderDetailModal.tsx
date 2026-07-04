@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import {
   X, MessageSquare, Clock, Send, ArrowRightLeft,
   Trash2, Calendar, FileText, Image, Download, User, Users,
-  Building2, Tag, Hash, Save, Pencil, Archive, CheckCheck
+  Building2, Tag, Hash, Save, Pencil, Archive, CheckCheck, Gauge
 } from 'lucide-react';
 import { Order, Department, OrderPriority, OrderStatus } from '../../types';
 import { useApp } from '../../contexts/AppContext';
@@ -21,6 +21,7 @@ const OrderDetailModal: React.FC<OrderDetailModalProps> = ({ order, onClose, dep
   const [comment, setComment] = useState('');
   const [transferDept, setTransferDept] = useState('');
   const [showTransferPopover, setShowTransferPopover] = useState(false);
+  const [showProgressPopover, setShowProgressPopover] = useState(false);
   const [editing, setEditing] = useState(false);
 
   const rawOrder = state.orders.find((o) => o.id === order.id) || order;
@@ -336,6 +337,43 @@ const OrderDetailModal: React.FC<OrderDetailModalProps> = ({ order, onClose, dep
                 )}
               </div>
             )}
+            {!editing && (
+              <div style={{ position: 'relative' }}>
+                <button
+                  className={`modal-icon-btn ${showProgressPopover ? 'modal-icon-btn--active' : ''}`}
+                  title={`نسبة الإنجاز: ${currentOrder.progress || 0}%`}
+                  onClick={() => setShowProgressPopover((v) => !v)}
+                  style={{ gap: 4, minWidth: 52, fontSize: 11, fontWeight: 700 }}
+                >
+                  <Gauge size={14} />
+                  <span>{currentOrder.progress || 0}%</span>
+                </button>
+                {showProgressPopover && (
+                  <div className="transfer-popover" style={{ minWidth: 220 }}>
+                    <p className="transfer-popover-label">نسبة الإنجاز: <b>{editData.progress}%</b></p>
+                    <input
+                      type="range" min={0} max={100} step={5}
+                      value={editData.progress}
+                      onChange={(e) => setEditData(p => ({ ...p, progress: Number(e.target.value) }))}
+                      style={{ width: '100%', accentColor: '#6366f1' }}
+                    />
+                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, color: '#9ca3af', marginTop: -4 }}>
+                      <span>0%</span><span>50%</span><span>100%</span>
+                    </div>
+                    <button
+                      className="transfer-popover-btn"
+                      onClick={() => {
+                        const now = new Date().toISOString();
+                        dispatch({ type: 'UPDATE_ORDER', payload: { ...currentOrder, progress: editData.progress, updatedAt: now } });
+                        setShowProgressPopover(false);
+                      }}
+                    >
+                      حفظ ✓
+                    </button>
+                  </div>
+                )}
+              </div>
+            )}
             {currentOrder.status !== 'done' && !editing && department.name !== 'قسم التسليم' && (
               <button className="modal-icon-btn modal-icon-btn--green" onClick={handleMarkDone} title="تم الانتهاء">
                 <CheckCheck size={15} />
@@ -474,19 +512,10 @@ const OrderDetailModal: React.FC<OrderDetailModalProps> = ({ order, onClose, dep
               <div className="od-detail-item od-full">
                 <span className="od-label">نسبة الإنجاز</span>
                 <div className="od-progress-row">
-                  {editing ? (
-                    <input
-                      type="range" min={0} max={100} step={5}
-                      className="od-progress-slider"
-                      value={editData.progress}
-                      onChange={(e) => setEditData(p => ({ ...p, progress: Number(e.target.value) }))}
-                    />
-                  ) : (
-                    <div className="od-progress-bar-wrap">
-                      <div className="od-progress-bar-fill" style={{ width: `${currentOrder.progress || 0}%` }} />
-                    </div>
-                  )}
-                  <span className="od-progress-pct">{editing ? editData.progress : (currentOrder.progress || 0)}%</span>
+                  <div className="od-progress-bar-wrap">
+                    <div className="od-progress-bar-fill" style={{ width: `${currentOrder.progress || 0}%` }} />
+                  </div>
+                  <span className="od-progress-pct">{currentOrder.progress || 0}%</span>
                 </div>
               </div>
               <div className="od-detail-item od-full">
