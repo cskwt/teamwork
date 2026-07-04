@@ -164,10 +164,14 @@ const OrderDetailModal: React.FC<OrderDetailModalProps> = ({ order, onClose, dep
 
   const handleTransfer = () => {
     if (!transferDept || transferDept === order.departmentId) return;
-    const from = departments.find((d) => d.id === order.departmentId)?.name || '';
-    const to   = departments.find((d) => d.id === transferDept)?.name || '';
+    const from    = departments.find((d) => d.id === order.departmentId)?.name || '';
+    const toDept  = departments.find((d) => d.id === transferDept);
+    const isDelivery = toDept?.name === 'قسم التسليم';
     dispatch({ type: 'MOVE_ORDER', payload: { orderId: order.id, status: 'new', departmentId: transferDept, triggerUserId: currentUser?.id } });
-    addHistoryEntry(order.id, 'نقل إلى قسم آخر', from, to);
+    if (!isDelivery && currentOrder.completedAt) {
+      dispatch({ type: 'UPDATE_ORDER', payload: { ...currentOrder, completedAt: undefined, updatedAt: new Date().toISOString() } });
+    }
+    addHistoryEntry(order.id, 'نقل إلى قسم آخر', from, toDept?.name || '');
     onClose();
   };
 
@@ -315,7 +319,7 @@ const OrderDetailModal: React.FC<OrderDetailModalProps> = ({ order, onClose, dep
                 )}
               </div>
             )}
-            {!currentOrder.completedAt && !editing && (
+            {currentOrder.status !== 'done' && !editing && department.name !== 'قسم التسليم' && (
               <button className="modal-icon-btn modal-icon-btn--green" onClick={handleMarkDone} title="تم الانتهاء">
                 <CheckCheck size={15} />
               </button>
