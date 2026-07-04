@@ -1,5 +1,5 @@
 import React, { useState, useRef } from 'react';
-import { Plus, Pencil, Trash2, X, Shield, Camera } from 'lucide-react';
+import { Plus, Pencil, Trash2, X, Shield, Camera, Eye, EyeOff } from 'lucide-react';
 import { useApp } from '../../contexts/AppContext';
 import { User, UserRole } from '../../types';
 import { generateId } from '../../utils/helpers';
@@ -13,6 +13,7 @@ const UsersPage: React.FC = () => {
   const [fullName, setFullName] = useState('');
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [role, setRole] = useState<UserRole>('manager');
   const [departmentId, setDepartmentId] = useState('');
   const [avatar, setAvatar] = useState('');
@@ -220,7 +221,12 @@ const UsersPage: React.FC = () => {
               <div className="form-row">
                 <div className="form-group">
                   <label className="form-label">كلمة المرور *</label>
-                  <input className="form-input" type="password" value={password} onChange={(e) => setPassword(e.target.value)} />
+                  <div className="input-wrapper">
+                    <input className="form-input has-toggle" type={showPassword ? 'text' : 'password'} value={password} onChange={(e) => setPassword(e.target.value)} />
+                    <button type="button" className="toggle-password" onClick={() => setShowPassword(!showPassword)} tabIndex={-1}>
+                      {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                    </button>
+                  </div>
                 </div>
                 <div className="form-group">
                   <label className="form-label">اسم المستخدم *</label>
