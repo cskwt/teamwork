@@ -280,7 +280,7 @@ const AddOrderModal: React.FC<AddOrderModalProps> = ({ departmentId, onClose }) 
                 <div className="form-group">
                   <label className="form-label"><Building2 size={13} /> القسم المختص</label>
                   <div className="users-picker">
-                    {departments.map((d) => {
+                    {departments.filter((d) => d.name !== 'قسم التسليم').map((d) => {
                       const selected = selectedDept === d.id;
                       return (
                         <button

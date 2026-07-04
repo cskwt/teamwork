@@ -380,7 +380,7 @@ const OrderDetailModal: React.FC<OrderDetailModalProps> = ({ order, onClose, dep
                 <span className="od-label"><Building2 size={13} /> القسم المختص</span>
                 {editing ? (
                   <div className="users-picker" style={{ marginTop: 4 }}>
-                    {departments.map((d) => {
+                    {departments.filter((d) => d.name !== 'قسم التسليم').map((d) => {
                       const selected = editData.departmentId === d.id;
                       return (
                         <button
