@@ -416,7 +416,12 @@ const OrderDetailModal: React.FC<OrderDetailModalProps> = ({ order, onClose, dep
               <div className="od-detail-item od-full">
                 <span className="od-label"><Tag size={13} /> امتداد الملفات</span>
                 {editing ? (
-                  <textarea className="od-edit-input od-edit-textarea" rows={4} value={editData.fileExtensions} onChange={(e) => setEditData(p => ({ ...p, fileExtensions: e.target.value }))} placeholder="PDF, AI, CDR, PNG..." />
+                  <div className="textarea-save-wrap">
+                    <textarea className="od-edit-input od-edit-textarea" rows={4} value={editData.fileExtensions} onChange={(e) => setEditData(p => ({ ...p, fileExtensions: e.target.value }))} placeholder="PDF, AI, CDR, PNG..." />
+                    {editData.fileExtensions !== (currentOrder.fileExtensions || '') && (
+                      <button className="textarea-save-btn" onClick={handleSaveEdit} title="حفظ"><CheckCheck size={14} /></button>
+                    )}
+                  </div>
                 ) : <span className="od-value od-extensions">{currentOrder.fileExtensions || '—'}</span>}
               </div>
               <div className="od-detail-item od-spacer" />
@@ -470,7 +475,12 @@ const OrderDetailModal: React.FC<OrderDetailModalProps> = ({ order, onClose, dep
               <div className="od-detail-item od-full">
                 <span className="od-label">الملاحظات</span>
                 {editing ? (
-                  <textarea className="od-edit-input od-edit-textarea" rows={4} value={editData.notes} onChange={(e) => setEditData(p => ({ ...p, notes: e.target.value }))} placeholder="أضف ملاحظات..." style={{ resize: 'vertical' }} />
+                  <div className="textarea-save-wrap">
+                    <textarea className="od-edit-input od-edit-textarea" rows={4} value={editData.notes} onChange={(e) => setEditData(p => ({ ...p, notes: e.target.value }))} placeholder="أضف ملاحظات..." style={{ resize: 'vertical' }} />
+                    {editData.notes !== (currentOrder.notes || '') && (
+                      <button className="textarea-save-btn" onClick={handleSaveEdit} title="حفظ"><CheckCheck size={14} /></button>
+                    )}
+                  </div>
                 ) : <span className="od-value od-extensions">{currentOrder.notes || '—'}</span>}
               </div>
               <div className="od-detail-item od-full">
