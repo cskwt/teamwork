@@ -116,7 +116,8 @@ const KanbanBoard: React.FC<KanbanBoardProps> = ({ department, onBack }) => {
     }
 
     // Block order moves for non-admin unless it's the manager's own department
-    const isOwnDept = currentUser?.departmentId === department.id;
+    const userDeptIds = currentUser?.departmentIds?.length ? currentUser.departmentIds : (currentUser?.departmentId ? [currentUser.departmentId] : []);
+    const isOwnDept = userDeptIds.includes(department.id);
     if (!activeId.startsWith('col::') && currentUser?.role !== 'admin' && !(currentUser?.role === 'manager' && isOwnDept)) return;
 
     if (!activeId.startsWith('col::')) {

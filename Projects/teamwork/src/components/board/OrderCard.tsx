@@ -32,7 +32,8 @@ const CircleProgress: React.FC<{ value: number }> = ({ value }) => {
 const OrderCard: React.FC<OrderCardProps> = ({ order, onClick, isDragging, canDrag }) => {
   const { state } = useApp();
   const { currentUser } = state;
-  const isOwnDept = currentUser?.departmentId === order.departmentId;
+  const userDeptIds = currentUser?.departmentIds?.length ? currentUser.departmentIds : (currentUser?.departmentId ? [currentUser.departmentId] : []);
+  const isOwnDept = userDeptIds.includes(order.departmentId);
   const isDragAllowed = canDrag !== undefined ? canDrag :
     currentUser?.role === 'admin' ||
     (currentUser?.role === 'manager' && isOwnDept);

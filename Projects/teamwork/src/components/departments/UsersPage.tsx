@@ -15,7 +15,7 @@ const UsersPage: React.FC = () => {
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [role, setRole] = useState<UserRole>('manager');
-  const [departmentId, setDepartmentId] = useState('');
+  const [selectedDeptIds, setSelectedDeptIds] = useState<string[]>([]);
   const [avatar, setAvatar] = useState('');
   const avatarRef = useRef<HTMLInputElement>(null);
 
@@ -25,7 +25,7 @@ const UsersPage: React.FC = () => {
     setUsername('');
     setPassword('');
     setRole('manager');
-    setDepartmentId('');
+    setSelectedDeptIds([]);
     setAvatar('');
     setShowModal(true);
   };
@@ -36,7 +36,7 @@ const UsersPage: React.FC = () => {
     setUsername(user.username);
     setPassword(user.password);
     setRole(user.role);
-    setDepartmentId(user.departmentId || '');
+    setSelectedDeptIds(user.departmentIds?.length ? user.departmentIds : (user.departmentId ? [user.departmentId] : []));
     setAvatar(user.avatar || '');
     setShowModal(true);
   };
@@ -67,7 +67,7 @@ const UsersPage: React.FC = () => {
     if (editUser) {
       dispatch({
         type: 'UPDATE_USER',
-        payload: { ...editUser, fullName, username, password, role, departmentId: departmentId || undefined, avatar: avatar || undefined },
+        payload: { ...editUser, fullName, username, password, role, departmentIds: selectedDeptIds, departmentId: selectedDeptIds[0] || undefined, avatar: avatar || undefined },
       });
     } else {
       const newUser: User = {
@@ -76,7 +76,8 @@ const UsersPage: React.FC = () => {
         username,
         password,
         role,
-        departmentId: departmentId || undefined,
+        departmentIds: selectedDeptIds,
+        departmentId: selectedDeptIds[0] || undefined,
         avatar: avatar || undefined,
         createdAt: new Date().toISOString(),
       };
@@ -244,10 +245,22 @@ const UsersPage: React.FC = () => {
                 </div>
                 <div className="form-group">
                   <label className="form-label">القسم</label>
-                  <select className="form-input" value={departmentId} onChange={(e) => setDepartmentId(e.target.value)}>
-                    <option value="">بدون قسم</option>
-                    {departments.map((d) => <option key={d.id} value={d.id}>{d.name}</option>)}
-                  </select>
+                  <div className="dept-checkboxes">
+                    {departments.map((d) => (
+                      <label key={d.id} className="dept-checkbox-item">
+                        <input
+                          type="checkbox"
+                          checked={selectedDeptIds.includes(d.id)}
+                          onChange={(e) => {
+                            if (e.target.checked) setSelectedDeptIds(prev => [...prev, d.id]);
+                            else setSelectedDeptIds(prev => prev.filter(id => id !== d.id));
+                          }}
+                        />
+                        <span className="dept-checkbox-dot" style={{ background: d.color }} />
+                        {d.name}
+                      </label>
+                    ))}
+                  </div>
                 </div>
               </div>
               <div className="modal-footer">
