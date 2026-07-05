@@ -4,7 +4,7 @@ import { INITIAL_USERS, INITIAL_DEPARTMENTS, INITIAL_ORDERS } from '../data/init
 
 // ─── Session management ───────────────────────────────────────────────────────
 const SESSION_KEY      = 'teamwork_session';
-const SESSION_DURATION = 2 * 60 * 60 * 1000; // ساعتان
+const SESSION_DURATION = 4 * 60 * 60 * 1000; // أربع ساعات
 
 export const saveSession = (userId: string) => {
   localStorage.setItem(SESSION_KEY, JSON.stringify({ userId, loginTime: Date.now() }));
