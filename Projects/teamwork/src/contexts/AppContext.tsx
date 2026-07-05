@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useReducer, useEffect, useState } from 'react';
 import { AppState, User, Department, Order, OrderComment, OrderHistoryEntry, KanbanColumn, AppNotification } from '../types';
-import { loadState, saveState, saveSession, loadSession, serverLoad } from '../utils/storage';
+import { loadState, saveState, saveSession, loadSession, touchSession, serverLoad } from '../utils/storage';
 import { generateId } from '../utils/helpers';
 import { INITIAL_USERS, INITIAL_DEPARTMENTS, INITIAL_ORDERS } from '../data/initialData';
 
@@ -375,7 +375,26 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return () => clearInterval(interval);
   }, [loaded, state.orders]);
 
-  // تسجيل خروج تلقائي بعد انتهاء مدة الجلسة (ساعتان)
+  // تحديث lastActivity عند أي تفاعل من المستخدم
+  useEffect(() => {
+    if (!loaded) return;
+    const events = ['mousemove', 'mousedown', 'keydown', 'touchstart', 'scroll'];
+    let throttleTimer: ReturnType<typeof setTimeout> | null = null;
+    const handleActivity = () => {
+      if (throttleTimer) return;
+      throttleTimer = setTimeout(() => {
+        if (state.currentUser) touchSession();
+        throttleTimer = null;
+      }, 30000); // تحديث مرة كل 30 ثانية كحد أقصى
+    };
+    events.forEach((e) => window.addEventListener(e, handleActivity, { passive: true }));
+    return () => {
+      events.forEach((e) => window.removeEventListener(e, handleActivity));
+      if (throttleTimer) clearTimeout(throttleTimer);
+    };
+  }, [loaded, state.currentUser]);
+
+  // تسجيل خروج تلقائي بعد ٤ ساعات من عدم النشاط
   useEffect(() => {
     if (!loaded) return;
     const interval = setInterval(() => {

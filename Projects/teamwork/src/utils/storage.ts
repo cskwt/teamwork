@@ -7,15 +7,25 @@ const SESSION_KEY      = 'teamwork_session';
 const SESSION_DURATION = 4 * 60 * 60 * 1000; // أربع ساعات
 
 export const saveSession = (userId: string) => {
-  localStorage.setItem(SESSION_KEY, JSON.stringify({ userId, loginTime: Date.now() }));
+  localStorage.setItem(SESSION_KEY, JSON.stringify({ userId, lastActivity: Date.now() }));
+};
+
+export const touchSession = () => {
+  try {
+    const raw = localStorage.getItem(SESSION_KEY);
+    if (!raw) return;
+    const data = JSON.parse(raw);
+    data.lastActivity = Date.now();
+    localStorage.setItem(SESSION_KEY, JSON.stringify(data));
+  } catch { /* ignore */ }
 };
 
 export const loadSession = (): string | null => {
   try {
     const raw = localStorage.getItem(SESSION_KEY);
     if (!raw) return null;
-    const { userId, loginTime } = JSON.parse(raw);
-    if (Date.now() - loginTime > SESSION_DURATION) {
+    const { userId, lastActivity } = JSON.parse(raw);
+    if (Date.now() - lastActivity > SESSION_DURATION) {
       localStorage.removeItem(SESSION_KEY);
       return null;
     }
