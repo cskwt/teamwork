@@ -14,18 +14,26 @@ const NotificationPopup: React.FC = () => {
   const { state, dispatch } = useApp();
   const { currentUser, notifications } = state;
   const [popups, setPopups] = useState<AppNotification[]>([]);
-  const prevCountRef = useRef(0);
+  const knownIdsRef = useRef<Set<string>>(new Set());
+  const initializedRef = useRef(false);
 
   useEffect(() => {
     if (!currentUser) return;
-    const myNotifs = notifications.filter((n) => n.userId === currentUser.id && !n.read);
-    const count = myNotifs.length;
+    const myUnread = notifications.filter((n) => n.userId === currentUser.id && !n.read);
 
-    if (count > prevCountRef.current) {
-      setPopups(myNotifs);
+    // On first run: record all existing unread IDs as "already known" — don't show them
+    if (!initializedRef.current) {
+      myUnread.forEach((n) => knownIdsRef.current.add(n.id));
+      initializedRef.current = true;
+      return;
     }
 
-    prevCountRef.current = count;
+    // Show only notifications that arrived after initialization
+    const newOnes = myUnread.filter((n) => !knownIdsRef.current.has(n.id));
+    if (newOnes.length > 0) {
+      newOnes.forEach((n) => knownIdsRef.current.add(n.id));
+      setPopups(newOnes);
+    }
   }, [notifications, currentUser]);
 
   const handleDismiss = () => {
