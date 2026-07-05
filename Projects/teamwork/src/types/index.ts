@@ -80,6 +80,7 @@ export interface Department {
   color: string;
   icon: string;
   createdAt: string;
+  updatedAt?: string;
   columns: KanbanColumn[];
 }
 

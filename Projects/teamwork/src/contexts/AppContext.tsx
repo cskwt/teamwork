@@ -59,23 +59,38 @@ const reducer = (state: AppState, action: Action): AppState => {
     case 'INIT_STATE':
       return { ...action.payload, currentUser: null, notifications: action.payload.notifications || [] };
     case 'SYNC_STATE': {
-      // Merge orders: keep the newer version of each order (by updatedAt) to avoid race conditions
+      // Merge orders: keep newer version of each order by updatedAt
       const serverOrders = action.payload.orders || [];
       const localOrders  = state.orders;
       const serverMap    = new Map(serverOrders.map((o: Order) => [o.id, o]));
       const localMap     = new Map(localOrders.map((o: Order) => [o.id, o]));
-      const allIds       = new Set([...Array.from(serverMap.keys()), ...Array.from(localMap.keys())]);
-      const mergedOrders = Array.from(allIds).map((id) => {
+      const allOrderIds  = new Set([...Array.from(serverMap.keys()), ...Array.from(localMap.keys())]);
+      const mergedOrders = Array.from(allOrderIds).map((id) => {
         const srv = serverMap.get(id);
         const loc = localMap.get(id);
         if (!srv) return loc!;
         if (!loc) return srv;
         return (srv.updatedAt || '') >= (loc.updatedAt || '') ? srv : loc;
       });
+
+      // Merge departments: keep newer version of each department by updatedAt
+      const serverDepts = action.payload.departments || [];
+      const localDepts  = state.departments;
+      const srvDeptMap  = new Map(serverDepts.map((d: Department) => [d.id, d]));
+      const locDeptMap  = new Map(localDepts.map((d: Department) => [d.id, d]));
+      const allDeptIds  = new Set([...Array.from(srvDeptMap.keys()), ...Array.from(locDeptMap.keys())]);
+      const mergedDepts = Array.from(allDeptIds).map((id) => {
+        const srv = srvDeptMap.get(id);
+        const loc = locDeptMap.get(id);
+        if (!srv) return loc!;
+        if (!loc) return srv;
+        return (srv.updatedAt || '') >= (loc.updatedAt || '') ? srv : loc;
+      });
+
       return {
         ...state,
         users: action.payload.users || state.users,
-        departments: action.payload.departments || state.departments,
+        departments: mergedDepts,
         orders: mergedOrders,
         notifications: [
           ...state.notifications,
@@ -218,7 +233,7 @@ const reducer = (state: AppState, action: Action): AppState => {
       return {
         ...state,
         departments: state.departments.map((d) =>
-          d.id === action.payload.id ? action.payload : d
+          d.id === action.payload.id ? { ...action.payload, updatedAt: new Date().toISOString() } : d
         ),
       };
     case 'DELETE_DEPARTMENT':
@@ -250,6 +265,7 @@ const reducer = (state: AppState, action: Action): AppState => {
         departments: state.departments.map((d) =>
           d.id !== action.payload.departmentId ? d : {
             ...d,
+            updatedAt: new Date().toISOString(),
             columns: d.columns.map((c) => c.id === action.payload.column.id ? action.payload.column : c),
           }
         ),
@@ -260,6 +276,7 @@ const reducer = (state: AppState, action: Action): AppState => {
         departments: state.departments.map((d) =>
           d.id !== action.payload.departmentId ? d : {
             ...d,
+            updatedAt: new Date().toISOString(),
             columns: [...d.columns, action.payload.column],
           }
         ),
@@ -270,6 +287,7 @@ const reducer = (state: AppState, action: Action): AppState => {
         departments: state.departments.map((d) =>
           d.id !== action.payload.departmentId ? d : {
             ...d,
+            updatedAt: new Date().toISOString(),
             columns: d.columns.filter((c) => c.id !== action.payload.columnId),
           }
         ),
