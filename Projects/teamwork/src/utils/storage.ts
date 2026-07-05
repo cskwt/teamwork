@@ -99,6 +99,26 @@ const migrateFromLocalStorage = (): AppState | null => {
 };
 
 // ─── Public API ───────────────────────────────────────────────────────────────
+
+const getMaxUpdatedAt = (orders: AppState['orders']): string => {
+  if (!orders?.length) return '';
+  return orders.reduce((max, o) => (o.updatedAt > max ? o.updatedAt : max), '');
+};
+
+// Smart merge: for each order keep the newer version (by updatedAt)
+const mergeOrders = (server: AppState['orders'], local: AppState['orders']): AppState['orders'] => {
+  const srvMap = new Map(server.map((o) => [o.id, o]));
+  const locMap = new Map(local.map((o) => [o.id, o]));
+  const allIds = new Set([...Array.from(srvMap.keys()), ...Array.from(locMap.keys())]);
+  return Array.from(allIds).map((id) => {
+    const srv = srvMap.get(id);
+    const loc = locMap.get(id);
+    if (!srv) return loc!;
+    if (!loc) return srv;
+    return (srv.updatedAt || '') >= (loc.updatedAt || '') ? srv : loc;
+  });
+};
+
 export const loadState = async (): Promise<AppState> => {
   // Load both sources in parallel
   const [fromServer, localRaw] = await Promise.all([
@@ -107,26 +127,40 @@ export const loadState = async (): Promise<AppState> => {
   ]);
 
   const local = localRaw as AppState | null;
-  const serverOrders = fromServer?.orders?.length ?? 0;
-  const localOrders  = local?.orders?.length ?? 0;
 
-  // If local has MORE data than server → push local to server and use it
-  if (local && local.departments?.length && localOrders > serverOrders) {
-    const full = { ...getDefaultState(), ...local, currentUser: null, notifications: local.notifications || [] };
-    serverSave(full); // sync to server in background
-    return full;
+  // Both sources available → smart merge orders, keep local departments if newer
+  if (fromServer && local && local.departments?.length) {
+    const mergedOrders = mergeOrders(fromServer.orders || [], local.orders || []);
+    const localDeptMaxUpdated  = local.departments.reduce((m, d) => (d.updatedAt || '') > m ? (d.updatedAt || '') : m, '');
+    const serverDeptMaxUpdated = (fromServer.departments || []).reduce((m: string, d: { updatedAt?: string }) => (d.updatedAt || '') > m ? (d.updatedAt || '') : m, '');
+    const departments = localDeptMaxUpdated > serverDeptMaxUpdated ? local.departments : (fromServer.departments || local.departments);
+    const merged: AppState = {
+      ...getDefaultState(),
+      ...fromServer,
+      departments,
+      orders: mergedOrders,
+      currentUser: null,
+      notifications: fromServer.notifications || local.notifications || [],
+    };
+    // Push merged back to server if local had newer data
+    const localMaxUpdated = getMaxUpdatedAt(local.orders || []);
+    const serverMaxUpdated = getMaxUpdatedAt(fromServer.orders || []);
+    if (localMaxUpdated > serverMaxUpdated || localDeptMaxUpdated > serverDeptMaxUpdated) {
+      serverSave({ ...merged, currentUser: null });
+    }
+    return merged;
   }
 
-  // Server has equal or more data → use server
-  if (fromServer) {
-    return { ...getDefaultState(), ...fromServer, currentUser: null, notifications: fromServer.notifications || [] };
-  }
-
-  // Fallback: local only
+  // Only local available
   if (local && local.departments?.length) {
     const full = { ...getDefaultState(), ...local, currentUser: null, notifications: local.notifications || [] };
     serverSave(full);
     return full;
+  }
+
+  // Only server available
+  if (fromServer) {
+    return { ...getDefaultState(), ...fromServer, currentUser: null, notifications: fromServer.notifications || [] };
   }
 
   // Last resort: old localStorage keys
