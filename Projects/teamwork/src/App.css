@@ -1414,6 +1414,16 @@ textarea.form-input { padding: 10px 12px; resize: vertical; color: #111827; min-
   z-index: 2;
 }
 .textarea-save-btn:hover { background: #15803d; transform: scale(1.08); }
+.od-inline-editable {
+  cursor: text;
+  border-radius: 6px;
+  padding: 6px 8px;
+  transition: background .15s;
+  min-height: 36px;
+  display: block;
+  white-space: pre-wrap;
+}
+.od-inline-editable:hover { background: #f3f4f6; }
 .notif-popup-comment {
   background: #f3f4f6;
   border-right: 3px solid #6366f1;

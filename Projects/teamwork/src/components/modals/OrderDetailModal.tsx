@@ -23,6 +23,8 @@ const OrderDetailModal: React.FC<OrderDetailModalProps> = ({ order, onClose, dep
   const [showTransferPopover, setShowTransferPopover] = useState(false);
   const [showProgressPopover, setShowProgressPopover] = useState(false);
   const [editing, setEditing] = useState(false);
+  const [inlineExtensions, setInlineExtensions] = useState<string | null>(null);
+  const [inlineNotes, setInlineNotes] = useState<string | null>(null);
 
   const rawOrder = state.orders.find((o) => o.id === order.id) || order;
   const currentOrder = {
@@ -72,6 +74,20 @@ const OrderDetailModal: React.FC<OrderDetailModalProps> = ({ order, onClose, dep
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentOrder.updatedAt]);
+
+  const handleSaveInlineExtensions = () => {
+    if (inlineExtensions === null) return;
+    const updated = { ...currentOrder, fileExtensions: inlineExtensions, updatedAt: new Date().toISOString() };
+    dispatch({ type: 'UPDATE_ORDER', payload: updated, silent: true } as any);
+    setInlineExtensions(null);
+  };
+
+  const handleSaveInlineNotes = () => {
+    if (inlineNotes === null) return;
+    const updated = { ...currentOrder, notes: inlineNotes, updatedAt: new Date().toISOString() };
+    dispatch({ type: 'UPDATE_ORDER', payload: updated, silent: true } as any);
+    setInlineNotes(null);
+  };
 
   const handleSaveEdit = () => {
     const updated: Order = {
@@ -539,7 +555,29 @@ const OrderDetailModal: React.FC<OrderDetailModalProps> = ({ order, onClose, dep
                       <button className="textarea-save-btn" onClick={handleSaveEdit} title="حفظ"><CheckCheck size={14} /></button>
                     )}
                   </div>
-                ) : <span className="od-value od-extensions">{currentOrder.fileExtensions || '—'}</span>}
+                ) : inlineExtensions !== null ? (
+                  <div className="textarea-save-wrap">
+                    <textarea
+                      className="od-edit-input od-edit-textarea"
+                      rows={4}
+                      value={inlineExtensions}
+                      autoFocus
+                      onChange={(e) => setInlineExtensions(e.target.value)}
+                      onBlur={handleSaveInlineExtensions}
+                      onKeyDown={(e) => { if (e.key === 'Escape') setInlineExtensions(null); }}
+                      placeholder="PDF, AI, CDR, PNG..."
+                    />
+                    {inlineExtensions !== (currentOrder.fileExtensions || '') && (
+                      <button className="textarea-save-btn" onMouseDown={(e) => { e.preventDefault(); handleSaveInlineExtensions(); }} title="حفظ"><CheckCheck size={14} /></button>
+                    )}
+                  </div>
+                ) : (
+                  <span
+                    className="od-value od-extensions od-inline-editable"
+                    title="اضغط للتعديل"
+                    onClick={() => setInlineExtensions(currentOrder.fileExtensions || '')}
+                  >{currentOrder.fileExtensions || '—'}</span>
+                )}
               </div>
               <div className="od-detail-item od-spacer" />
               <div className="od-detail-item">
@@ -580,7 +618,30 @@ const OrderDetailModal: React.FC<OrderDetailModalProps> = ({ order, onClose, dep
                       <button className="textarea-save-btn" onClick={handleSaveEdit} title="حفظ"><CheckCheck size={14} /></button>
                     )}
                   </div>
-                ) : <span className="od-value od-extensions">{currentOrder.notes || '—'}</span>}
+                ) : inlineNotes !== null ? (
+                  <div className="textarea-save-wrap">
+                    <textarea
+                      className="od-edit-input od-edit-textarea"
+                      rows={4}
+                      value={inlineNotes}
+                      autoFocus
+                      style={{ resize: 'vertical' }}
+                      onChange={(e) => setInlineNotes(e.target.value)}
+                      onBlur={handleSaveInlineNotes}
+                      onKeyDown={(e) => { if (e.key === 'Escape') setInlineNotes(null); }}
+                      placeholder="أضف ملاحظات..."
+                    />
+                    {inlineNotes !== (currentOrder.notes || '') && (
+                      <button className="textarea-save-btn" onMouseDown={(e) => { e.preventDefault(); handleSaveInlineNotes(); }} title="حفظ"><CheckCheck size={14} /></button>
+                    )}
+                  </div>
+                ) : (
+                  <span
+                    className="od-value od-extensions od-inline-editable"
+                    title="اضغط للتعديل"
+                    onClick={() => setInlineNotes(currentOrder.notes || '')}
+                  >{currentOrder.notes || '—'}</span>
+                )}
               </div>
               <div className="od-detail-item od-full">
                 <span className="od-label"><Users size={13} /> المستخدمون المسؤولون</span>
