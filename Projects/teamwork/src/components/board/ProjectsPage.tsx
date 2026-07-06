@@ -121,20 +121,26 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ onOpenBoard }) => {
       {/* Department Cards */}
       <div className="dept-cards-container">
         {[...visibleDepts].reverse().map((dept) => {
-          const cols = dept.columns?.length ? dept.columns : [
-            { id: 'new', title: 'جديد', color: '#6366f1', order: 0 },
+          const isDelivery = dept.name === 'قسم التسليم';
+          const defaultCol = isDelivery
+            ? { id: 'new', title: 'الطلبيات الجاهزة', color: '#10b981', order: -1 }
+            : { id: 'new', title: 'الطلبيات الجديدة', color: '#6366f1', order: -1 };
+
+          const userCols = (dept.columns?.length ? dept.columns : [
             { id: 'in_progress', title: 'قيد التنفيذ', color: '#f59e0b', order: 1 },
             { id: 'review', title: 'مراجعة', color: '#8b5cf6', order: 2 },
             { id: 'done', title: 'منجز', color: '#10b981', order: 3 },
-          ];
+          ]).filter((c) => c.id !== 'new').sort((a, b) => b.order - a.order);
+
+          // Match KanbanBoard order: default 'new' col first, then user cols
+          const cols = [defaultCol, ...userCols];
+
           const allDeptOrders = orders.filter((o) => !o.deletedAt && o.departmentId === dept.id && o.status !== 'cancelled');
 
-          const colStats = [...cols]
-            .sort((a, b) => b.order - a.order)
-            .map((col) => ({
-              ...col,
-              count: allDeptOrders.filter((o) => o.status === col.id).length,
-            }));
+          const colStats = cols.map((col) => ({
+            ...col,
+            count: allDeptOrders.filter((o) => o.status === col.id).length,
+          }));
 
           return (
             <div
