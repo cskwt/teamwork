@@ -176,11 +176,11 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ onOpenBoard }) => {
                   {colStats.map((col) => (
                     <div className="dpc-stat" key={col.id}>
                       <span style={{
-                        width: 8, height: 8, borderRadius: '50%',
+                        width: 9, height: 9, borderRadius: '50%',
                         background: col.color, display: 'inline-block', flexShrink: 0
                       }} />
-                      <span>{col.count}</span>
                       <span className="dpc-stat-label">{col.title}</span>
+                      <span className="dpc-stat-count">{col.count}</span>
                     </div>
                   ))}
                 </div>

@@ -459,16 +459,17 @@ textarea.form-input { padding: 10px 12px; resize: vertical; color: #111827; min-
 .dpc-progress-pct { font-size: 11px; font-weight: 700; color: var(--text-muted); min-width: 30px; }
 
 .dpc-stats {
-  display: grid; grid-template-columns: repeat(3, 1fr);
-  gap: 6px; margin-bottom: 12px;
+  display: flex; flex-direction: column;
+  gap: 5px; margin-bottom: 12px;
 }
 .dpc-stat {
-  display: flex; flex-direction: column; align-items: center; gap: 3px;
-  padding: 10px 6px; background: #f9fafb; border-radius: var(--radius-sm);
-  flex: 1;
+  display: flex; flex-direction: row; align-items: center; gap: 8px;
+  padding: 7px 10px; background: #f9fafb; border-radius: var(--radius-sm);
+  direction: rtl;
 }
-.dpc-stat span:nth-child(2) { font-size: 18px; font-weight: 800; color: #111827; }
-.dpc-stat-label { font-size: 11px; color: var(--text-muted); }
+.dpc-stat-count { font-size: 16px; font-weight: 800; color: #111827; min-width: 24px; text-align: center; }
+.dpc-stat-label { font-size: 12px; color: var(--text-muted); flex: 1; }
+.dpc-stat span:nth-child(2) { font-size: 16px; font-weight: 800; color: #111827; }
 
 .dpc-footer {
   display: flex; align-items: center; gap: 6px;
