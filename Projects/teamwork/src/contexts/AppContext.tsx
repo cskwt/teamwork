@@ -144,18 +144,20 @@ const reducer = (state: AppState, action: Action): AppState => {
         notifications: [...state.notifications, ...updateNotifs],
       };
     }
-    case 'DELETE_ORDER':
+    case 'DELETE_ORDER': {
+      const now = new Date().toISOString();
       return {
         ...state,
         orders: state.orders.map((o) =>
-          o.id === action.payload ? { ...o, deletedAt: new Date().toISOString() } : o
+          o.id === action.payload ? { ...o, deletedAt: now, updatedAt: now } : o
         ),
       };
+    }
     case 'RESTORE_ORDER':
       return {
         ...state,
         orders: state.orders.map((o) =>
-          o.id === action.payload ? { ...o, deletedAt: undefined } : o
+          o.id === action.payload ? { ...o, deletedAt: undefined, updatedAt: new Date().toISOString() } : o
         ),
       };
     case 'PERMANENT_DELETE':
