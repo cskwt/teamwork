@@ -146,12 +146,14 @@ const KanbanBoard: React.FC<KanbanBoardProps> = ({ department, onBack }) => {
       }
 
       if (!targetColId) return;
-      const isCol = columns.some((c) => c.id === targetColId);
+      // Allow the fixed default column ('new') in addition to user-defined columns
+      const allCols = [DEFAULT_COL, ...columns];
+      const isCol = allCols.some((c) => c.id === targetColId);
       if (!isCol) return;
 
       if (order.status !== targetColId) {
-        const fromLabel = columns.find((c) => c.id === order.status)?.title || order.status;
-        const toLabel = columns.find((c) => c.id === targetColId)?.title || targetColId;
+        const fromLabel = allCols.find((c) => c.id === order.status)?.title || order.status;
+        const toLabel = allCols.find((c) => c.id === targetColId)?.title || targetColId;
         dispatch({ type: 'MOVE_ORDER', payload: { orderId, status: targetColId, triggerUserId: currentUser?.id } });
         addHistoryEntry(orderId, 'تغيير الحالة', fromLabel, toLabel);
       }
