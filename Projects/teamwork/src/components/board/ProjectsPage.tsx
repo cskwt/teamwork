@@ -174,13 +174,13 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ onOpenBoard }) => {
                 {/* Stats — عمود بعمود */}
                 <div className="dpc-stats">
                   {colStats.map((col) => (
-                    <div className="dpc-stat" key={col.id}>
-                      <span style={{
-                        width: 9, height: 9, borderRadius: '50%',
-                        background: col.color, display: 'inline-block', flexShrink: 0
-                      }} />
-                      <span className="dpc-stat-label">{col.title}</span>
-                      <span className="dpc-stat-count">{col.count}</span>
+                    <div
+                      className="dpc-stat"
+                      key={col.id}
+                      style={{ background: col.color + '18', borderRight: `3px solid ${col.color}` }}
+                    >
+                      <span className="dpc-stat-label" style={{ color: '#111827' }}>{col.title}</span>
+                      <span className="dpc-stat-count" style={{ color: col.color }}>{col.count}</span>
                     </div>
                   ))}
                 </div>
