@@ -393,5 +393,9 @@ const t = {
   },
 } as const;
 
-export type Translations = typeof t.ar;
-export default t;
+export type Translations = {
+  [K in keyof typeof t.ar]: typeof t.ar[K] extends Record<string, string>
+    ? Record<string, string>
+    : string;
+};
+export default t as { ar: Translations; en: Translations };
