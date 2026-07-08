@@ -4,6 +4,7 @@ import {
   Archive, Trash2, UserCog, LayoutGrid
 } from 'lucide-react';
 import { useApp } from '../../contexts/AppContext';
+import { useLang } from '../../contexts/LanguageContext';
 import logoWhite from '../../assets/teamwork-logo-white.png';
 
 interface SidebarProps {
@@ -15,21 +16,22 @@ interface SidebarProps {
 
 const Sidebar: React.FC<SidebarProps> = ({ activePage, onNavigate }) => {
   const { state, logout } = useApp();
+  const { tr } = useLang();
   const { currentUser } = state;
 
   const isAdmin = currentUser?.role === 'admin';
   const isManager = currentUser?.role === 'manager';
 
   const navItems = [
-    { id: 'dashboard', label: 'لوحة الإنجاز', icon: <BarChart2 size={18} /> },
-    { id: 'projects', label: 'الأقسام', icon: <LayoutGrid size={18} /> },
-    { id: 'archive', label: 'الارشيف', icon: <Archive size={18} /> },
-    { id: 'trash', label: 'سلة المهملات', icon: <Trash2 size={18} /> },
+    { id: 'dashboard', label: tr.dashboard, icon: <BarChart2 size={18} /> },
+    { id: 'projects', label: tr.departments, icon: <LayoutGrid size={18} /> },
+    { id: 'archive', label: tr.archive, icon: <Archive size={18} /> },
+    { id: 'trash', label: tr.trash, icon: <Trash2 size={18} /> },
   ];
 
   const adminItems = [
-    { id: 'users', label: 'اعضاء الفريق', icon: <UserCog size={18} /> },
-    { id: 'settings', label: 'الاعدادات', icon: <Settings size={18} /> },
+    { id: 'users', label: tr.users, icon: <UserCog size={18} /> },
+    { id: 'settings', label: tr.settings, icon: <Settings size={18} /> },
   ];
 
   return (
@@ -51,7 +53,7 @@ const Sidebar: React.FC<SidebarProps> = ({ activePage, onNavigate }) => {
         <div className="sidebar-user-info">
           <span className="sidebar-username">{currentUser?.fullName}</span>
           <span className="sidebar-userrole">
-            {currentUser?.role === 'admin' ? 'مدير النظام' : currentUser?.role === 'manager' ? 'مدير قسم' : 'عضو'}
+            {currentUser?.role === 'admin' ? tr.admin : currentUser?.role === 'manager' ? tr.manager : tr.member}
           </span>
         </div>
       </div>
@@ -91,7 +93,7 @@ const Sidebar: React.FC<SidebarProps> = ({ activePage, onNavigate }) => {
               className={`nav-item ${activePage === 'settings' ? 'active' : ''}`}
               onClick={() => onNavigate('settings')}
             >
-              <span>الإعدادات</span>
+              <span>{tr.settings}</span>
               <span className="nav-icon-box"><Settings size={18} /></span>
             </button>
           </>
@@ -99,7 +101,7 @@ const Sidebar: React.FC<SidebarProps> = ({ activePage, onNavigate }) => {
       </nav>
 
       <button className="sidebar-logout" onClick={logout}>
-        <span>الخروج</span>
+        <span>{tr.logout}</span>
         <span className="nav-icon-box" style={{ background: 'rgba(239,68,68,.12)' }}><LogOut size={16} color="#f87171" /></span>
       </button>
     </aside>

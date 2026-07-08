@@ -172,6 +172,18 @@ textarea.form-input { padding: 10px 12px; resize: vertical; color: #111827; min-
   transition: all .15s;
 }
 .topbar-icon-btn:hover { background: #f3f4f6; color: #374151; }
+.lang-toggle-btn { font-weight: 700; font-size: 12px; border: 1.5px solid #e5e7eb; border-radius: 8px; padding: 4px 10px; color: #6366f1; }
+.lang-toggle-btn:hover { background: #eef2ff; border-color: #6366f1; }
+
+/* LTR support when English is active */
+:root[lang="en"] .sidebar, :root[lang="en"] .topbar-global,
+:root[lang="en"] .modal-panel, :root[lang="en"] .notif-panel,
+:root[lang="en"] .kanban-board, :root[lang="en"] .page,
+:root[lang="en"] .board-page { direction: ltr; }
+:root[lang="en"] .nav-item { flex-direction: row-reverse; }
+:root[lang="en"] .sidebar-profile { flex-direction: row-reverse; text-align: left; }
+:root[lang="en"] .topbar-right { flex-direction: row-reverse; }
+:root[lang="en"] .topbar-left { flex-direction: row-reverse; }
 .topbar-search {
   display: flex; align-items: center; gap: 7px;
   background: #f9fafb; border: 1px solid #e5e7eb;

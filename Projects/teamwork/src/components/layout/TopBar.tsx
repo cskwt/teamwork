@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Home, Bell, Search, X, MessageSquare, Plus, Pencil, UserCheck, RefreshCw } from 'lucide-react';
+import { Home, Bell, Search, X, MessageSquare, Plus, Pencil, UserCheck, RefreshCw, Languages } from 'lucide-react';
 import { useApp } from '../../contexts/AppContext';
+import { useLang } from '../../contexts/LanguageContext';
 import { formatDate, priorityConfig, getColumnStatus } from '../../utils/helpers';
 import { Order } from '../../types';
 import OrderDetailModal from '../modals/OrderDetailModal';
@@ -11,6 +12,7 @@ interface TopBarProps {
 
 const TopBar: React.FC<TopBarProps> = ({ onNavigate }) => {
   const { state, dispatch, refreshData } = useApp();
+  const { lang, toggleLang, tr } = useLang();
   const [refreshing, setRefreshing] = useState(false);
   const { orders, departments, currentUser, notifications: allNotifs } = state;
   const [showNotif, setShowNotif] = useState(false);
@@ -68,13 +70,21 @@ const TopBar: React.FC<TopBarProps> = ({ onNavigate }) => {
     <>
     <header className="topbar-global">
       <div className="topbar-right">
-        <button className="topbar-icon-btn" onClick={() => onNavigate('dashboard')} title="الرئيسية">
+        <button className="topbar-icon-btn" onClick={() => onNavigate('dashboard')} title={tr.home}>
           <Home size={18} />
-          <span>الرئيسية</span>
+          <span>{tr.home}</span>
+        </button>
+        <button
+          className="topbar-icon-btn lang-toggle-btn"
+          title={lang === 'ar' ? 'Switch to English' : 'التبديل للعربية'}
+          onClick={toggleLang}
+        >
+          <Languages size={17} />
+          <span>{lang === 'ar' ? 'EN' : 'ع'}</span>
         </button>
         <button
           className="topbar-icon-btn"
-          title="تحديث البيانات"
+          title={tr.refresh}
           onClick={async () => {
             setRefreshing(true);
             await refreshData();
@@ -85,7 +95,7 @@ const TopBar: React.FC<TopBarProps> = ({ onNavigate }) => {
           <RefreshCw size={17} style={{ transition: 'transform 0.6s', transform: refreshing ? 'rotate(360deg)' : 'none' }} />
         </button>
         <div className="notif-wrap" ref={notifRef}>
-          <button className="topbar-icon-btn notif-btn" onClick={handleOpenNotif} title="الإشعارات">
+          <button className="topbar-icon-btn notif-btn" onClick={handleOpenNotif} title={tr.notifications}>
             <Bell size={18} color={unreadCount > 0 ? '#ef4444' : undefined} />
             {unreadCount > 0 && <span className="notif-dot">{unreadCount}</span>}
           </button>
@@ -94,14 +104,14 @@ const TopBar: React.FC<TopBarProps> = ({ onNavigate }) => {
             <div className="notif-panel">
               <div className="notif-panel-header">
                 <Bell size={15} />
-                <span>الإشعارات</span>
+                <span>{tr.notifications}</span>
                 {myNotifs.length > 0 && <span className="notif-count-badge">{myNotifs.length}</span>}
               </div>
 
               {myNotifs.length === 0 ? (
                 <div className="notif-empty">
                   <Bell size={32} color="#d1d5db" />
-                  <p>لا توجد إشعارات</p>
+                  <p>{tr.noNotifications}</p>
                 </div>
               ) : (
                 <div className="notif-list">
@@ -127,7 +137,7 @@ const TopBar: React.FC<TopBarProps> = ({ onNavigate }) => {
             <Search size={15} />
             <input
               type="text"
-              placeholder="رقم الطلبية أو اسم العميل..."
+              placeholder={tr.searchPlaceholder}
               value={searchQuery}
               onChange={(e) => { setSearchQuery(e.target.value); setShowSearch(true); }}
               onFocus={() => setShowSearch(true)}
@@ -141,11 +151,11 @@ const TopBar: React.FC<TopBarProps> = ({ onNavigate }) => {
           {showSearch && searchQuery.trim() && (
             <div className="search-results-panel">
               {searchResults.length === 0 ? (
-                <div className="search-no-results">لا توجد نتائج لـ "{searchQuery}"</div>
+                <div className="search-no-results">{tr.noResults} "{searchQuery}"</div>
               ) : (
                 <>
                   <div className="search-results-header">
-                    {searchResults.length} نتيجة
+                    {searchResults.length} {tr.results}
                   </div>
                   <div className="search-results-list">
                 {searchResults.map((o) => {

@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { AppProvider, useApp } from './contexts/AppContext';
+import { LanguageProvider, useLang } from './contexts/LanguageContext';
 import LoginPage from './components/auth/LoginPage';
 import Sidebar from './components/layout/Sidebar';
 import TopBar from './components/layout/TopBar';
@@ -21,6 +22,8 @@ const AppInner: React.FC = () => {
   const [activePage, setActivePage] = useState('projects');
   const [activeDeptId, setActiveDeptId] = useState<string | null>(departments[0]?.id || null);
 
+  const { tr } = useLang();
+
   if (!loaded) return (
     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100vh', flexDirection: 'column', gap: 24, background: '#f8fafc' }}>
       <img
@@ -28,7 +31,7 @@ const AppInner: React.FC = () => {
         alt="loading"
         style={{ width: 120, height: 120, objectFit: 'contain', animation: 'spin 1.6s linear infinite' }}
       />
-      <p style={{ color: '#6b7280', fontSize: 15, fontWeight: 500 }}>جاري تحميل البيانات...</p>
+      <p style={{ color: '#6b7280', fontSize: 15, fontWeight: 500 }}>{tr.loading}...</p>
       <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
     </div>
   );
@@ -93,9 +96,11 @@ const AppInner: React.FC = () => {
 };
 
 const App: React.FC = () => (
-  <AppProvider>
-    <AppInner />
-  </AppProvider>
+  <LanguageProvider>
+    <AppProvider>
+      <AppInner />
+    </AppProvider>
+  </LanguageProvider>
 );
 
 export default App;
