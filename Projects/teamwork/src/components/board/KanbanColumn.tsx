@@ -4,7 +4,35 @@ import { SortableContext, verticalListSortingStrategy } from '@dnd-kit/sortable'
 import { Pencil, Trash2, X, Check } from 'lucide-react';
 import { Order, KanbanColumn as KCol, Department } from '../../types';
 import { useApp } from '../../contexts/AppContext';
+import { useLang } from '../../contexts/LanguageContext';
 import OrderCard from './OrderCard';
+
+const COL_NAME_MAP: Record<string, string> = {
+  'الطلبيات الجديدة': 'New Orders',
+  'الطلبيات الجاهزة': 'Ready Orders',
+  'قيد التنفيذ': 'In Progress',
+  'مراجعة': 'Review',
+  'منجز': 'Done',
+  'ملغي': 'Cancelled',
+  'جديد': 'New',
+  'قيد الطباعة': 'Printing',
+  'قيد التجميع': 'Assembly',
+  'للتوصيل': 'For Delivery',
+  'قيد التسليم': 'In Delivery',
+  'للاستلام': 'For Pickup',
+  'متعثرة': 'On Hold',
+  'مطبوعات خارجية': 'Outsourced Print',
+  'اللامنيشن': 'Lamination',
+  'عينات مطلوبة': 'Samples Needed',
+  'قص Graphtec': 'Graphtec Cut',
+  'UV طباعة': 'UV Print',
+  'قص ليزر': 'Laser Cut',
+};
+
+const translateColName = (name: string, lang: string): string => {
+  if (lang === 'en') return COL_NAME_MAP[name] || name;
+  return name;
+};
 
 const COLUMN_COLORS = [
   '#6366f1','#3b82f6','#06b6d4','#10b981',
@@ -21,6 +49,7 @@ interface KanbanColumnProps {
 
 const KanbanColumn: React.FC<KanbanColumnProps> = ({ column, orders, onOrderClick, department, isDefault }) => {
   const { dispatch } = useApp();
+  const { lang } = useLang();
   const { setNodeRef, isOver } = useDroppable({ id: column.id });
   const [editing, setEditing] = useState(false);
   const [title, setTitle] = useState(column.title);
@@ -91,7 +120,7 @@ const KanbanColumn: React.FC<KanbanColumnProps> = ({ column, orders, onOrderClic
               )}
             </div>
             <div className="col-header-left">
-              <span className="col-title">{column.title}</span>
+              <span className="col-title">{translateColName(column.title, lang)}</span>
             </div>
           </>
         )}

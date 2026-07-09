@@ -5,9 +5,32 @@ import {
   ShoppingCart, Palette, Zap, Printer, Truck, Building2
 } from 'lucide-react';
 import { useApp } from '../../contexts/AppContext';
+import { useLang } from '../../contexts/LanguageContext';
 import { Department } from '../../types';
 import { generateId } from '../../utils/helpers';
 import Header from '../layout/Header';
+
+const COL_NAME_MAP: Record<string, string> = {
+  'الطلبيات الجديدة': 'New Orders',
+  'الطلبيات الجاهزة': 'Ready Orders',
+  'قيد التنفيذ': 'In Progress',
+  'مراجعة': 'Review',
+  'منجز': 'Done',
+  'ملغي': 'Cancelled',
+  'جديد': 'New',
+  'قيد الطباعة': 'Printing',
+  'قيد التجميع': 'Assembly',
+  'للتوصيل': 'For Delivery',
+  'قيد التسليم': 'In Delivery',
+  'للاستلام': 'For Pickup',
+  'متعثرة': 'On Hold',
+  'مطبوعات خارجية': 'Outsourced Print',
+  'اللامنيشن': 'Lamination',
+  'عينات مطلوبة': 'Samples Needed',
+  'قص Graphtec': 'Graphtec Cut',
+  'UV طباعة': 'UV Print',
+  'قص ليزر': 'Laser Cut',
+};
 
 type IconComponent = React.FC<{ size?: number; color?: string }>;
 
@@ -31,6 +54,7 @@ const COLORS = [
 
 const ProjectsPage: React.FC<ProjectsPageProps> = ({ onOpenBoard }) => {
   const { state, dispatch } = useApp();
+  const { lang } = useLang();
   const { departments, orders, currentUser } = state;
 
   const [showModal, setShowModal] = useState(false);
@@ -179,7 +203,7 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ onOpenBoard }) => {
                       key={col.id}
                       style={{ background: col.color + '18', borderRight: `3px solid ${col.color}` }}
                     >
-                      <span className="dpc-stat-label" style={{ color: '#111827' }}>{col.title}</span>
+                      <span className="dpc-stat-label" style={{ color: '#111827' }}>{lang === 'en' ? (COL_NAME_MAP[col.title] || col.title) : col.title}</span>
                       <span className="dpc-stat-count" style={{ color: col.color }}>{col.count}</span>
                     </div>
                   ))}
