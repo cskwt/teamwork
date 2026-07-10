@@ -1,11 +1,14 @@
 import React, { useState } from 'react';
 import { Trash2, RotateCcw, AlertTriangle, X } from 'lucide-react';
 import { useApp } from '../../contexts/AppContext';
-import { priorityConfig, getColumnStatus } from '../../utils/helpers';
+import { useLang } from '../../contexts/LanguageContext';
+import { getPriorityConfig, getColumnStatus } from '../../utils/helpers';
 import Header from '../layout/Header';
 
 const TrashPage: React.FC = () => {
   const { state, dispatch } = useApp();
+  const { lang } = useLang();
+  const priorityConfig = getPriorityConfig(lang);
   const { orders, departments, currentUser } = state;
   const [confirmId, setConfirmId] = useState<string | null>(null);
 

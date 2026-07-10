@@ -7,7 +7,29 @@ import {
 import { Order, Department, OrderPriority, OrderStatus } from '../../types';
 import { useApp } from '../../contexts/AppContext';
 import { useLang } from '../../contexts/LanguageContext';
-import { priorityConfig, getColumnStatus, formatDate, generateId } from '../../utils/helpers';
+import { getPriorityConfig, getColumnStatus, formatDate, generateId } from '../../utils/helpers';
+
+const COL_NAME_MAP: Record<string, string> = {
+  'الطلبيات الجديدة': 'New Orders',
+  'الطلبيات الجاهزة': 'Ready Orders',
+  'قيد التنفيذ': 'In Progress',
+  'مراجعة': 'Review',
+  'منجز': 'Done',
+  'ملغي': 'Cancelled',
+  'جديد': 'New',
+  'قيد الطباعة': 'Printing',
+  'قيد التجميع': 'Assembly',
+  'للتوصيل': 'For Delivery',
+  'قيد التسليم': 'In Delivery',
+  'للاستلام': 'For Pickup',
+  'متعثرة': 'On Hold',
+  'مطبوعات خارجية': 'Outsourced Print',
+  'اللامنيشن': 'Lamination',
+  'عينات مطلوبة': 'Samples Needed',
+  'قص Graphtec': 'Graphtec Cut',
+  'UV طباعة': 'UV Print',
+  'قص ليزر': 'Laser Cut',
+};
 
 interface OrderDetailModalProps {
   order: Order;
@@ -17,8 +39,10 @@ interface OrderDetailModalProps {
 
 const OrderDetailModal: React.FC<OrderDetailModalProps> = ({ order, onClose, department }) => {
   const { state, dispatch, addHistoryEntry } = useApp();
-  const { tr } = useLang();
+  const { lang, tr } = useLang();
+  const translateCol = (name: string) => lang === 'en' ? (COL_NAME_MAP[name] || name) : name;
   const { users, departments, currentUser } = state;
+  const priorityConfig = getPriorityConfig(lang);
   const [activeTab, setActiveTab] = useState<'details' | 'files' | 'chat' | 'history'>('details');
   const [comment, setComment] = useState('');
   const [transferDepts, setTransferDepts] = useState<string[]>([]);
@@ -344,7 +368,7 @@ const OrderDetailModal: React.FC<OrderDetailModalProps> = ({ order, onClose, dep
         <div className="modal-header">
           <div className="modal-header-info">
             <span className="order-num-badge">#{currentOrder.orderNumber}</span>
-            <span className="badge" style={{ background: status.bg, color: status.color }}>{status.label}</span>
+            <span className="badge" style={{ background: status.bg, color: status.color }}>{translateCol(status.label)}</span>
             <span className="badge" style={{ background: priority.bg, color: priority.color }}>{priority.label}</span>
           </div>
           <div className="modal-header-actions">

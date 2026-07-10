@@ -5,7 +5,8 @@ import {
 } from 'recharts';
 import { Package, CheckCircle, Clock, AlertTriangle, TrendingUp } from 'lucide-react';
 import { useApp } from '../../contexts/AppContext';
-import { priorityConfig, getColumnStatus, formatDate, isOverdue } from '../../utils/helpers';
+import { getPriorityConfig, getColumnStatus, formatDate, isOverdue } from '../../utils/helpers';
+import { useLang } from '../../contexts/LanguageContext';
 import Header from '../layout/Header';
 
 interface DashboardProps {
@@ -28,6 +29,8 @@ const renderCustomLabel = ({ cx, cy, midAngle, innerRadius, outerRadius, percent
 
 const Dashboard: React.FC<DashboardProps> = ({ onNavigate, onSelectDept }) => {
   const { state } = useApp();
+  const { lang } = useLang();
+  const priorityConfig = getPriorityConfig(lang);
   const { orders, departments, currentUser } = state;
 
   const isAdmin = currentUser?.role === 'admin';
