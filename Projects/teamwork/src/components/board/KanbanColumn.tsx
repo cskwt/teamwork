@@ -127,15 +127,27 @@ const KanbanColumn: React.FC<KanbanColumnProps> = ({ column, orders, onOrderClic
       </div>
 
       <div ref={setNodeRef} className="col-body">
-        <SortableContext items={orders.map((o) => o.id)} strategy={verticalListSortingStrategy}>
-          {orders.length === 0 ? (
-            <div className="col-empty"><p>لا توجد طلبيات</p></div>
-          ) : (
-            orders.map((order) => (
-              <OrderCard key={order.id} order={order} onClick={() => onOrderClick(order)} />
-            ))
-          )}
-        </SortableContext>
+        {(() => {
+          const sorted = [...orders].sort((a, b) => {
+            const aHas = a.sortOrder !== undefined && a.sortOrder !== null;
+            const bHas = b.sortOrder !== undefined && b.sortOrder !== null;
+            if (aHas && bHas) return (a.sortOrder as number) - (b.sortOrder as number);
+            if (aHas) return -1;
+            if (bHas) return 1;
+            return new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime();
+          });
+          return (
+            <SortableContext items={sorted.map((o) => o.id)} strategy={verticalListSortingStrategy}>
+              {sorted.length === 0 ? (
+                <div className="col-empty"><p>لا توجد طلبيات</p></div>
+              ) : (
+                sorted.map((order) => (
+                  <OrderCard key={order.id} order={order} onClick={() => onOrderClick(order)} />
+                ))
+              )}
+            </SortableContext>
+          );
+        })()}
       </div>
     </div>
   );

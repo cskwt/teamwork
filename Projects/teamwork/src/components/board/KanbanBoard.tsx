@@ -136,17 +136,29 @@ const KanbanBoard: React.FC<KanbanBoardProps> = ({ department, onBack }) => {
       const order = orders.find((o) => o.id === orderId);
       if (!order) return;
 
-      // إذا وقع على عمود مباشرة
-      let targetColId = overId.startsWith('col::') ? overId.replace('col::', '') : null;
+      const overOrder = deptOrders.find((o) => o.id === overId);
 
-      // إذا وقع فوق طلبية موجودة → استخرج عمودها
-      if (!targetColId) {
-        const overOrder = deptOrders.find((o) => o.id === overId);
-        if (overOrder) targetColId = overOrder.status;
+      // Same-column reorder: drop an order onto another order in the same column
+      if (overOrder && overOrder.status === order.status) {
+        const colOrders = deptOrders
+          .filter((o) => o.status === order.status)
+          .sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0));
+        const oldIndex = colOrders.findIndex((o) => o.id === activeId);
+        const newIndex = colOrders.findIndex((o) => o.id === overId);
+        if (oldIndex === -1 || newIndex === -1 || oldIndex === newIndex) return;
+        const reordered = arrayMove(colOrders, oldIndex, newIndex);
+        const now = new Date().toISOString();
+        reordered.forEach((o, i) => {
+          dispatch({ type: 'UPDATE_ORDER', payload: { ...o, sortOrder: i, updatedAt: now }, silent: true } as any);
+        });
+        return;
       }
 
+      // Cross-column move: drop onto a column or onto an order in a different column
+      let targetColId = overId.startsWith('col::') ? overId.replace('col::', '') : null;
+      if (!targetColId && overOrder) targetColId = overOrder.status;
+
       if (!targetColId) return;
-      // Allow the fixed default column ('new') in addition to user-defined columns
       const allCols = [DEFAULT_COL, ...columns];
       const isCol = allCols.some((c) => c.id === targetColId);
       if (!isCol) return;

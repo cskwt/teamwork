@@ -58,6 +58,7 @@ export interface Order {
   history: OrderHistoryEntry[];
   notes?: string;
   progress?: number;
+  sortOrder?: number;
   deletedAt?: string;
   completedAt?: string;
 }
