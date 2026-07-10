@@ -6,6 +6,7 @@ import {
 } from 'lucide-react';
 import { Order, Department, OrderPriority, OrderStatus } from '../../types';
 import { useApp } from '../../contexts/AppContext';
+import { useLang } from '../../contexts/LanguageContext';
 import { priorityConfig, getColumnStatus, formatDate, generateId } from '../../utils/helpers';
 
 interface OrderDetailModalProps {
@@ -16,6 +17,7 @@ interface OrderDetailModalProps {
 
 const OrderDetailModal: React.FC<OrderDetailModalProps> = ({ order, onClose, department }) => {
   const { state, dispatch, addHistoryEntry } = useApp();
+  const { tr } = useLang();
   const { users, departments, currentUser } = state;
   const [activeTab, setActiveTab] = useState<'details' | 'files' | 'chat' | 'history'>('details');
   const [comment, setComment] = useState('');
@@ -328,10 +330,10 @@ const OrderDetailModal: React.FC<OrderDetailModalProps> = ({ order, onClose, dep
     (currentUser?.role === 'manager' && userDeptIds.includes(currentOrder.departmentId));
 
   const tabs = [
-    { id: 'details',  label: 'التفاصيل' },
-    { id: 'files',    label: `الملفات (${(currentOrder.orderForms?.length || 0) + (currentOrder.invoices?.length || 0) + (currentOrder.invoice ? 1 : 0)})` },
-    { id: 'chat',     label: `الدردشة (${currentOrder.comments.length})` },
-    { id: 'history',  label: 'السجل' },
+    { id: 'details',  label: tr.tabs.details },
+    { id: 'files',    label: `${tr.tabs.files} (${(currentOrder.orderForms?.length || 0) + (currentOrder.invoices?.length || 0) + (currentOrder.invoice ? 1 : 0)})` },
+    { id: 'chat',     label: `${tr.tabs.chat} (${currentOrder.comments.length})` },
+    { id: 'history',  label: tr.tabs.history },
   ] as const;
 
   return (
@@ -348,11 +350,11 @@ const OrderDetailModal: React.FC<OrderDetailModalProps> = ({ order, onClose, dep
           <div className="modal-header-actions">
             {editing ? (
               <>
-                <button className="modal-icon-btn modal-icon-btn--green" onClick={handleSaveEdit} title="حفظ"><Save size={15} /></button>
-                <button className="modal-icon-btn" onClick={() => setEditing(false)} title="إلغاء"><X size={15} /></button>
+                <button className="modal-icon-btn modal-icon-btn--green" onClick={handleSaveEdit} title={tr.save}><Save size={15} /></button>
+                <button className="modal-icon-btn" onClick={() => setEditing(false)} title={tr.cancel}><X size={15} /></button>
               </>
             ) : (
-              <button className="modal-icon-btn" title="تعديل" onClick={() => {
+              <button className="modal-icon-btn" title={tr.edit} onClick={() => {
                 setEditData({
                   orderNumber: currentOrder.orderNumber,
                   clientName: currentOrder.clientName,
@@ -372,10 +374,10 @@ const OrderDetailModal: React.FC<OrderDetailModalProps> = ({ order, onClose, dep
               }}><Pencil size={15} /></button>
             )}
             {currentUser?.role === 'admin' && (
-              <button className="modal-icon-btn modal-icon-btn--danger" onClick={handleDelete} title="حذف"><Trash2 size={15} /></button>
+              <button className="modal-icon-btn modal-icon-btn--danger" onClick={handleDelete} title={tr.delete}><Trash2 size={15} /></button>
             )}
             {(currentUser?.role === 'admin' || currentUser?.role === 'manager') && !editing && department.name === 'قسم التسليم' && (
-              <button className="modal-icon-btn modal-icon-btn--purple" onClick={handleArchive} title="أرشفة">
+              <button className="modal-icon-btn modal-icon-btn--purple" onClick={handleArchive} title={tr.archiveOrder}>
                 <Archive size={15} />
               </button>
             )}
@@ -383,14 +385,14 @@ const OrderDetailModal: React.FC<OrderDetailModalProps> = ({ order, onClose, dep
               <div style={{ position: 'relative' }}>
                 <button
                   className={`modal-icon-btn ${showTransferPopover ? 'modal-icon-btn--active' : ''}`}
-                  title="نقل إلى قسم آخر"
+                  title={tr.transfer}
                   onClick={() => setShowTransferPopover((v) => !v)}
                 >
                   <ArrowRightLeft size={15} />
                 </button>
                 {showTransferPopover && (
                   <div className="transfer-popover" style={{ minWidth: 240 }}>
-                    <p className="transfer-popover-label">نقل إلى قسم:</p>
+                    <p className="transfer-popover-label">{tr.transferToLabel}</p>
                     <div style={{ display: 'flex', flexDirection: 'column', gap: 6, maxHeight: 260, overflowY: 'auto' }}>
                       {departments.filter((d) => d.id !== order.departmentId).map((d) => {
                         const sel = transferDepts.includes(d.id);
@@ -416,7 +418,7 @@ const OrderDetailModal: React.FC<OrderDetailModalProps> = ({ order, onClose, dep
                       disabled={transferDepts.length === 0}
                       onClick={() => { handleTransfer(); setShowTransferPopover(false); setTransferDepts([]); }}
                     >
-                      {transferDepts.length > 1 ? `نقل إلى ${transferDepts.length} أقسام ↵` : 'نقل ↵'}
+                      {transferDepts.length > 1 ? `${tr.transferConfirmMultiple} ${transferDepts.length} ${tr.transferDepts}` : tr.transferConfirm}
                     </button>
                   </div>
                 )}
@@ -425,7 +427,7 @@ const OrderDetailModal: React.FC<OrderDetailModalProps> = ({ order, onClose, dep
             <div style={{ position: 'relative' }}>
               <button
                 className={`modal-icon-btn ${showProgressPopover ? 'modal-icon-btn--active' : ''}`}
-                title={`نسبة الإنجاز: ${currentOrder.progress || 0}%`}
+                title={`${tr.progress}: ${currentOrder.progress || 0}%`}
                 onClick={() => { setShowProgressPopover((v) => !v); setShowTransferPopover(false); }}
                 style={{ gap: 4, minWidth: 52, fontSize: 11, fontWeight: 700 }}
               >
@@ -434,7 +436,7 @@ const OrderDetailModal: React.FC<OrderDetailModalProps> = ({ order, onClose, dep
               </button>
               {showProgressPopover && (
                 <div className="transfer-popover" style={{ minWidth: 220 }}>
-                  <p className="transfer-popover-label">نسبة الإنجاز: <b>{editData.progress}%</b></p>
+                  <p className="transfer-popover-label">{tr.progressLabel} <b>{editData.progress}%</b></p>
                   <input
                     type="range" min={0} max={100} step={5}
                     value={editData.progress}
@@ -452,17 +454,17 @@ const OrderDetailModal: React.FC<OrderDetailModalProps> = ({ order, onClose, dep
                       setShowProgressPopover(false);
                     }}
                   >
-                    حفظ ✓
+                    {tr.save}
                   </button>
                 </div>
               )}
             </div>
             {currentOrder.status !== 'done' && !editing && department.name !== 'قسم التسليم' && (
-              <button className="modal-icon-btn modal-icon-btn--green" onClick={handleMarkDone} title="تم الانتهاء">
+              <button className="modal-icon-btn modal-icon-btn--green" onClick={handleMarkDone} title={tr.markDone}>
                 <CheckCheck size={15} />
               </button>
             )}
-            <button className="modal-close-corner" onClick={onClose} title="إغلاق"><X size={15} /></button>
+            <button className="modal-close-corner" onClick={onClose} title={tr.close}><X size={15} /></button>
           </div>
         </div>
 
@@ -493,37 +495,37 @@ const OrderDetailModal: React.FC<OrderDetailModalProps> = ({ order, onClose, dep
           {activeTab === 'details' && (
             <div className="od-details-grid">
               <div className="od-detail-item">
-                <span className="od-label"><User size={13} /> اسم العميل</span>
+                <span className="od-label"><User size={13} /> {tr.clientName}</span>
                 {editing ? (
                   <input className="od-edit-input" value={editData.clientName} onChange={(e) => setEditData(p => ({ ...p, clientName: e.target.value }))} />
                 ) : <span className="od-value">{currentOrder.clientName}</span>}
               </div>
               <div className="od-detail-item">
-                <span className="od-label"><Hash size={13} /> رقم الطلبية</span>
+                <span className="od-label"><Hash size={13} /> {tr.orderNumber}</span>
                 {editing ? (
                   <input className="od-edit-input" value={editData.orderNumber} onChange={(e) => setEditData(p => ({ ...p, orderNumber: e.target.value }))} />
                 ) : <span className="od-value">{currentOrder.orderNumber}</span>}
               </div>
               <div className="od-detail-item">
-                <span className="od-label"><FileText size={13} /> وصف الطلب</span>
+                <span className="od-label"><FileText size={13} /> {tr.description}</span>
                 {editing ? (
                   <textarea className="od-edit-input od-edit-textarea" rows={3} value={editData.description} onChange={(e) => setEditData(p => ({ ...p, description: e.target.value }))} />
                 ) : <span className="od-value od-desc">{currentOrder.description || '—'}</span>}
               </div>
               <div className="od-detail-item">
-                <span className="od-label"><Calendar size={13} /> موعد التسليم</span>
+                <span className="od-label"><Calendar size={13} /> {tr.dueDate}</span>
                 {editing ? (
                   <input type="date" className="od-edit-input" value={editData.dueDate} onChange={(e) => setEditData(p => ({ ...p, dueDate: e.target.value }))} />
-                ) : <span className="od-value">{currentOrder.dueDate ? formatDate(currentOrder.dueDate) : 'غير محدد'}</span>}
+                ) : <span className="od-value">{currentOrder.dueDate ? formatDate(currentOrder.dueDate) : tr.notSet}</span>}
               </div>
               <div className="od-detail-item">
-                <span className="od-label"><Calendar size={13} /> تاريخ الطلب</span>
+                <span className="od-label"><Calendar size={13} /> {tr.orderDate}</span>
                 {editing ? (
                   <input type="date" className="od-edit-input" value={editData.orderDate} onChange={(e) => setEditData(p => ({ ...p, orderDate: e.target.value }))} />
                 ) : <span className="od-value">{currentOrder.orderDate ? formatDate(currentOrder.orderDate) : '—'}</span>}
               </div>
               <div className="od-detail-item od-full">
-                <span className="od-label"><Building2 size={13} /> القسم المختص</span>
+                <span className="od-label"><Building2 size={13} /> {tr.assignedDept}</span>
                 {editing ? (
                   <div className="users-picker" style={{ marginTop: 4 }}>
                     {departments.filter((d) => d.name !== 'قسم التسليم').map((d) => {
@@ -547,7 +549,7 @@ const OrderDetailModal: React.FC<OrderDetailModalProps> = ({ order, onClose, dep
                 ) : <span className="od-value">{departments.find(d => d.id === currentOrder.departmentId)?.name || department.name}</span>}
               </div>
               <div className="od-detail-item od-full">
-                <span className="od-label"><Tag size={13} /> امتداد الملفات</span>
+                <span className="od-label"><Tag size={13} /> {tr.fileExtensions}</span>
                 {editing ? (
                   <div className="textarea-save-wrap">
                     <textarea className="od-edit-input od-edit-textarea" rows={4} value={editData.fileExtensions} onChange={(e) => setEditData(p => ({ ...p, fileExtensions: e.target.value }))} placeholder="PDF, AI, CDR, PNG..." />
@@ -581,7 +583,7 @@ const OrderDetailModal: React.FC<OrderDetailModalProps> = ({ order, onClose, dep
               </div>
               <div className="od-detail-item od-spacer" />
               <div className="od-detail-item">
-                <span className="od-label">الأولوية</span>
+                <span className="od-label">{tr.priority}</span>
                 {editing ? (
                   <div className="priority-picker" style={{ marginTop: 4 }}>
                     {(['urgent', 'high', 'medium', 'low'] as OrderPriority[]).map((k) => { const v = priorityConfig[k]; return (
@@ -610,7 +612,7 @@ const OrderDetailModal: React.FC<OrderDetailModalProps> = ({ order, onClose, dep
                 )}
               </div>
               <div className="od-detail-item od-full">
-                <span className="od-label">الملاحظات</span>
+                <span className="od-label">{tr.notes}</span>
                 {editing ? (
                   <div className="textarea-save-wrap">
                     <textarea className="od-edit-input od-edit-textarea" rows={4} value={editData.notes} onChange={(e) => setEditData(p => ({ ...p, notes: e.target.value }))} placeholder="أضف ملاحظات..." style={{ resize: 'vertical' }} />
@@ -644,7 +646,7 @@ const OrderDetailModal: React.FC<OrderDetailModalProps> = ({ order, onClose, dep
                 )}
               </div>
               <div className="od-detail-item od-full">
-                <span className="od-label"><Users size={13} /> المستخدمون المسؤولون</span>
+                <span className="od-label"><Users size={13} /> {tr.assignedUsers}</span>
                 {editing ? (
                   <div className="od-users-picker">
                     {users.map((u) => {
@@ -677,7 +679,7 @@ const OrderDetailModal: React.FC<OrderDetailModalProps> = ({ order, onClose, dep
                           <span>{u.fullName}</span>
                         </div>
                       );
-                    }) : <span className="muted">لم يُعيَّن أحد</span>}
+                    }) : <span className="muted">{tr.noneAssigned}</span>}
                   </div>
                 )}
               </div>
@@ -690,10 +692,10 @@ const OrderDetailModal: React.FC<OrderDetailModalProps> = ({ order, onClose, dep
               {/* Order Forms */}
               <div className="od-files-group">
                 <div className="od-files-title-row">
-                  <h4 className="od-files-title"><Image size={15} /> نماذج الطلبية</h4>
+                  <h4 className="od-files-title"><Image size={15} /> {tr.orderForms}</h4>
                   {(currentUser?.role === 'admin' || currentUser?.role === 'manager') && (
-                    <label className="od-upload-btn" title="رفع ملف">
-                      <Upload size={13} /> رفع
+                    <label className="od-upload-btn" title={tr.upload}>
+                      <Upload size={13} /> {tr.upload}
                       <input type="file" multiple accept=".pdf,.jpg,.jpeg,.png,.gif,.webp,.ai,.cdr,.psd,.svg" style={{ display: 'none' }} onChange={handleUploadOrderForm} />
                     </label>
                   )}
@@ -714,15 +716,15 @@ const OrderDetailModal: React.FC<OrderDetailModalProps> = ({ order, onClose, dep
                           <span className="od-file-size">{formatFileSize(f.size)}</span>
                         </div>
                         <div className="od-file-row-actions">
-                          <button className="od-action-btn" onClick={() => handlePreviewFile(f.dataUrl, f.name)} title="عرض">
-                            <Image size={15} /> عرض
+                          <button className="od-action-btn" onClick={() => handlePreviewFile(f.dataUrl, f.name)} title={tr.view}>
+                            <Image size={15} /> {tr.view}
                           </button>
-                          <button className="od-action-btn" onClick={() => handleOpenFile(f.dataUrl, f.name)} title="تحميل">
-                            <Download size={15} /> تحميل
+                          <button className="od-action-btn" onClick={() => handleOpenFile(f.dataUrl, f.name)} title={tr.download}>
+                            <Download size={15} /> {tr.download}
                           </button>
                           {(currentUser?.role === 'admin' || currentUser?.role === 'manager') && (
-                            <button className="od-action-btn od-action-btn--danger" onClick={() => handleDeleteOrderForm(f.id)} title="حذف">
-                              <Trash2 size={15} /> مسح
+                            <button className="od-action-btn od-action-btn--danger" onClick={() => handleDeleteOrderForm(f.id)} title={tr.deleteFile}>
+                              <Trash2 size={15} /> {tr.deleteFile}
                             </button>
                           )}
                         </div>
@@ -730,17 +732,17 @@ const OrderDetailModal: React.FC<OrderDetailModalProps> = ({ order, onClose, dep
                     ))}
                   </div>
                 ) : (
-                  <p className="od-empty-files">لا توجد نماذج مرفقة</p>
+                  <p className="od-empty-files">{tr.noAttachedForms}</p>
                 )}
               </div>
 
               {/* Invoices */}
               <div className="od-files-group">
                 <div className="od-files-title-row">
-                  <h4 className="od-files-title"><FileText size={15} /> الفواتير</h4>
+                  <h4 className="od-files-title"><FileText size={15} /> {tr.invoices}</h4>
                   {(currentUser?.role === 'admin' || currentUser?.role === 'manager') && (
-                    <label className="od-upload-btn" title="رفع فاتورة">
-                      <Upload size={13} /> رفع
+                    <label className="od-upload-btn" title={tr.upload}>
+                      <Upload size={13} /> {tr.upload}
                       <input type="file" multiple accept=".pdf,.jpg,.jpeg,.png,.gif,.webp" style={{ display: 'none' }} onChange={handleUploadInvoice} />
                     </label>
                   )}
@@ -755,10 +757,10 @@ const OrderDetailModal: React.FC<OrderDetailModalProps> = ({ order, onClose, dep
                         <span className="od-file-size">{formatFileSize(currentOrder.invoice.size)}</span>
                       </div>
                       <div className="od-file-row-actions">
-                        <button className="od-action-btn" onClick={() => handlePreviewFile(currentOrder.invoice?.dataUrl, currentOrder.invoice?.name || 'فاتورة')} title="عرض"><Image size={15} /> عرض</button>
-                        <button className="od-action-btn" onClick={() => handleOpenFile(currentOrder.invoice?.dataUrl, currentOrder.invoice?.name || 'فاتورة')} title="تحميل"><Download size={15} /> تحميل</button>
+                        <button className="od-action-btn" onClick={() => handlePreviewFile(currentOrder.invoice?.dataUrl, currentOrder.invoice?.name || tr.invoices)} title={tr.view}><Image size={15} /> {tr.view}</button>
+                        <button className="od-action-btn" onClick={() => handleOpenFile(currentOrder.invoice?.dataUrl, currentOrder.invoice?.name || tr.invoices)} title={tr.download}><Download size={15} /> {tr.download}</button>
                         {(currentUser?.role === 'admin' || currentUser?.role === 'manager') && (
-                          <button className="od-action-btn od-action-btn--danger" onClick={() => handleDeleteInvoice()} title="حذف"><Trash2 size={15} /> مسح</button>
+                          <button className="od-action-btn od-action-btn--danger" onClick={() => handleDeleteInvoice()} title={tr.deleteFile}><Trash2 size={15} /> {tr.deleteFile}</button>
                         )}
                       </div>
                     </div>
@@ -772,16 +774,16 @@ const OrderDetailModal: React.FC<OrderDetailModalProps> = ({ order, onClose, dep
                         <span className="od-file-size">{formatFileSize(inv.size)}</span>
                       </div>
                       <div className="od-file-row-actions">
-                        <button className="od-action-btn" onClick={() => handlePreviewFile(inv.dataUrl, inv.name)} title="عرض"><Image size={15} /> عرض</button>
-                        <button className="od-action-btn" onClick={() => handleOpenFile(inv.dataUrl, inv.name)} title="تحميل"><Download size={15} /> تحميل</button>
+                        <button className="od-action-btn" onClick={() => handlePreviewFile(inv.dataUrl, inv.name)} title={tr.view}><Image size={15} /> {tr.view}</button>
+                        <button className="od-action-btn" onClick={() => handleOpenFile(inv.dataUrl, inv.name)} title={tr.download}><Download size={15} /> {tr.download}</button>
                         {(currentUser?.role === 'admin' || currentUser?.role === 'manager') && (
-                          <button className="od-action-btn od-action-btn--danger" onClick={() => handleDeleteInvoice(inv.id)} title="حذف"><Trash2 size={15} /> مسح</button>
+                          <button className="od-action-btn od-action-btn--danger" onClick={() => handleDeleteInvoice(inv.id)} title={tr.deleteFile}><Trash2 size={15} /> {tr.deleteFile}</button>
                         )}
                       </div>
                     </div>
                   ))}
                   {!currentOrder.invoice && (!currentOrder.invoices || currentOrder.invoices.length === 0) && (
-                    <p className="od-empty-files">لم يتم رفع فاتورة</p>
+                    <p className="od-empty-files">{tr.noInvoiceUploaded}</p>
                   )}
                 </div>
               </div>
@@ -795,7 +797,7 @@ const OrderDetailModal: React.FC<OrderDetailModalProps> = ({ order, onClose, dep
                 {currentOrder.comments.length === 0 ? (
                   <div className="empty-state">
                     <MessageSquare size={40} />
-                    <p>لا توجد رسائل بعد، ابدأ المحادثة</p>
+                    <p>{tr.noMessages}</p>
                   </div>
                 ) : (
                   currentOrder.comments.map((c) => {
@@ -832,7 +834,7 @@ const OrderDetailModal: React.FC<OrderDetailModalProps> = ({ order, onClose, dep
               <div className="chat-input-row">
                 <textarea
                   className="chat-input"
-                  placeholder="اكتب رسالتك... (Ctrl+Enter للإرسال)"
+                  placeholder={tr.chatCtrlEnter}
                   value={comment}
                   onChange={(e) => setComment(e.target.value)}
                   onKeyDown={(e) => { if (e.key === 'Enter' && e.ctrlKey) handleAddComment(); }}
@@ -849,7 +851,7 @@ const OrderDetailModal: React.FC<OrderDetailModalProps> = ({ order, onClose, dep
           {activeTab === 'history' && (
             <div className="history-list">
               {currentOrder.history.length === 0 ? (
-                <div className="empty-state"><Clock size={40} /><p>لا يوجد سجل بعد</p></div>
+                <div className="empty-state"><Clock size={40} /><p>{tr.noHistory}</p></div>
               ) : (
                 [...currentOrder.history].reverse().map((h) => {
                   const actor = users.find((u) => u.id === h.userId);
