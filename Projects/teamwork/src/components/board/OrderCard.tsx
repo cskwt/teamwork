@@ -32,9 +32,9 @@ const CircleProgress: React.FC<{ value: number }> = ({ value }) => {
 
 const OrderCard: React.FC<OrderCardProps> = ({ order, onClick, isDragging, canDrag }) => {
   const { state } = useApp();
+  const { users } = state;
   const { lang } = useLang();
   const priorityConfig = getPriorityConfig(lang);
-  const { currentUser } = state;
   const isDragAllowed = canDrag !== undefined ? canDrag : true;
   const { attributes, listeners, setNodeRef, transform, transition, isDragging: sortDragging } = useSortable({ id: order.id, disabled: !isDragAllowed });
 
@@ -44,7 +44,7 @@ const OrderCard: React.FC<OrderCardProps> = ({ order, onClick, isDragging, canDr
     opacity: sortDragging ? 0.4 : 1,
   };
 
-  const assignedList = state.users.filter((u) => order.assignedUsers?.includes(u.id));
+  const assignedList = users.filter((u) => order.assignedUsers?.includes(u.id));
 
   const priority = priorityConfig[order.priority];
   const overdue = isOverdue(order.dueDate) && order.status !== 'done';
