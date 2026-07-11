@@ -1,12 +1,15 @@
 import React, { useState, useRef } from 'react';
-import { User, Lock, Download, Upload, Trash2, Camera, Save, Eye, EyeOff, AlertTriangle, RefreshCw } from 'lucide-react';
+import { User, Lock, Download, Upload, Trash2, Camera, Save, Eye, EyeOff, AlertTriangle, RefreshCw, Wrench } from 'lucide-react';
 import { useApp } from '../../contexts/AppContext';
 import Header from '../layout/Header';
 import { clearState, saveState } from '../../utils/storage';
+import { Order } from '../../types';
 
 const SettingsPage: React.FC = () => {
   const { state, dispatch } = useApp();
-  const { currentUser } = state;
+  const { currentUser, orders, departments } = state;
+  const [fixTarget, setFixTarget] = useState<{ order: Order; newDeptId: string } | null>(null);
+  const [fixMsg, setFixMsg] = useState('');
   const avatarRef = useRef<HTMLInputElement>(null);
 
   const [fullName, setFullName] = useState(currentUser?.fullName || '');
@@ -174,6 +177,94 @@ const SettingsPage: React.FC = () => {
               <button className="btn-primary" onClick={handleChangePassword}><Lock size={15} /> تغيير كلمة المرور</button>
             </div>
           </div>
+
+          {/* Fix Orders - Admin only */}
+          {currentUser?.role === 'admin' && (() => {
+            const activeOrders = orders.filter((o) => !o.deletedAt);
+            return (
+              <div className="settings-card">
+                <div className="settings-card-header">
+                  <Wrench size={18} />
+                  <h3>إصلاح قسم الطلبيات</h3>
+                </div>
+                <p style={{ fontSize: 13, color: '#6b7280', marginBottom: 12 }}>
+                  إذا ظهرت طلبية في قسم خاطئ، يمكنك تصحيح قسمها مباشرة من هنا دون الحاجة لفتحها.
+                </p>
+                {fixMsg && <p style={{ color: '#16a34a', fontSize: 12, marginBottom: 8 }}>{fixMsg}</p>}
+                <div style={{ overflowX: 'auto' }}>
+                  <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+                    <thead>
+                      <tr style={{ background: '#f9fafb', borderBottom: '1px solid #e5e7eb' }}>
+                        <th style={{ padding: '8px 10px', textAlign: 'right', color: '#6b7280', fontWeight: 600 }}>#</th>
+                        <th style={{ padding: '8px 10px', textAlign: 'right', color: '#6b7280', fontWeight: 600 }}>العميل</th>
+                        <th style={{ padding: '8px 10px', textAlign: 'right', color: '#6b7280', fontWeight: 600 }}>القسم الحالي</th>
+                        <th style={{ padding: '8px 10px', textAlign: 'right', color: '#6b7280', fontWeight: 600 }}>نقل إلى</th>
+                        <th style={{ padding: '8px 10px' }}></th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {activeOrders.map((o) => {
+                        const currDept = departments.find((d) => d.id === o.departmentId);
+                        const isFix = fixTarget?.order.id === o.id;
+                        return (
+                          <tr key={o.id} style={{ borderBottom: '1px solid #f3f4f6', background: isFix ? '#eef2ff' : undefined }}>
+                            <td style={{ padding: '7px 10px', color: '#9ca3af' }}>{o.orderNumber}</td>
+                            <td style={{ padding: '7px 10px', fontWeight: 600 }}>{o.clientName}</td>
+                            <td style={{ padding: '7px 10px' }}>
+                              <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+                                <span style={{ width: 10, height: 10, borderRadius: '50%', background: currDept?.color || '#6b7280', flexShrink: 0 }} />
+                                {currDept?.name || o.departmentId}
+                              </span>
+                            </td>
+                            <td style={{ padding: '7px 10px' }}>
+                              <select
+                                style={{ fontSize: 12, padding: '4px 8px', border: '1px solid #e5e7eb', borderRadius: 6, background: '#fff' }}
+                                value={isFix ? fixTarget.newDeptId : o.departmentId}
+                                onChange={(e) => setFixTarget({ order: o, newDeptId: e.target.value })}
+                              >
+                                {departments.map((d) => (
+                                  <option key={d.id} value={d.id}>{d.name}</option>
+                                ))}
+                              </select>
+                            </td>
+                            <td style={{ padding: '7px 10px' }}>
+                              <button
+                                style={{
+                                  padding: '5px 12px', background: '#6366f1', color: '#fff', border: 'none',
+                                  borderRadius: 6, fontSize: 12, fontWeight: 600, cursor: 'pointer',
+                                  opacity: (isFix && fixTarget.newDeptId !== o.departmentId) ? 1 : 0.4,
+                                }}
+                                disabled={!isFix || fixTarget.newDeptId === o.departmentId}
+                                onClick={() => {
+                                  if (!fixTarget || fixTarget.newDeptId === o.departmentId) return;
+                                  const now = new Date().toISOString();
+                                  dispatch({
+                                    type: 'UPDATE_ORDER',
+                                    payload: {
+                                      ...o,
+                                      departmentId: fixTarget.newDeptId,
+                                      departmentIds: [fixTarget.newDeptId],
+                                      status: 'new',
+                                      updatedAt: now,
+                                    },
+                                  } as any);
+                                  setFixMsg(`✓ تم نقل "${o.clientName}" إلى ${departments.find(d => d.id === fixTarget.newDeptId)?.name}`);
+                                  setFixTarget(null);
+                                  setTimeout(() => setFixMsg(''), 4000);
+                                }}
+                              >
+                                نقل
+                              </button>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            );
+          })()}
 
           {/* Data - Admin only */}
           {currentUser?.role === 'admin' && <div className="settings-card">

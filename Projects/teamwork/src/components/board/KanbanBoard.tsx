@@ -135,16 +135,30 @@ const KanbanBoard: React.FC<KanbanBoardProps> = ({ department, onBack }) => {
 
       // ── Same-column reorder: allowed for ALL users ──
       if (overOrder && overOrder.status === order.status) {
-        const colOrders = deptOrders
-          .filter((o) => o.status === order.status)
-          .sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0));
+        // Use the same sort logic as KanbanColumn to get the true display order
+        const sortColOrders = (list: Order[]) =>
+          [...list].sort((a, b) => {
+            const aHas = a.sortOrder !== undefined && a.sortOrder !== null;
+            const bHas = b.sortOrder !== undefined && b.sortOrder !== null;
+            if (aHas && bHas) return (a.sortOrder as number) - (b.sortOrder as number);
+            if (aHas) return -1;
+            if (bHas) return 1;
+            return new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime();
+          });
+
+        const colOrders = sortColOrders(
+          deptOrders.filter((o) => o.status === order.status)
+        );
         const oldIndex = colOrders.findIndex((o) => o.id === activeId);
         const newIndex = colOrders.findIndex((o) => o.id === overId);
         if (oldIndex === -1 || newIndex === -1 || oldIndex === newIndex) return;
         const reordered = arrayMove(colOrders, oldIndex, newIndex);
         const now = new Date().toISOString();
         reordered.forEach((o, i) => {
-          dispatch({ type: 'UPDATE_ORDER', payload: { ...o, sortOrder: i, updatedAt: now }, silent: true } as any);
+          // Only update sortOrder — fetch the latest version from state to avoid
+          // overwriting fields (like departmentId) that may have changed on server
+          const latest = orders.find((x) => x.id === o.id) || o;
+          dispatch({ type: 'UPDATE_ORDER', payload: { ...latest, sortOrder: i, updatedAt: now }, silent: true } as any);
         });
         return;
       }
