@@ -48,6 +48,8 @@ const OrderDetailModal: React.FC<OrderDetailModalProps> = ({ order, onClose, dep
   const [transferDepts, setTransferDepts] = useState<string[]>([]);
   const [showTransferPopover, setShowTransferPopover] = useState(false);
   const [showProgressPopover, setShowProgressPopover] = useState(false);
+  const [progressMode, setProgressMode] = useState<'slider' | 'quantity'>('slider');
+  const [qtyInput, setQtyInput] = useState({ quantity: '', completed: '' });
   const [editing, setEditing] = useState(false);
   const [inlineExtensions, setInlineExtensions] = useState<string | null>(null);
   const [inlineNotes, setInlineNotes] = useState<string | null>(null);
@@ -452,34 +454,138 @@ const OrderDetailModal: React.FC<OrderDetailModalProps> = ({ order, onClose, dep
               <button
                 className={`modal-icon-btn ${showProgressPopover ? 'modal-icon-btn--active' : ''}`}
                 title={`${tr.progress}: ${currentOrder.progress || 0}%`}
-                onClick={() => { setShowProgressPopover((v) => !v); setShowTransferPopover(false); }}
+                onClick={() => {
+                  setShowProgressPopover((v) => !v);
+                  setShowTransferPopover(false);
+                  if (currentOrder.progressQuantity) {
+                    setProgressMode('quantity');
+                    setQtyInput({ quantity: String(currentOrder.progressQuantity), completed: String(currentOrder.progressCompleted ?? '') });
+                  } else {
+                    setProgressMode('slider');
+                  }
+                }}
                 style={{ gap: 4, minWidth: 52, fontSize: 11, fontWeight: 700 }}
               >
                 <Gauge size={14} />
                 <span>{currentOrder.progress || 0}%</span>
               </button>
               {showProgressPopover && (
-                <div className="transfer-popover" style={{ minWidth: 220 }}>
-                  <p className="transfer-popover-label">{tr.progressLabel} <b>{editData.progress}%</b></p>
-                  <input
-                    type="range" min={0} max={100} step={5}
-                    value={editData.progress}
-                    onChange={(e) => setEditData(p => ({ ...p, progress: Number(e.target.value) }))}
-                    style={{ width: '100%', accentColor: '#6366f1' }}
-                  />
-                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, color: '#9ca3af', marginTop: -4 }}>
-                    <span>0%</span><span>50%</span><span>100%</span>
+                <div className="transfer-popover" style={{ minWidth: 240 }}>
+                  {/* Mode Toggle */}
+                  <div style={{ display: 'flex', background: '#f3f4f6', borderRadius: 8, padding: 3, marginBottom: 12, gap: 3 }}>
+                    <button
+                      onClick={() => setProgressMode('slider')}
+                      style={{
+                        flex: 1, padding: '5px 0', borderRadius: 6, border: 'none', cursor: 'pointer', fontSize: 12, fontWeight: 600,
+                        background: progressMode === 'slider' ? '#fff' : 'transparent',
+                        color: progressMode === 'slider' ? '#6366f1' : '#6b7280',
+                        boxShadow: progressMode === 'slider' ? '0 1px 3px #0001' : 'none',
+                      }}
+                    >
+                      {lang === 'ar' ? 'شريط' : 'Slider'}
+                    </button>
+                    <button
+                      onClick={() => {
+                        setProgressMode('quantity');
+                        setQtyInput({ quantity: String(currentOrder.progressQuantity ?? ''), completed: String(currentOrder.progressCompleted ?? '') });
+                      }}
+                      style={{
+                        flex: 1, padding: '5px 0', borderRadius: 6, border: 'none', cursor: 'pointer', fontSize: 12, fontWeight: 600,
+                        background: progressMode === 'quantity' ? '#fff' : 'transparent',
+                        color: progressMode === 'quantity' ? '#6366f1' : '#6b7280',
+                        boxShadow: progressMode === 'quantity' ? '0 1px 3px #0001' : 'none',
+                      }}
+                    >
+                      {lang === 'ar' ? 'كمية / منجز' : 'Qty / Done'}
+                    </button>
                   </div>
-                  <button
-                    className="transfer-popover-btn"
-                    onClick={() => {
-                      const now = new Date().toISOString();
-                      dispatch({ type: 'UPDATE_ORDER', payload: { ...currentOrder, progress: editData.progress, updatedAt: now }, silent: true } as any);
-                      setShowProgressPopover(false);
-                    }}
-                  >
-                    {tr.save}
-                  </button>
+
+                  {progressMode === 'slider' ? (
+                    <>
+                      <p className="transfer-popover-label">{tr.progressLabel} <b>{editData.progress}%</b></p>
+                      <input
+                        type="range" min={0} max={100} step={5}
+                        value={editData.progress}
+                        onChange={(e) => setEditData(p => ({ ...p, progress: Number(e.target.value) }))}
+                        style={{ width: '100%', accentColor: '#6366f1' }}
+                      />
+                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, color: '#9ca3af', marginTop: -4, marginBottom: 10 }}>
+                        <span>0%</span><span>50%</span><span>100%</span>
+                      </div>
+                      <button
+                        className="transfer-popover-btn"
+                        onClick={() => {
+                          const now = new Date().toISOString();
+                          dispatch({ type: 'UPDATE_ORDER', payload: { ...currentOrder, progress: editData.progress, progressQuantity: undefined, progressCompleted: undefined, updatedAt: now }, silent: true } as any);
+                          setShowProgressPopover(false);
+                        }}
+                      >
+                        {tr.save}
+                      </button>
+                    </>
+                  ) : (
+                    <>
+                      <div style={{ display: 'flex', gap: 10, marginBottom: 10 }}>
+                        <div style={{ flex: 1 }}>
+                          <label style={{ fontSize: 11, color: '#6b7280', display: 'block', marginBottom: 4 }}>
+                            {lang === 'ar' ? 'الكمية' : 'Quantity'}
+                          </label>
+                          <input
+                            type="number" min={1}
+                            value={qtyInput.quantity}
+                            onChange={(e) => setQtyInput(p => ({ ...p, quantity: e.target.value }))}
+                            style={{ width: '100%', padding: '6px 10px', border: '1.5px solid #e5e7eb', borderRadius: 7, fontSize: 14, outline: 'none', boxSizing: 'border-box' }}
+                            placeholder="100"
+                          />
+                        </div>
+                        <div style={{ flex: 1 }}>
+                          <label style={{ fontSize: 11, color: '#6b7280', display: 'block', marginBottom: 4 }}>
+                            {lang === 'ar' ? 'المنجز' : 'Completed'}
+                          </label>
+                          <input
+                            type="number" min={0}
+                            value={qtyInput.completed}
+                            onChange={(e) => setQtyInput(p => ({ ...p, completed: e.target.value }))}
+                            style={{ width: '100%', padding: '6px 10px', border: '1.5px solid #e5e7eb', borderRadius: 7, fontSize: 14, outline: 'none', boxSizing: 'border-box' }}
+                            placeholder="40"
+                          />
+                        </div>
+                      </div>
+                      {/* Live preview */}
+                      {qtyInput.quantity && qtyInput.completed && Number(qtyInput.quantity) > 0 && (
+                        (() => {
+                          const pct = Math.min(100, Math.round((Number(qtyInput.completed) / Number(qtyInput.quantity)) * 100));
+                          const color = pct >= 100 ? '#10b981' : pct >= 60 ? '#6366f1' : '#f59e0b';
+                          return (
+                            <div style={{ marginBottom: 10 }}>
+                              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, fontWeight: 700, color, marginBottom: 4 }}>
+                                <span>{lang === 'ar' ? 'نسبة الإنجاز' : 'Progress'}</span>
+                                <span>{pct}%</span>
+                              </div>
+                              <div style={{ height: 8, background: '#e5e7eb', borderRadius: 999 }}>
+                                <div style={{ height: '100%', width: `${pct}%`, background: color, borderRadius: 999, transition: 'width 0.3s' }} />
+                              </div>
+                            </div>
+                          );
+                        })()
+                      )}
+                      <button
+                        className="transfer-popover-btn"
+                        disabled={!qtyInput.quantity || !qtyInput.completed || Number(qtyInput.quantity) <= 0}
+                        onClick={() => {
+                          const qty = Number(qtyInput.quantity);
+                          const done = Number(qtyInput.completed);
+                          const pct = Math.min(100, Math.round((done / qty) * 100));
+                          const now = new Date().toISOString();
+                          dispatch({ type: 'UPDATE_ORDER', payload: { ...currentOrder, progress: pct, progressQuantity: qty, progressCompleted: done, updatedAt: now }, silent: true } as any);
+                          setEditData(p => ({ ...p, progress: pct }));
+                          setShowProgressPopover(false);
+                        }}
+                      >
+                        {tr.save}
+                      </button>
+                    </>
+                  )}
                 </div>
               )}
             </div>

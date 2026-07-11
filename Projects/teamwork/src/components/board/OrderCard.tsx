@@ -4,7 +4,8 @@ import { CSS } from '@dnd-kit/utilities';
 import { MessageSquare, Calendar, User, AlertTriangle } from 'lucide-react';
 import { Order } from '../../types';
 import { useApp } from '../../contexts/AppContext';
-import { priorityConfig, formatDateShort, isOverdue } from '../../utils/helpers';
+import { getPriorityConfig, formatDateShort, isOverdue } from '../../utils/helpers';
+import { useLang } from '../../contexts/LanguageContext';
 
 interface OrderCardProps {
   order: Order;
@@ -31,6 +32,8 @@ const CircleProgress: React.FC<{ value: number }> = ({ value }) => {
 
 const OrderCard: React.FC<OrderCardProps> = ({ order, onClick, isDragging, canDrag }) => {
   const { state } = useApp();
+  const { lang } = useLang();
+  const priorityConfig = getPriorityConfig(lang);
   const { currentUser } = state;
   const userDeptIds = currentUser?.departmentIds?.length ? currentUser.departmentIds : (currentUser?.departmentId ? [currentUser.departmentId] : []);
   const isOwnDept = userDeptIds.includes(order.departmentId);
@@ -93,7 +96,13 @@ const OrderCard: React.FC<OrderCardProps> = ({ order, onClick, isDragging, canDr
             <div className="card-progress-fill" style={{ width: `${order.progress}%` }} />
           </div>
           <div className="card-progress-circle-wrap">
-            <span className="card-progress-label">نسبة الإنجاز</span>
+            {order.progressQuantity ? (
+              <span className="card-progress-label" style={{ direction: 'ltr', fontVariantNumeric: 'tabular-nums' }}>
+                {order.progressCompleted ?? 0} / {order.progressQuantity}
+              </span>
+            ) : (
+              <span className="card-progress-label">نسبة الإنجاز</span>
+            )}
             <CircleProgress value={order.progress ?? 0} />
           </div>
         </div>
