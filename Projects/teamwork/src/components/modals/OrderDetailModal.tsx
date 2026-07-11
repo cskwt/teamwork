@@ -50,6 +50,7 @@ const OrderDetailModal: React.FC<OrderDetailModalProps> = ({ order, onClose, dep
   const [showProgressPopover, setShowProgressPopover] = useState(false);
   const [progressMode, setProgressMode] = useState<'slider' | 'quantity'>('slider');
   const [qtyInput, setQtyInput] = useState({ quantity: '', completed: '' });
+  const [editDupWarning, setEditDupWarning] = useState<{ deptName: string; clientName: string } | null>(null);
   const [editing, setEditing] = useState(false);
   const [inlineExtensions, setInlineExtensions] = useState<string | null>(null);
   const [inlineNotes, setInlineNotes] = useState<string | null>(null);
@@ -117,7 +118,7 @@ const OrderDetailModal: React.FC<OrderDetailModalProps> = ({ order, onClose, dep
     setInlineNotes(null);
   };
 
-  const handleSaveEdit = () => {
+  const doSaveEdit = () => {
     const updated: Order = {
       ...currentOrder,
       orderNumber: editData.orderNumber,
@@ -139,6 +140,25 @@ const OrderDetailModal: React.FC<OrderDetailModalProps> = ({ order, onClose, dep
     dispatch({ type: 'UPDATE_ORDER', payload: updated, triggerUserId: currentUser?.id, prevAssignedUsers: currentOrder.assignedUsers } as any);
     addHistoryEntry(order.id, 'تعديل بيانات الطلبية');
     setEditing(false);
+    setEditDupWarning(null);
+  };
+
+  const handleSaveEdit = () => {
+    // Check for duplicate order number in the same department (excluding current order)
+    if (editData.orderNumber.trim() !== currentOrder.orderNumber.trim()) {
+      const dup = state.orders.find(
+        (o) => !o.deletedAt &&
+               o.id !== currentOrder.id &&
+               o.departmentId === editData.departmentId &&
+               o.orderNumber.trim().toLowerCase() === editData.orderNumber.trim().toLowerCase()
+      );
+      if (dup) {
+        const deptName = departments.find((d) => d.id === editData.departmentId)?.name || '';
+        setEditDupWarning({ deptName, clientName: dup.clientName });
+        return;
+      }
+    }
+    doSaveEdit();
   };
 
   const toggleAssignedUser = (uid: string) => {
@@ -365,6 +385,47 @@ const OrderDetailModal: React.FC<OrderDetailModalProps> = ({ order, onClose, dep
   return (
     <div className="modal-overlay" onClick={onClose}>
       <div className="modal-panel modal-xl" onClick={(e) => e.stopPropagation()}>
+
+        {/* Duplicate order number warning (edit mode) */}
+        {editDupWarning && (
+          <div style={{
+            position: 'absolute', inset: 0, zIndex: 10, background: '#00000066',
+            display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: 16,
+          }}>
+            <div style={{
+              background: '#fff', borderRadius: 14, padding: 28, maxWidth: 360, width: '90%',
+              boxShadow: '0 20px 60px #0003', textAlign: 'right',
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14 }}>
+                <div style={{ width: 40, height: 40, borderRadius: '50%', background: '#fef2f2', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                  <span style={{ fontSize: 20 }}>⚠️</span>
+                </div>
+                <div>
+                  <p style={{ fontWeight: 700, fontSize: 15, color: '#111', margin: 0 }}>رقم الطلبية مكرر</p>
+                  <p style={{ fontSize: 12, color: '#6b7280', margin: 0 }}>في قسم: <b>{editDupWarning.deptName}</b></p>
+                </div>
+              </div>
+              <p style={{ fontSize: 13, color: '#374151', marginBottom: 20, lineHeight: 1.6 }}>
+                يوجد طلبية بنفس الرقم <b>#{editData.orderNumber}</b> مسجلة في هذا القسم باسم العميل: <b>{editDupWarning.clientName}</b>
+                <br />هل تريد الحفظ على أي حال؟
+              </p>
+              <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
+                <button
+                  onClick={() => setEditDupWarning(null)}
+                  style={{ padding: '8px 18px', borderRadius: 8, border: '1px solid #e5e7eb', background: '#f9fafb', fontSize: 13, fontWeight: 600, cursor: 'pointer', color: '#374151' }}
+                >
+                  تعديل الرقم
+                </button>
+                <button
+                  onClick={doSaveEdit}
+                  style={{ padding: '8px 18px', borderRadius: 8, border: 'none', background: '#ef4444', color: '#fff', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}
+                >
+                  حفظ على أي حال
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Header */}
         <div className="modal-header">

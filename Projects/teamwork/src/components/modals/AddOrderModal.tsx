@@ -41,6 +41,7 @@ const AddOrderModal: React.FC<AddOrderModalProps> = ({ departmentId, onClose }) 
   const [orderForms, setOrderForms] = useState<FileAttachment[]>([]);
   const [invoices, setInvoices] = useState<FileAttachment[]>([]);
   const [uploading, setUploading] = useState(false);
+  const [dupWarning, setDupWarning] = useState<{ deptName: string; clientName: string } | null>(null);
 
   const formsRef = useRef<HTMLInputElement>(null);
   const invoiceRef = useRef<HTMLInputElement>(null);
@@ -78,11 +79,9 @@ const AddOrderModal: React.FC<AddOrderModalProps> = ({ departmentId, onClose }) 
 
   const removeForm = (id: string) => setOrderForms((prev) => prev.filter((f) => f.id !== id));
 
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
+  const doSave = () => {
     if (!orderNumber.trim() || !clientName.trim() || !currentUser) return;
     const now = new Date().toISOString();
-    // If multiple departments selected, create one independent order per department
     const depts = selectedDepts.length > 0 ? selectedDepts : [''];
     const groupId = depts.length > 1 ? generateId() : undefined;
     depts.forEach((deptId) => {
@@ -118,12 +117,75 @@ const AddOrderModal: React.FC<AddOrderModalProps> = ({ departmentId, onClose }) 
     onClose();
   };
 
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!orderNumber.trim() || !clientName.trim() || !currentUser) return;
+
+    // Check for duplicate order number in the same department(s)
+    const activeOrders = state.orders.filter((o) => !o.deletedAt);
+    const depts = selectedDepts.length > 0 ? selectedDepts : [''];
+    for (const deptId of depts) {
+      const dup = activeOrders.find(
+        (o) => o.departmentId === deptId &&
+               o.orderNumber.trim().toLowerCase() === orderNumber.trim().toLowerCase()
+      );
+      if (dup) {
+        const deptName = departments.find((d) => d.id === deptId)?.name || '';
+        setDupWarning({ deptName, clientName: dup.clientName });
+        return;
+      }
+    }
+    doSave();
+  };
+
   const formatFileSize = (bytes: number) =>
     bytes < 1024 * 1024 ? `${(bytes / 1024).toFixed(0)} KB` : `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 
   return (
     <div className="modal-overlay" onClick={onClose}>
       <div className="modal-panel modal-2xl" onClick={(e) => e.stopPropagation()}>
+
+        {/* Duplicate Order Number Warning */}
+        {dupWarning && (
+          <div style={{
+            position: 'absolute', inset: 0, zIndex: 10, background: '#00000066',
+            display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: 16,
+          }}>
+            <div style={{
+              background: '#fff', borderRadius: 14, padding: 28, maxWidth: 380, width: '90%',
+              boxShadow: '0 20px 60px #0003', textAlign: 'right',
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14 }}>
+                <div style={{ width: 40, height: 40, borderRadius: '50%', background: '#fef2f2', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                  <span style={{ fontSize: 20 }}>⚠️</span>
+                </div>
+                <div>
+                  <p style={{ fontWeight: 700, fontSize: 15, color: '#111', margin: 0 }}>رقم الطلبية مكرر</p>
+                  <p style={{ fontSize: 12, color: '#6b7280', margin: 0 }}>في قسم: <b>{dupWarning.deptName}</b></p>
+                </div>
+              </div>
+              <p style={{ fontSize: 13, color: '#374151', marginBottom: 20, lineHeight: 1.6 }}>
+                يوجد طلبية بنفس الرقم <b>#{orderNumber.trim()}</b> مسجلة في هذا القسم باسم العميل: <b>{dupWarning.clientName}</b>
+                <br />هل تريد الحفظ على أي حال؟
+              </p>
+              <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
+                <button
+                  onClick={() => setDupWarning(null)}
+                  style={{ padding: '8px 18px', borderRadius: 8, border: '1px solid #e5e7eb', background: '#f9fafb', fontSize: 13, fontWeight: 600, cursor: 'pointer', color: '#374151' }}
+                >
+                  تعديل الرقم
+                </button>
+                <button
+                  onClick={() => { setDupWarning(null); doSave(); }}
+                  style={{ padding: '8px 18px', borderRadius: 8, border: 'none', background: '#ef4444', color: '#fff', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}
+                >
+                  حفظ على أي حال
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
         <div className="modal-header">
           <h3 className="modal-heading">إضافة طلبية جديدة</h3>
           <button className="modal-close-corner" onClick={onClose} title="إغلاق"><X size={18} /></button>
