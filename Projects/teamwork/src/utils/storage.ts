@@ -105,7 +105,19 @@ const getMaxUpdatedAt = (orders: AppState['orders']): string => {
   return orders.reduce((max, o) => (o.updatedAt > max ? o.updatedAt : max), '');
 };
 
-// Smart merge: for each order keep the newer version (by updatedAt)
+// Smart merge: deletion takes priority; otherwise keep newer updatedAt
+const mergeOrder = (srv: AppState['orders'][0], loc: AppState['orders'][0]) => {
+  const srvDel = !!srv.deletedAt;
+  const locDel = !!loc.deletedAt;
+  if (srvDel && !locDel) {
+    return (loc.updatedAt || '') > (srv.deletedAt || '') ? loc : srv;
+  }
+  if (!srvDel && locDel) {
+    return (srv.updatedAt || '') > (loc.deletedAt || '') ? srv : loc;
+  }
+  return (srv.updatedAt || '') >= (loc.updatedAt || '') ? srv : loc;
+};
+
 const mergeOrders = (server: AppState['orders'], local: AppState['orders']): AppState['orders'] => {
   const srvMap = new Map(server.map((o) => [o.id, o]));
   const locMap = new Map(local.map((o) => [o.id, o]));
@@ -115,7 +127,7 @@ const mergeOrders = (server: AppState['orders'], local: AppState['orders']): App
     const loc = locMap.get(id);
     if (!srv) return loc!;
     if (!loc) return srv;
-    return (srv.updatedAt || '') >= (loc.updatedAt || '') ? srv : loc;
+    return mergeOrder(srv, loc);
   });
 };
 

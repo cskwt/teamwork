@@ -59,7 +59,22 @@ const reducer = (state: AppState, action: Action): AppState => {
     case 'INIT_STATE':
       return { ...action.payload, currentUser: null, notifications: action.payload.notifications || [] };
     case 'SYNC_STATE': {
-      // Merge orders: keep newer version of each order by updatedAt
+      // Merge orders: deletion takes priority; otherwise keep newer updatedAt
+      const mergeOrder = (srv: Order, loc: Order): Order => {
+        const srvDel = !!srv.deletedAt;
+        const locDel = !!loc.deletedAt;
+        // If deletion state differs: the deleted version wins UNLESS the other
+        // was explicitly updated AFTER the deletion (i.e. a deliberate restore).
+        if (srvDel && !locDel) {
+          return (loc.updatedAt || '') > (srv.deletedAt || '') ? loc : srv;
+        }
+        if (!srvDel && locDel) {
+          return (srv.updatedAt || '') > (loc.deletedAt || '') ? srv : loc;
+        }
+        // Both same deletion state → pick newer updatedAt
+        return (srv.updatedAt || '') >= (loc.updatedAt || '') ? srv : loc;
+      };
+
       const serverOrders = action.payload.orders || [];
       const localOrders  = state.orders;
       const serverMap    = new Map(serverOrders.map((o: Order) => [o.id, o]));
@@ -70,7 +85,7 @@ const reducer = (state: AppState, action: Action): AppState => {
         const loc = localMap.get(id);
         if (!srv) return loc!;
         if (!loc) return srv;
-        return (srv.updatedAt || '') >= (loc.updatedAt || '') ? srv : loc;
+        return mergeOrder(srv, loc);
       });
 
       // Merge departments: keep newer version of each department by updatedAt
@@ -369,7 +384,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       const maxDeptUpdated = depts.length
         ? depts.reduce((m, d) => ((d.updatedAt || '') > m ? (d.updatedAt || '') : m), '')
         : '';
-      return `${orders.length}:${maxOrderUpdated}|${depts.length}:${maxDeptUpdated}`;
+      // Include sortOrder sum so reordering is detected even without updatedAt change
+      const sortSum = orders.reduce((s, o) => s + (o.sortOrder ?? 0), 0);
+      const deletedCount = orders.filter((o) => !!o.deletedAt).length;
+      return `${orders.length}:${maxOrderUpdated}:${sortSum}:${deletedCount}|${depts.length}:${maxDeptUpdated}`;
     };
 
     const poll = async () => {

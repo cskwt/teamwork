@@ -153,12 +153,13 @@ const KanbanBoard: React.FC<KanbanBoardProps> = ({ department, onBack }) => {
         const newIndex = colOrders.findIndex((o) => o.id === overId);
         if (oldIndex === -1 || newIndex === -1 || oldIndex === newIndex) return;
         const reordered = arrayMove(colOrders, oldIndex, newIndex);
-        const now = new Date().toISOString();
         reordered.forEach((o, i) => {
-          // Only update sortOrder — fetch the latest version from state to avoid
-          // overwriting fields (like departmentId) that may have changed on server
+          if ((o.sortOrder ?? -1) === i) return; // no change needed
+          // Fetch the latest version to avoid overwriting fields changed on server.
+          // Do NOT touch updatedAt — sortOrder is cosmetic and must not override
+          // deletions or department-moves that have a later updatedAt on the server.
           const latest = orders.find((x) => x.id === o.id) || o;
-          dispatch({ type: 'UPDATE_ORDER', payload: { ...latest, sortOrder: i, updatedAt: now }, silent: true } as any);
+          dispatch({ type: 'UPDATE_ORDER', payload: { ...latest, sortOrder: i }, silent: true } as any);
         });
         return;
       }
