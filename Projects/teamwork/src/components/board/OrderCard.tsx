@@ -37,9 +37,7 @@ const OrderCard: React.FC<OrderCardProps> = ({ order, onClick, isDragging, canDr
   const { currentUser } = state;
   const userDeptIds = currentUser?.departmentIds?.length ? currentUser.departmentIds : (currentUser?.departmentId ? [currentUser.departmentId] : []);
   const isOwnDept = userDeptIds.includes(order.departmentId);
-  const isDragAllowed = canDrag !== undefined ? canDrag :
-    currentUser?.role === 'admin' ||
-    (currentUser?.role === 'manager' && isOwnDept);
+  const isDragAllowed = canDrag !== undefined ? canDrag : true; // all users can drag (permission enforced in handleDragEnd)
   const { attributes, listeners, setNodeRef, transform, transition, isDragging: sortDragging } = useSortable({ id: order.id, disabled: !isDragAllowed });
 
   const style = {

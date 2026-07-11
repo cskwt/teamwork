@@ -126,11 +126,6 @@ const KanbanBoard: React.FC<KanbanBoardProps> = ({ department, onBack }) => {
       return;
     }
 
-    // Block order moves for non-admin unless it's the manager's own department
-    const userDeptIds = currentUser?.departmentIds?.length ? currentUser.departmentIds : (currentUser?.departmentId ? [currentUser.departmentId] : []);
-    const isOwnDept = userDeptIds.includes(department.id);
-    if (!activeId.startsWith('col::') && currentUser?.role !== 'admin' && !(currentUser?.role === 'manager' && isOwnDept)) return;
-
     if (!activeId.startsWith('col::')) {
       const orderId = activeId;
       const order = orders.find((o) => o.id === orderId);
@@ -138,7 +133,7 @@ const KanbanBoard: React.FC<KanbanBoardProps> = ({ department, onBack }) => {
 
       const overOrder = deptOrders.find((o) => o.id === overId);
 
-      // Same-column reorder: drop an order onto another order in the same column
+      // ── Same-column reorder: allowed for ALL users ──
       if (overOrder && overOrder.status === order.status) {
         const colOrders = deptOrders
           .filter((o) => o.status === order.status)
@@ -154,7 +149,11 @@ const KanbanBoard: React.FC<KanbanBoardProps> = ({ department, onBack }) => {
         return;
       }
 
-      // Cross-column move: drop onto a column or onto an order in a different column
+      // ── Cross-column move: admin / manager only ──
+      const userDeptIds = currentUser?.departmentIds?.length ? currentUser.departmentIds : (currentUser?.departmentId ? [currentUser.departmentId] : []);
+      const isOwnDept = userDeptIds.includes(department.id);
+      if (currentUser?.role !== 'admin' && !(currentUser?.role === 'manager' && isOwnDept)) return;
+
       let targetColId = overId.startsWith('col::') ? overId.replace('col::', '') : null;
       if (!targetColId && overOrder) targetColId = overOrder.status;
 
