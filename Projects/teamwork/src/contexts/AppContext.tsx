@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useReducer, useEffect, useState, useRef } from 'react';
+import localforage from 'localforage';
 import { AppState, User, Department, Order, OrderComment, OrderHistoryEntry, KanbanColumn, AppNotification } from '../types';
 import { loadState, saveState, saveSession, loadSession, touchSession, serverLoad } from '../utils/storage';
 import { generateId } from '../utils/helpers';
@@ -59,19 +60,20 @@ const reducer = (state: AppState, action: Action): AppState => {
     case 'INIT_STATE':
       return { ...action.payload, currentUser: null, notifications: action.payload.notifications || [] };
     case 'SYNC_STATE': {
-      // Merge orders: deletion takes priority; otherwise keep newer updatedAt
-      const mergeOrder = (srv: Order, loc: Order): Order => {
+      // Server is the source of truth. Merge only allows local to win when it has
+      // a genuinely newer change (e.g. user just made an edit that hasn't saved yet).
+      const mergeOrderSync = (srv: Order, loc: Order): Order => {
         const srvDel = !!srv.deletedAt;
         const locDel = !!loc.deletedAt;
-        // If deletion state differs: the deleted version wins UNLESS the other
-        // was explicitly updated AFTER the deletion (i.e. a deliberate restore).
         if (srvDel && !locDel) {
+          // Server deleted it — only keep local if local was explicitly updated AFTER deletion
           return (loc.updatedAt || '') > (srv.deletedAt || '') ? loc : srv;
         }
         if (!srvDel && locDel) {
+          // Local deleted it — keep local deletion unless server has a newer update
           return (srv.updatedAt || '') > (loc.deletedAt || '') ? srv : loc;
         }
-        // Both same deletion state → pick newer updatedAt
+        // Same deletion state → newer wins (server wins on tie)
         return (srv.updatedAt || '') >= (loc.updatedAt || '') ? srv : loc;
       };
 
@@ -79,27 +81,36 @@ const reducer = (state: AppState, action: Action): AppState => {
       const localOrders  = state.orders;
       const serverMap    = new Map(serverOrders.map((o: Order) => [o.id, o]));
       const localMap     = new Map(localOrders.map((o: Order) => [o.id, o]));
-      const allOrderIds  = new Set([...Array.from(serverMap.keys()), ...Array.from(localMap.keys())]);
-      const mergedOrders = Array.from(allOrderIds).map((id) => {
-        const srv = serverMap.get(id);
-        const loc = localMap.get(id);
-        if (!srv) return loc!;
-        if (!loc) return srv;
-        return mergeOrder(srv, loc);
+
+      // Start with server orders as base (server is authoritative)
+      const mergedOrders: Order[] = serverOrders.map((srv: Order) => {
+        const loc = localMap.get(srv.id);
+        return loc ? mergeOrderSync(srv, loc) : srv;
+      });
+      // Include local-only orders only if they are newer than all server orders
+      // (offline-created, not yet synced) — do NOT include stale local-only orders
+      const srvMaxUpdated = serverOrders.length
+        ? serverOrders.reduce((m: string, o: Order) => (o.updatedAt > m ? o.updatedAt : m), '')
+        : '';
+      localOrders.forEach((loc: Order) => {
+        if (!serverMap.has(loc.id) && !loc.deletedAt && (loc.updatedAt || '') > srvMaxUpdated) {
+          mergedOrders.push(loc);
+        }
       });
 
-      // Merge departments: keep newer version of each department by updatedAt
-      const serverDepts = action.payload.departments || [];
+      // Merge departments: server is primary; local wins only if explicitly newer
+      const serverDepts: Department[] = action.payload.departments || [];
       const localDepts  = state.departments;
       const srvDeptMap  = new Map(serverDepts.map((d: Department) => [d.id, d]));
       const locDeptMap  = new Map(localDepts.map((d: Department) => [d.id, d]));
-      const allDeptIds  = new Set([...Array.from(srvDeptMap.keys()), ...Array.from(locDeptMap.keys())]);
-      const mergedDepts = Array.from(allDeptIds).map((id) => {
-        const srv = srvDeptMap.get(id);
-        const loc = locDeptMap.get(id);
-        if (!srv) return loc!;
+      // Build from server departments first, then add local-only ones
+      const mergedDepts: Department[] = serverDepts.map((srv: Department) => {
+        const loc = locDeptMap.get(srv.id);
         if (!loc) return srv;
         return (srv.updatedAt || '') >= (loc.updatedAt || '') ? srv : loc;
+      });
+      localDepts.forEach((loc: Department) => {
+        if (!srvDeptMap.has(loc.id)) mergedDepts.push(loc);
       });
 
       return {
@@ -326,11 +337,22 @@ interface AppContextType {
 
 const AppContext = createContext<AppContextType | null>(null);
 
+// Actions that come FROM the server — should NOT be saved back to the server
+const SERVER_DRIVEN_ACTIONS = new Set(['SYNC_STATE', 'INIT_STATE', 'PURGE_OLD_TRASH']);
+
 export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [state, dispatch] = useReducer(reducer, DEFAULT_STATE);
   const [loaded, setLoaded] = useState(false);
   const stateRef = useRef(state);
+  const lastActionRef = useRef<string>('');
+
   useEffect(() => { stateRef.current = state; }, [state]);
+
+  // Wrap dispatch to track the last action type
+  const trackedDispatch: typeof dispatch = (action: any) => {
+    lastActionRef.current = action.type || '';
+    dispatch(action);
+  };
 
   // Load from IndexedDB on mount
   useEffect(() => {
@@ -352,23 +374,32 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         }
         return d;
       });
-      dispatch({ type: 'INIT_STATE', payload: { ...saved, departments: migratedDepts } });
-      dispatch({ type: 'PURGE_OLD_TRASH' });
+      trackedDispatch({ type: 'INIT_STATE', payload: { ...saved, departments: migratedDepts } });
+      trackedDispatch({ type: 'PURGE_OLD_TRASH' });
 
       // استعادة الجلسة إذا كانت صالحة
       const sessionUserId = loadSession();
       if (sessionUserId) {
         const sessionUser = saved.users.find((u) => u.id === sessionUserId);
-        if (sessionUser) dispatch({ type: 'LOGIN', payload: sessionUser });
+        if (sessionUser) trackedDispatch({ type: 'LOGIN', payload: sessionUser });
       }
 
       setLoaded(true);
     });
   }, []);
 
-  // Save to IndexedDB whenever state changes (after initial load)
+  // Save whenever state changes (after initial load)
+  // — save to IndexedDB always (for offline use)
+  // — save to server only for user-initiated actions (not server-driven syncs)
   useEffect(() => {
-    if (loaded) saveState(state);
+    if (!loaded) return;
+    const action = lastActionRef.current;
+    if (SERVER_DRIVEN_ACTIONS.has(action)) {
+      // Only update local cache; don't push back to server what we just received from it
+      localforage.setItem('teamwork_app_data_v5', { ...state, currentUser: null }).catch(() => {});
+    } else {
+      saveState(state);
+    }
   }, [state, loaded]);
 
   // مزامنة فورية من السيرفر كل 3 ثوانٍ
@@ -397,7 +428,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         const serverSig = getSignature(serverData);
         const localSig  = getSignature(stateRef.current);
         if (serverSig !== localSig) {
-          dispatch({ type: 'SYNC_STATE', payload: serverData });
+          trackedDispatch({ type: 'SYNC_STATE', payload: serverData });
         }
       } catch { /* silent */ }
     };
@@ -432,7 +463,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       if (state.currentUser) {
         const stillValid = loadSession();
         if (!stillValid) {
-          dispatch({ type: 'LOGOUT' });
+          trackedDispatch({ type: 'LOGOUT' });
         }
       }
     }, 60 * 1000); // يفحص كل دقيقة
@@ -444,7 +475,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       (u: User) => u.username === username && u.password === password
     );
     if (user) {
-      dispatch({ type: 'LOGIN', payload: user });
+      trackedDispatch({ type: 'LOGIN', payload: user });
       saveSession(user.id);
       return true;
     }
@@ -452,13 +483,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const logout = () => {
-    dispatch({ type: 'LOGOUT' });
+    trackedDispatch({ type: 'LOGOUT' });
   };
 
   const refreshData = async () => {
     const serverData = await serverLoad();
     if (serverData) {
-      dispatch({ type: 'SYNC_STATE', payload: serverData });
+      trackedDispatch({ type: 'SYNC_STATE', payload: serverData });
     }
   };
 
@@ -473,11 +504,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       toValue: to,
       timestamp: new Date().toISOString(),
     };
-    dispatch({ type: 'ADD_HISTORY', payload: { orderId, entry } });
+    trackedDispatch({ type: 'ADD_HISTORY', payload: { orderId, entry } });
   };
 
   return (
-    <AppContext.Provider value={{ state, dispatch, login, logout, addHistoryEntry, loaded, refreshData }}>
+    <AppContext.Provider value={{ state, dispatch: trackedDispatch, login, logout, addHistoryEntry, loaded, refreshData }}>
       {children}
     </AppContext.Provider>
   );

@@ -105,30 +105,45 @@ const getMaxUpdatedAt = (orders: AppState['orders']): string => {
   return orders.reduce((max, o) => (o.updatedAt > max ? o.updatedAt : max), '');
 };
 
-// Smart merge: deletion takes priority; otherwise keep newer updatedAt
+// Smart merge: deletion takes priority; otherwise keep newer updatedAt.
+// Server is treated as the source of truth for deletion — if the server says
+// an order is deleted, it stays deleted unless local explicitly restored it AFTER
+// the deletion timestamp AND the local is genuinely newer (not just stale cache).
 const mergeOrder = (srv: AppState['orders'][0], loc: AppState['orders'][0]) => {
   const srvDel = !!srv.deletedAt;
   const locDel = !!loc.deletedAt;
+  // Server deleted → honour deletion unless local was explicitly updated AFTER deletion
   if (srvDel && !locDel) {
+    // Local must be strictly newer than deletion to count as a deliberate restore
     return (loc.updatedAt || '') > (srv.deletedAt || '') ? loc : srv;
   }
+  // Local deleted → honour local deletion unless server has a genuinely newer update
   if (!srvDel && locDel) {
     return (srv.updatedAt || '') > (loc.deletedAt || '') ? srv : loc;
   }
+  // Both same state → pick the newer one (server wins on tie)
   return (srv.updatedAt || '') >= (loc.updatedAt || '') ? srv : loc;
 };
 
 const mergeOrders = (server: AppState['orders'], local: AppState['orders']): AppState['orders'] => {
   const srvMap = new Map(server.map((o) => [o.id, o]));
   const locMap = new Map(local.map((o) => [o.id, o]));
-  const allIds = new Set([...Array.from(srvMap.keys()), ...Array.from(locMap.keys())]);
-  return Array.from(allIds).map((id) => {
-    const srv = srvMap.get(id);
-    const loc = locMap.get(id);
-    if (!srv) return loc!;
-    if (!loc) return srv;
-    return mergeOrder(srv, loc);
+
+  // Start with all server orders (server is authoritative)
+  const result: AppState['orders'][0][] = server.map((srv) => {
+    const loc = locMap.get(srv.id);
+    return loc ? mergeOrder(srv, loc) : srv;
   });
+  // Add local-only orders ONLY if they are newer than the server's max updatedAt
+  // (i.e., they were created offline and haven't reached the server yet).
+  // Do NOT add local-only orders absent from server — server may have deleted them.
+  const srvMaxUpdated = getMaxUpdatedAt(server);
+  local.forEach((loc) => {
+    if (!srvMap.has(loc.id) && !loc.deletedAt && (loc.updatedAt || '') > srvMaxUpdated) {
+      result.push(loc);
+    }
+  });
+  return result;
 };
 
 export const loadState = async (): Promise<AppState> => {
@@ -140,39 +155,51 @@ export const loadState = async (): Promise<AppState> => {
 
   const local = localRaw as AppState | null;
 
-  // Both sources available → smart merge orders, keep local departments if newer
-  if (fromServer && local && local.departments?.length) {
-    const mergedOrders = mergeOrders(fromServer.orders || [], local.orders || []);
-    const localDeptMaxUpdated  = local.departments.reduce((m, d) => (d.updatedAt || '') > m ? (d.updatedAt || '') : m, '');
-    const serverDeptMaxUpdated = (fromServer.departments || []).reduce((m: string, d: { updatedAt?: string }) => (d.updatedAt || '') > m ? (d.updatedAt || '') : m, '');
-    const departments = localDeptMaxUpdated > serverDeptMaxUpdated ? local.departments : (fromServer.departments || local.departments);
+  // Server available → server is the primary source of truth
+  if (fromServer) {
+    let mergedOrders = fromServer.orders || [];
+    let departments = fromServer.departments || [];
+
+    if (local) {
+      // Merge orders: server is primary but respect local changes newer than server
+      mergedOrders = mergeOrders(fromServer.orders || [], local.orders || []);
+
+      // Departments: use whichever is newer
+      const localDeptMax  = (local.departments || []).reduce((m, d) => (d.updatedAt || '') > m ? (d.updatedAt || '') : m, '');
+      const serverDeptMax = departments.reduce((m: string, d: { updatedAt?: string }) => (d.updatedAt || '') > m ? (d.updatedAt || '') : m, '');
+      if (local.departments?.length && localDeptMax > serverDeptMax) {
+        departments = local.departments;
+      }
+    }
+
     const merged: AppState = {
       ...getDefaultState(),
       ...fromServer,
       departments,
       orders: mergedOrders,
       currentUser: null,
-      notifications: fromServer.notifications || local.notifications || [],
+      notifications: fromServer.notifications || local?.notifications || [],
     };
-    // Push merged back to server if local had newer data
-    const localMaxUpdated = getMaxUpdatedAt(local.orders || []);
-    const serverMaxUpdated = getMaxUpdatedAt(fromServer.orders || []);
-    if (localMaxUpdated > serverMaxUpdated || localDeptMaxUpdated > serverDeptMaxUpdated) {
-      serverSave({ ...merged, currentUser: null });
+
+    // Only push back to server if local had genuinely newer orders
+    // (e.g. offline edits not yet synced) — never push back just because local was stale
+    if (local) {
+      const localMaxUpdated  = getMaxUpdatedAt(local.orders || []);
+      const serverMaxUpdated = getMaxUpdatedAt(fromServer.orders || []);
+      const localDeptMax     = (local.departments || []).reduce((m, d) => (d.updatedAt || '') > m ? (d.updatedAt || '') : m, '');
+      const serverDeptMax    = (fromServer.departments || []).reduce((m: string, d: { updatedAt?: string }) => (d.updatedAt || '') > m ? (d.updatedAt || '') : m, '');
+      if (localMaxUpdated > serverMaxUpdated || localDeptMax > serverDeptMax) {
+        serverSave({ ...merged, currentUser: null });
+      }
     }
+
     return merged;
   }
 
-  // Only local available
+  // Server unavailable — fall back to local only
   if (local && local.departments?.length) {
     const full = { ...getDefaultState(), ...local, currentUser: null, notifications: local.notifications || [] };
-    serverSave(full);
     return full;
-  }
-
-  // Only server available
-  if (fromServer) {
-    return { ...getDefaultState(), ...fromServer, currentUser: null, notifications: fromServer.notifications || [] };
   }
 
   // Last resort: old localStorage keys
