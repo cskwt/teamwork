@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useReducer, useEffect, useState } from 'react';
+import React, { createContext, useContext, useReducer, useEffect, useState, useRef } from 'react';
 import { AppState, User, Department, Order, OrderComment, OrderHistoryEntry, KanbanColumn, AppNotification } from '../types';
 import { loadState, saveState, saveSession, loadSession, touchSession, serverLoad } from '../utils/storage';
 import { generateId } from '../utils/helpers';
@@ -314,6 +314,8 @@ const AppContext = createContext<AppContextType | null>(null);
 export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [state, dispatch] = useReducer(reducer, DEFAULT_STATE);
   const [loaded, setLoaded] = useState(false);
+  const stateRef = useRef(state);
+  useEffect(() => { stateRef.current = state; }, [state]);
 
   // Load from IndexedDB on mount
   useEffect(() => {
@@ -354,28 +356,37 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     if (loaded) saveState(state);
   }, [state, loaded]);
 
-  // مزامنة تلقائية من السيرفر كل 20 ثانية
+  // مزامنة فورية من السيرفر كل 3 ثوانٍ
   useEffect(() => {
     if (!loaded) return;
-    const getSignature = (orders: Order[]) => {
-      if (!orders?.length) return '0';
-      const maxUpdated = orders.reduce((max, o) => (o.updatedAt > max ? o.updatedAt : max), '');
-      return `${orders.length}:${maxUpdated}`;
+
+    const getSignature = (s: AppState) => {
+      const orders = s.orders || [];
+      const depts  = s.departments || [];
+      const maxOrderUpdated = orders.length
+        ? orders.reduce((m, o) => (o.updatedAt > m ? o.updatedAt : m), '')
+        : '';
+      const maxDeptUpdated = depts.length
+        ? depts.reduce((m, d) => ((d.updatedAt || '') > m ? (d.updatedAt || '') : m), '')
+        : '';
+      return `${orders.length}:${maxOrderUpdated}|${depts.length}:${maxDeptUpdated}`;
     };
+
     const poll = async () => {
       try {
         const serverData = await serverLoad();
         if (!serverData) return;
-        const serverSig = getSignature(serverData.orders || []);
-        const localSig  = getSignature(state.orders || []);
+        const serverSig = getSignature(serverData);
+        const localSig  = getSignature(stateRef.current);
         if (serverSig !== localSig) {
           dispatch({ type: 'SYNC_STATE', payload: serverData });
         }
       } catch { /* silent */ }
     };
-    const interval = setInterval(poll, 20000);
+
+    const interval = setInterval(poll, 3000);
     return () => clearInterval(interval);
-  }, [loaded, state.orders]);
+  }, [loaded]);
 
   // تحديث lastActivity عند أي تفاعل من المستخدم
   useEffect(() => {

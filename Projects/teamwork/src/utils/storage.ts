@@ -177,10 +177,10 @@ export const loadState = async (): Promise<AppState> => {
 export const saveState = async (state: AppState): Promise<void> => {
   const toSave = { ...state, currentUser: null };
 
-  // Always save locally first (instant)
-  try { await localforage.setItem(DB_KEY, toSave); } catch { /* ignore */ }
+  // Save locally first (instant, no block)
+  localforage.setItem(DB_KEY, toSave).catch(() => {});
 
-  // Then save to server (sync across devices)
+  // Save to server immediately (fire, but don't block UI)
   serverSave(toSave);
 };
 
