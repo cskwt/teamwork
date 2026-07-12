@@ -29,7 +29,7 @@ const TopBar: React.FC<TopBarProps> = ({ onNavigate }) => {
   const searchResults = searchQuery.trim().length >= 1
     ? orders.filter((o) =>
         !o.deletedAt &&
-        o.status !== 'archived' &&
+        !o.archivedAt &&
         (
           o.orderNumber?.toLowerCase().includes(searchQuery.toLowerCase()) ||
           o.clientName?.toLowerCase().includes(searchQuery.toLowerCase())

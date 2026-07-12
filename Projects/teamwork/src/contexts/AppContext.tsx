@@ -62,18 +62,32 @@ const reducer = (state: AppState, action: Action): AppState => {
     case 'SYNC_STATE': {
       // Server is the source of truth. Merge only allows local to win when it has
       // a genuinely newer change (e.g. user just made an edit that hasn't saved yet).
+      // archivedAt and deletedAt are treated as high-priority flags — once set locally,
+      // they are preserved even if the server hasn't caught up yet.
       const mergeOrderSync = (srv: Order, loc: Order): Order => {
+        // --- Deletion priority ---
         const srvDel = !!srv.deletedAt;
         const locDel = !!loc.deletedAt;
         if (srvDel && !locDel) {
-          // Server deleted it — only keep local if local was explicitly updated AFTER deletion
           return (loc.updatedAt || '') > (srv.deletedAt || '') ? loc : srv;
         }
         if (!srvDel && locDel) {
-          // Local deleted it — keep local deletion unless server has a newer update
           return (srv.updatedAt || '') > (loc.deletedAt || '') ? srv : loc;
         }
-        // Same deletion state → newer wins (server wins on tie)
+        // --- Archive priority ---
+        // If local has archivedAt but server doesn't yet (save in flight),
+        // keep the local version to prevent the order from reappearing on the board.
+        const srvArc = !!srv.archivedAt;
+        const locArc = !!loc.archivedAt;
+        if (locArc && !srvArc) {
+          // Local archived — keep it unless server has an update AFTER the archive (deliberate un-archive)
+          return (srv.updatedAt || '') > (loc.archivedAt || '') ? srv : loc;
+        }
+        if (srvArc && !locArc) {
+          // Server archived but local doesn't know yet — server wins
+          return srv;
+        }
+        // Same state → newer wins (server wins on tie)
         return (srv.updatedAt || '') >= (loc.updatedAt || '') ? srv : loc;
       };
 
@@ -415,10 +429,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       const maxDeptUpdated = depts.length
         ? depts.reduce((m, d) => ((d.updatedAt || '') > m ? (d.updatedAt || '') : m), '')
         : '';
-      // Include sortOrder sum so reordering is detected even without updatedAt change
-      const sortSum = orders.reduce((s, o) => s + (o.sortOrder ?? 0), 0);
+      const sortSum      = orders.reduce((s, o) => s + (o.sortOrder ?? 0), 0);
       const deletedCount = orders.filter((o) => !!o.deletedAt).length;
-      return `${orders.length}:${maxOrderUpdated}:${sortSum}:${deletedCount}|${depts.length}:${maxDeptUpdated}`;
+      const archivedCount = orders.filter((o) => !!o.archivedAt).length;
+      return `${orders.length}:${maxOrderUpdated}:${sortSum}:${deletedCount}:${archivedCount}|${depts.length}:${maxDeptUpdated}`;
     };
 
     const poll = async () => {

@@ -34,7 +34,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onNavigate, onSelectDept }) => {
   const { orders, departments, currentUser } = state;
 
   const isAdmin = currentUser?.role === 'admin';
-  const activeOrders = orders.filter((o) => !o.deletedAt && o.status !== 'archived');
+  const activeOrders = orders.filter((o) => !o.deletedAt && !o.archivedAt);
   const myOrders = isAdmin ? activeOrders : activeOrders.filter((o) =>
     o.assignedUsers?.includes(currentUser?.id || '') || o.departmentId === currentUser?.departmentId
   );

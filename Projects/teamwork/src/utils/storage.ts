@@ -105,23 +105,32 @@ const getMaxUpdatedAt = (orders: AppState['orders']): string => {
   return orders.reduce((max, o) => (o.updatedAt > max ? o.updatedAt : max), '');
 };
 
-// Smart merge: deletion takes priority; otherwise keep newer updatedAt.
-// Server is treated as the source of truth for deletion — if the server says
-// an order is deleted, it stays deleted unless local explicitly restored it AFTER
-// the deletion timestamp AND the local is genuinely newer (not just stale cache).
+// Smart merge: deletion and archive flags take priority over generic updatedAt comparisons.
+// This prevents a slower server-save from overwriting a locally applied archive/delete.
 const mergeOrder = (srv: AppState['orders'][0], loc: AppState['orders'][0]) => {
+  // --- Deletion priority ---
   const srvDel = !!srv.deletedAt;
   const locDel = !!loc.deletedAt;
-  // Server deleted → honour deletion unless local was explicitly updated AFTER deletion
   if (srvDel && !locDel) {
-    // Local must be strictly newer than deletion to count as a deliberate restore
     return (loc.updatedAt || '') > (srv.deletedAt || '') ? loc : srv;
   }
-  // Local deleted → honour local deletion unless server has a genuinely newer update
   if (!srvDel && locDel) {
     return (srv.updatedAt || '') > (loc.deletedAt || '') ? srv : loc;
   }
-  // Both same state → pick the newer one (server wins on tie)
+  // --- Archive priority ---
+  // If local has archivedAt but server hasn't saved it yet, keep local to prevent
+  // the order from reappearing on the board after the next 3-second poll.
+  const srvArc = !!srv.archivedAt;
+  const locArc = !!loc.archivedAt;
+  if (locArc && !srvArc) {
+    // Local archived — keep unless server has an explicit update after the archive
+    return (srv.updatedAt || '') > (loc.archivedAt || '') ? srv : loc;
+  }
+  if (srvArc && !locArc) {
+    // Server archived, local not updated yet — server wins
+    return srv;
+  }
+  // Same state → newer wins (server wins on tie)
   return (srv.updatedAt || '') >= (loc.updatedAt || '') ? srv : loc;
 };
 
