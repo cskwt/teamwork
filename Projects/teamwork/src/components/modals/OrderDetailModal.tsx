@@ -265,9 +265,8 @@ const OrderDetailModal: React.FC<OrderDetailModalProps> = ({ order, onClose, dep
     const now = new Date().toISOString();
     const updated = {
       ...currentOrder,
-      // Keep status as 'done' for server compatibility.
-      // archivedAt is the authoritative flag for "moved to archive".
-      status: 'done' as OrderStatus,
+      // Do NOT change status — keep the order in its current column position.
+      // archivedAt is the sole flag that moves the order out of the board.
       completedAt: currentOrder.completedAt || now,
       archivedAt: now,
       updatedAt: now,
