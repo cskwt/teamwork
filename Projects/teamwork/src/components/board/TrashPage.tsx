@@ -14,7 +14,7 @@ const TrashPage: React.FC = () => {
 
   const isAdmin = currentUser?.role === 'admin';
   const deletedOrders = orders
-    .filter((o) => !!o.deletedAt)
+    .filter((o) => !!o.deletedAt && !o.archivedAt) // exclude archived orders (they have both flags)
     .sort((a, b) => new Date(b.deletedAt!).getTime() - new Date(a.deletedAt!).getTime());
 
   const getDaysLeft = (deletedAt: string) => {

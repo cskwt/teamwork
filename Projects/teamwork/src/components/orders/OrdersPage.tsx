@@ -25,9 +25,9 @@ const OrdersPage: React.FC<OrdersPageProps> = ({ archiveMode = false }) => {
 
   const isAdmin = currentUser?.role === 'admin';
   const activeOrders = orders.filter((o) => {
-    if (o.deletedAt) return false;
-    if (archiveMode) return !!o.archivedAt; // archive: only orders with archivedAt
-    return !o.archivedAt; // board/all: exclude archived orders
+    if (archiveMode) return !!o.archivedAt; // archive page: show only archived orders
+    if (o.deletedAt) return false;          // board/all: hide deleted (includes archived)
+    return !o.archivedAt;                   // board/all: also hide any stale archivedAt
   });
   const baseOrders = isAdmin
     ? activeOrders

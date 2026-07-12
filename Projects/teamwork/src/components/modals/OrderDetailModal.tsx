@@ -265,10 +265,12 @@ const OrderDetailModal: React.FC<OrderDetailModalProps> = ({ order, onClose, dep
     const now = new Date().toISOString();
     const updated = {
       ...currentOrder,
-      // Do NOT change status — keep the order in its current column position.
-      // archivedAt is the sole flag that moves the order out of the board.
       completedAt: currentOrder.completedAt || now,
+      // Set both archivedAt (archive flag) AND deletedAt (guaranteed board exclusion).
+      // deletedAt already has top-priority treatment in all merge/filter logic,
+      // so the order can never reappear on the board even if sync races occur.
       archivedAt: now,
+      deletedAt: now,
       updatedAt: now,
     };
     dispatch({ type: 'UPDATE_ORDER', payload: updated, silent: true } as any);
