@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { Home, Bell, Search, X, MessageSquare, Plus, Pencil, UserCheck, RefreshCw, Languages } from 'lucide-react';
 import { useApp } from '../../contexts/AppContext';
 import { useLang } from '../../contexts/LanguageContext';
-import { formatDate, priorityConfig, getColumnStatus } from '../../utils/helpers';
+import { formatDate, getPriorityConfig, getColumnStatus } from '../../utils/helpers';
 import { Order } from '../../types';
 import OrderDetailModal from '../modals/OrderDetailModal';
 
@@ -13,6 +13,7 @@ interface TopBarProps {
 const TopBar: React.FC<TopBarProps> = ({ onNavigate }) => {
   const { state, dispatch, refreshData } = useApp();
   const { lang, toggleLang, tr } = useLang();
+  const priorityConfig = getPriorityConfig(lang);
   const [refreshing, setRefreshing] = useState(false);
   const { orders, departments, currentUser, notifications: allNotifs } = state;
   const [showNotif, setShowNotif] = useState(false);
@@ -26,10 +27,14 @@ const TopBar: React.FC<TopBarProps> = ({ onNavigate }) => {
   const unreadCount = myNotifs.filter((n) => !n.read).length;
 
   const searchResults = searchQuery.trim().length >= 1
-    ? orders.filter((o) => !o.deletedAt && (
-        o.orderNumber?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        o.clientName?.toLowerCase().includes(searchQuery.toLowerCase())
-      ))
+    ? orders.filter((o) =>
+        !o.deletedAt &&
+        !(o as any).archivedAt &&
+        (
+          o.orderNumber?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+          o.clientName?.toLowerCase().includes(searchQuery.toLowerCase())
+        )
+      )
     : [];
 
   const notifIcon = (type: string) => {
