@@ -225,11 +225,35 @@ export const loadState = async (): Promise<AppState> => {
 export const saveState = async (state: AppState): Promise<void> => {
   const toSave = { ...state, currentUser: null };
 
-  // Save locally first (instant, no block)
+  // Save locally first (instant)
   localforage.setItem(DB_KEY, toSave).catch(() => {});
 
-  // Save to server immediately (fire, but don't block UI)
-  serverSave(toSave);
+  // Before pushing to server, fetch current server state and merge.
+  // This prevents a device with stale data from overwriting newer changes
+  // (e.g. an archive/delete made on another device a moment earlier).
+  serverLoad().then((serverCurrent) => {
+    if (!serverCurrent) {
+      serverSave(toSave);
+      return;
+    }
+    // Merge: for each order, keep whichever version is "more final"
+    const srvMap = new Map((serverCurrent.orders || []).map((o) => [o.id, o]));
+    const mergedOrders = (toSave.orders || []).map((loc) => {
+      const srv = srvMap.get(loc.id);
+      if (!srv) return loc;
+      return mergeOrder(srv, loc);
+    });
+    // Add server-only orders (created on another device, not yet in local state)
+    (serverCurrent.orders || []).forEach((srv) => {
+      if (!toSave.orders.find((o) => o.id === srv.id)) {
+        mergedOrders.push(srv);
+      }
+    });
+    serverSave({ ...toSave, orders: mergedOrders });
+  }).catch(() => {
+    // If fetch fails, save what we have — better than losing local changes
+    serverSave(toSave);
+  });
 };
 
 export const clearState = async (): Promise<void> => {
