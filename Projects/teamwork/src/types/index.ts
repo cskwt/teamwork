@@ -12,7 +12,7 @@ export interface User {
   createdAt: string;
 }
 
-export type OrderStatus = 'new' | 'in_progress' | 'review' | 'done' | 'cancelled';
+export type OrderStatus = 'new' | 'in_progress' | 'review' | 'done' | 'cancelled' | 'archived';
 export type OrderPriority = 'low' | 'medium' | 'high' | 'urgent';
 
 export interface FileAttachment {

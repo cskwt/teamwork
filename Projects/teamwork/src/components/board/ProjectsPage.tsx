@@ -159,7 +159,7 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ onOpenBoard }) => {
           // Match KanbanBoard order: default 'new' col first, then user cols
           const cols = [defaultCol, ...userCols];
 
-          const allDeptOrders = orders.filter((o) => !o.deletedAt && o.departmentId === dept.id && o.status !== 'cancelled');
+          const allDeptOrders = orders.filter((o) => !o.deletedAt && o.departmentId === dept.id && o.status !== 'cancelled' && o.status !== 'archived');
 
           const colStats = cols.map((col) => ({
             ...col,

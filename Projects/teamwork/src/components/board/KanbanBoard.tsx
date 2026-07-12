@@ -88,7 +88,7 @@ const KanbanBoard: React.FC<KanbanBoardProps> = ({ department, onBack }) => {
     ? { id: 'new', title: 'الطلبيات الجاهزة', color: '#10b981', order: 0 }
     : { id: 'new', title: 'الطلبيات الجديدة', color: '#6366f1', order: 0 };
 
-  const deptOrders = orders.filter((o) => o.departmentId === department.id && !o.deletedAt && !(o as any).archivedAt);
+  const deptOrders = orders.filter((o) => o.departmentId === department.id && !o.deletedAt && o.status !== 'archived');
 
   // Exclude 'new' column from user-managed columns (it's always rendered separately)
   const columns = [...department.columns]
