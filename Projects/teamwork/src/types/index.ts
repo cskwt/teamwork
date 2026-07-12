@@ -63,6 +63,7 @@ export interface Order {
   sortOrder?: number;
   deletedAt?: string;
   completedAt?: string;
+  archivedAt?: string;
 }
 
 export interface OrderHistoryEntry {

@@ -24,7 +24,11 @@ const OrdersPage: React.FC<OrdersPageProps> = ({ archiveMode = false }) => {
   const [addDeptId, setAddDeptId] = useState('');
 
   const isAdmin = currentUser?.role === 'admin';
-  const activeOrders = orders.filter((o) => !o.deletedAt && (!archiveMode || o.status === 'done'));
+  const activeOrders = orders.filter((o) => {
+    if (o.deletedAt) return false;
+    if (archiveMode) return !!(o as any).archivedAt; // archive: only explicitly archived orders
+    return !(o as any).archivedAt; // board/all: exclude archived orders
+  });
   const baseOrders = isAdmin
     ? activeOrders
     : activeOrders.filter((o) => o.departmentId === currentUser?.departmentId || o.assignedUsers?.includes(currentUser?.id || ""));

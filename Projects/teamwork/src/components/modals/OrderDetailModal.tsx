@@ -263,11 +263,18 @@ const OrderDetailModal: React.FC<OrderDetailModalProps> = ({ order, onClose, dep
   const handleArchive = () => {
     if (!window.confirm('هل تريد نقل هذه الطلبية إلى الأرشيف؟')) return;
     const now = new Date().toISOString();
+    // Find the original department (before delivery) from history if available
+    const deptFromHistory = currentOrder.history?.slice().reverse().find(
+      (h) => h.action?.includes('نقل') && h.fromValue && h.fromValue !== 'قسم التسليم'
+    )?.fromValue;
     const updated = {
       ...currentOrder,
       status: 'done' as OrderStatus,
       completedAt: currentOrder.completedAt || now,
+      archivedAt: now,
       updatedAt: now,
+      // Store original department name for archive display if not already set
+      originalDeptName: (currentOrder as any).originalDeptName || deptFromHistory,
     };
     dispatch({ type: 'UPDATE_ORDER', payload: updated, silent: true } as any);
     addHistoryEntry(order.id, 'تم أرشفة الطلبية');
