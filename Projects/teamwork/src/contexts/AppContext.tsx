@@ -50,6 +50,7 @@ type Action =
   | { type: 'DELETE_COLUMN'; payload: { departmentId: string; columnId: string } }
   | { type: 'RESTORE_ORDER'; payload: string }
   | { type: 'PERMANENT_DELETE'; payload: string }
+  | { type: 'ARCHIVE_ORDER'; payload: string }   // orderId
   | { type: 'PURGE_OLD_TRASH' }
   | { type: 'MARK_NOTIFICATIONS_READ'; payload: string }  // userId
   | { type: 'INIT_STATE'; payload: AppState }
@@ -190,6 +191,17 @@ const reducer = (state: AppState, action: Action): AppState => {
         ...state,
         orders: state.orders.map((o) =>
           o.id === action.payload ? { ...o, deletedAt: now, updatedAt: now } : o
+        ),
+      };
+    }
+    case 'ARCHIVE_ORDER': {
+      const now = new Date().toISOString();
+      return {
+        ...state,
+        orders: state.orders.map((o) =>
+          o.id === action.payload
+            ? { ...o, deletedAt: now, archivedAt: now, updatedAt: now }
+            : o
         ),
       };
     }

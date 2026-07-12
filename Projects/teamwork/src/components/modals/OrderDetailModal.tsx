@@ -262,18 +262,7 @@ const OrderDetailModal: React.FC<OrderDetailModalProps> = ({ order, onClose, dep
   };
 
   const doArchive = () => {
-    const now = new Date().toISOString();
-    const updated = {
-      ...currentOrder,
-      completedAt: currentOrder.completedAt || now,
-      // Set both archivedAt (archive flag) AND deletedAt (guaranteed board exclusion).
-      // deletedAt already has top-priority treatment in all merge/filter logic,
-      // so the order can never reappear on the board even if sync races occur.
-      archivedAt: now,
-      deletedAt: now,
-      updatedAt: now,
-    };
-    dispatch({ type: 'UPDATE_ORDER', payload: updated, silent: true } as any);
+    dispatch({ type: 'ARCHIVE_ORDER', payload: currentOrder.id } as any);
     addHistoryEntry(order.id, 'تم أرشفة الطلبية');
     onClose();
   };
