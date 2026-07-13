@@ -459,8 +459,15 @@ const OrderDetailModal: React.FC<OrderDetailModalProps> = ({ order, onClose, dep
             {(currentUser?.role === 'admin' || currentUser?.role === 'manager') && !editing && department.name === 'قسم التسليم' && (
               <button
                 className="modal-icon-btn modal-icon-btn--purple"
-                title={archiveClicked ? 'اضغط مرة أخرى للتأكيد' : tr.archiveOrder}
-                style={archiveClicked ? { background: '#7c3aed', color: '#fff', outline: '2px solid #7c3aed' } : {}}
+                title={tr.archiveOrder}
+                style={archiveClicked ? {
+                  background: '#7c3aed', color: '#fff',
+                  padding: '6px 14px', borderRadius: 8,
+                  fontSize: 14, fontWeight: 700,
+                  display: 'flex', alignItems: 'center', gap: 6,
+                  whiteSpace: 'nowrap', minWidth: 'unset', width: 'auto',
+                  border: '2px solid #6d28d9', boxShadow: '0 0 0 3px #ddd6fe'
+                } : {}}
                 onClick={() => {
                   if (!archiveClicked) {
                     setArchiveClicked(true);
@@ -470,8 +477,8 @@ const OrderDetailModal: React.FC<OrderDetailModalProps> = ({ order, onClose, dep
                   }
                 }}
               >
-                <Archive size={15} />
-                {archiveClicked && <span style={{ fontSize: 11, marginRight: 4 }}>تأكيد؟</span>}
+                <Archive size={archiveClicked ? 17 : 15} />
+                {archiveClicked && <span>تأكيد الأرشفة</span>}
               </button>
             )}
             {canTransfer && !editing && (
