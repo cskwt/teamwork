@@ -54,7 +54,7 @@ const OrderDetailModal: React.FC<OrderDetailModalProps> = ({ order, onClose, dep
   const [editing, setEditing] = useState(false);
   const [inlineExtensions, setInlineExtensions] = useState<string | null>(null);
   const [inlineNotes, setInlineNotes] = useState<string | null>(null);
-  const [showArchiveConfirm, setShowArchiveConfirm] = useState(false);
+  const [archiveClicked, setArchiveClicked] = useState(false);
 
   const rawOrder = state.orders.find((o) => o.id === order.id) || order;
   const currentOrder = {
@@ -457,28 +457,22 @@ const OrderDetailModal: React.FC<OrderDetailModalProps> = ({ order, onClose, dep
               <button className="modal-icon-btn modal-icon-btn--danger" onClick={handleDelete} title={tr.delete}><Trash2 size={15} /></button>
             )}
             {(currentUser?.role === 'admin' || currentUser?.role === 'manager') && !editing && department.name === 'قسم التسليم' && (
-              showArchiveConfirm ? (
-                <span style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
-                  <button
-                    className="modal-icon-btn"
-                    style={{ background: '#7c3aed', color: '#fff', fontSize: 12, padding: '4px 10px', borderRadius: 6, border: 'none', cursor: 'pointer', whiteSpace: 'nowrap' }}
-                    onClick={doArchive}
-                  >
-                    ✓ تأكيد الأرشفة
-                  </button>
-                  <button
-                    className="modal-icon-btn"
-                    style={{ fontSize: 12, padding: '4px 8px', borderRadius: 6, cursor: 'pointer' }}
-                    onClick={() => setShowArchiveConfirm(false)}
-                  >
-                    ✕
-                  </button>
-                </span>
-              ) : (
-                <button className="modal-icon-btn modal-icon-btn--purple" onClick={() => setShowArchiveConfirm(true)} title={tr.archiveOrder}>
-                  <Archive size={15} />
-                </button>
-              )
+              <button
+                className="modal-icon-btn modal-icon-btn--purple"
+                title={archiveClicked ? 'اضغط مرة أخرى للتأكيد' : tr.archiveOrder}
+                style={archiveClicked ? { background: '#7c3aed', color: '#fff', outline: '2px solid #7c3aed' } : {}}
+                onClick={() => {
+                  if (!archiveClicked) {
+                    setArchiveClicked(true);
+                    setTimeout(() => setArchiveClicked(false), 3000);
+                  } else {
+                    doArchive();
+                  }
+                }}
+              >
+                <Archive size={15} />
+                {archiveClicked && <span style={{ fontSize: 11, marginRight: 4 }}>تأكيد؟</span>}
+              </button>
             )}
             {canTransfer && !editing && (
               <div style={{ position: 'relative' }}>
