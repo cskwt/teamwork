@@ -25,9 +25,17 @@ const OrdersPage: React.FC<OrdersPageProps> = ({ archiveMode = false }) => {
 
   const isAdmin = currentUser?.role === 'admin';
   const activeOrders = orders.filter((o) => {
-    if (archiveMode) return !!o.archivedAt; // archive page: show only archived orders
-    if (o.deletedAt) return false;          // board/all: hide deleted (includes archived)
-    return !o.archivedAt;                   // board/all: also hide any stale archivedAt
+    if (archiveMode) {
+      // New-style: properly archived (has archivedAt flag)
+      if (o.archivedAt) return true;
+      // Old-style: previously archived orders that only have status='done' (no archivedAt)
+      if (!o.deletedAt && o.status === 'done') return true;
+      return false;
+    }
+    // Board / all-orders view: hide deleted and new-style archived
+    if (o.deletedAt) return false;
+    if (o.archivedAt) return false;
+    return true;
   });
   const baseOrders = isAdmin
     ? activeOrders
