@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Search, Filter, Trash2 } from 'lucide-react';
+import { Search, Filter, Trash2, Archive } from 'lucide-react';
 import { useApp } from '../../contexts/AppContext';
 import { OrderStatus, OrderPriority } from '../../types';
 import { formatDate, isOverdue } from '../../utils/helpers';
@@ -23,7 +23,12 @@ const OrdersPage: React.FC<OrdersPageProps> = ({ archiveMode = false }) => {
   const [selectedOrder, setSelectedOrder] = useState<any>(null);
   const [addDeptId, setAddDeptId] = useState('');
 
-  const isAdmin = currentUser?.role === 'admin';
+  const isAdmin = currentUser?.role === 'admin' || currentUser?.role === 'manager';
+  const handleClearArchive = () => {
+    if (window.confirm('هل أنت متأكد من حذف جميع الطلبيات المؤرشفة نهائياً؟ لا يمكن التراجع عن هذا الإجراء.')) {
+      dispatch({ type: 'CLEAR_ARCHIVE' } as any);
+    }
+  };
   const activeOrders = orders.filter((o) => {
     if (archiveMode) {
       // New-style: properly archived (has archivedAt flag)
@@ -65,6 +70,24 @@ const OrdersPage: React.FC<OrdersPageProps> = ({ archiveMode = false }) => {
         onAddOrder={archiveMode ? undefined : handleAddForDept}
       />
       <div className="page-content">
+        {/* Clear Archive button */}
+        {archiveMode && isAdmin && sorted.length > 0 && (
+          <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 10 }}>
+            <button
+              onClick={handleClearArchive}
+              style={{
+                display: 'flex', alignItems: 'center', gap: 7,
+                background: '#d97706', color: '#fff',
+                border: 'none', borderRadius: 9, padding: '8px 18px',
+                fontWeight: 700, fontSize: 14, cursor: 'pointer',
+              }}
+            >
+              <Archive size={16} />
+              مسح الأرشيف كاملاً
+            </button>
+          </div>
+        )}
+
         {/* Filters */}
         <div className="filters-bar">
           <div className="search-bar">
