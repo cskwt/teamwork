@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Search, Filter } from 'lucide-react';
+import { Search, Filter, Trash2 } from 'lucide-react';
 import { useApp } from '../../contexts/AppContext';
 import { OrderStatus, OrderPriority } from '../../types';
 import { formatDate, isOverdue } from '../../utils/helpers';
@@ -12,7 +12,7 @@ interface OrdersPageProps {
 }
 
 const OrdersPage: React.FC<OrdersPageProps> = ({ archiveMode = false }) => {
-  const { state } = useApp();
+  const { state, dispatch } = useApp();
   const { orders, departments, currentUser } = state;
 
   const [search, setSearch] = useState('');
@@ -114,6 +114,7 @@ const OrdersPage: React.FC<OrdersPageProps> = ({ archiveMode = false }) => {
                 <th>تاريخ استلام الطلب</th>
                 <th>القسم المختص</th>
                 <th>تاريخ التسليم</th>
+                {isAdmin && <th style={{ width: 48 }}></th>}
               </tr>
             </thead>
             <tbody>
@@ -140,11 +141,30 @@ const OrdersPage: React.FC<OrdersPageProps> = ({ archiveMode = false }) => {
                     <td className={overdue ? 'overdue-text' : ''}>
                       {o.dueDate ? formatDate(o.dueDate) : <span className="muted">—</span>}
                     </td>
+                    {isAdmin && (
+                      <td onClick={(e) => e.stopPropagation()} style={{ textAlign: 'center', padding: '4px 8px' }}>
+                        <button
+                          title="حذف نهائي"
+                          style={{
+                            background: 'none', border: 'none', cursor: 'pointer',
+                            color: '#ef4444', padding: 4, borderRadius: 6,
+                            display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                          }}
+                          onClick={() => {
+                            if (window.confirm(`هل تريد حذف الطلبية "${o.clientName || o.orderNumber}" نهائياً؟`)) {
+                              dispatch({ type: 'PERMANENT_DELETE', payload: o.id } as any);
+                            }
+                          }}
+                        >
+                          <Trash2 size={15} />
+                        </button>
+                      </td>
+                    )}
                   </tr>
                 );
               })}
               {sorted.length === 0 && (
-                <tr><td colSpan={5} className="empty-row">لا توجد طلبيات مطابقة للبحث</td></tr>
+                <tr><td colSpan={isAdmin ? 6 : 5} className="empty-row">لا توجد طلبيات مطابقة للبحث</td></tr>
               )}
             </tbody>
           </table>
