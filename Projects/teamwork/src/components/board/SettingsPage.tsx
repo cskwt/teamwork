@@ -1,5 +1,5 @@
 import React, { useState, useRef } from 'react';
-import { User, Lock, Download, Upload, Trash2, Camera, Save, Eye, EyeOff, AlertTriangle, RefreshCw, Wrench } from 'lucide-react';
+import { User, Lock, Download, Upload, Trash2, Camera, Save, Eye, EyeOff, AlertTriangle, RefreshCw, Wrench, Archive } from 'lucide-react';
 import { useApp } from '../../contexts/AppContext';
 import Header from '../layout/Header';
 import { clearState, saveState } from '../../utils/storage';
@@ -299,6 +299,23 @@ const SettingsPage: React.FC = () => {
                   <Upload size={15} /> استيراد
                   <input type="file" accept=".json" hidden onChange={handleImport} />
                 </label>
+              </div>
+              <div className="settings-data-item" style={{ borderTop: '1px solid #fde68a', paddingTop: 12 }}>
+                <div>
+                  <p className="settings-data-title"><Archive size={13} color="#d97706" /> مسح الأرشيف</p>
+                  <p className="settings-data-desc">حذف جميع الطلبيات المؤرشفة نهائياً لتحرير الذاكرة وتسريع البرنامج</p>
+                </div>
+                <button
+                  className="btn-danger"
+                  style={{ background: '#d97706', borderColor: '#d97706' }}
+                  onClick={() => {
+                    if (window.confirm('هل أنت متأكد من حذف جميع الطلبيات المؤرشفة نهائياً؟ لا يمكن التراجع عن هذا الإجراء.')) {
+                      dispatch({ type: 'CLEAR_ARCHIVE' } as any);
+                    }
+                  }}
+                >
+                  <Archive size={15} /> مسح الأرشيف
+                </button>
               </div>
               <div className="settings-data-item settings-danger-item">
                 <div>

@@ -51,6 +51,7 @@ type Action =
   | { type: 'RESTORE_ORDER'; payload: string }
   | { type: 'PERMANENT_DELETE'; payload: string }
   | { type: 'ARCHIVE_ORDER'; payload: string }   // orderId
+  | { type: 'CLEAR_ARCHIVE' }
   | { type: 'PURGE_OLD_TRASH' }
   | { type: 'MARK_NOTIFICATIONS_READ'; payload: string }  // userId
   | { type: 'INIT_STATE'; payload: AppState }
@@ -198,11 +199,27 @@ const reducer = (state: AppState, action: Action): AppState => {
       const now = new Date().toISOString();
       return {
         ...state,
-        orders: state.orders.map((o) =>
-          o.id === action.payload
-            ? { ...o, deletedAt: now, archivedAt: now, updatedAt: now }
-            : o
-        ),
+        orders: state.orders.map((o) => {
+          if (o.id !== action.payload) return o;
+          // Strip file attachments (DataURLs) to free memory — metadata kept
+          const stripped = {
+            ...o,
+            deletedAt: now,
+            archivedAt: now,
+            updatedAt: now,
+            invoice: o.invoice ? { ...o.invoice, dataUrl: undefined } : undefined,
+            invoices: (o.invoices || []).map((f) => ({ ...f, dataUrl: undefined })),
+            orderForms: (o.orderForms || []).map((f) => ({ ...f, dataUrl: undefined })),
+          };
+          return stripped;
+        }),
+      };
+    }
+    case 'CLEAR_ARCHIVE': {
+      // Permanently remove all archived orders from state to free memory
+      return {
+        ...state,
+        orders: state.orders.filter((o) => !o.archivedAt && !(o.deletedAt && o.status === 'done')),
       };
     }
     case 'RESTORE_ORDER':
