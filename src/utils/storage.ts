@@ -259,21 +259,15 @@ export const saveState = async (state: AppState): Promise<void> => {
     }
     // Merge orders: keep whichever version is "more final"
     const srvMap = new Map((serverCurrent.orders || []).map((o) => [o.id, o]));
-    const srvMaxUpdated = getMaxUpdatedAt(serverCurrent.orders || []);
 
-    // Critical: local-only orders (not on server) are included ONLY if they appear
-    // to be freshly created (updatedAt >= server's newest). If an order is absent
-    // from the server but is older than the server's max update, the server must
-    // have permanently deleted it — don't push it back.
     const mergedOrders: AppState['orders'] = [];
     (toSave.orders || []).forEach((loc) => {
       const srv = srvMap.get(loc.id);
       if (!srv) {
-        // Not on server — only keep if it looks genuinely new (not deleted by server)
-        if (!loc.deletedAt && (loc.updatedAt || '') >= srvMaxUpdated) {
-          mergedOrders.push(loc);
-        }
-        // else: server must have permanently deleted it → skip
+        // Order is not on server. Push it unless it was locally soft-deleted
+        // (SYNC_STATE already removes permanently-deleted orders from local state
+        //  within 3 seconds, so by the time saveState runs they should be gone).
+        if (!loc.deletedAt) mergedOrders.push(loc);
         return;
       }
       mergedOrders.push(mergeOrder(srv, loc));
