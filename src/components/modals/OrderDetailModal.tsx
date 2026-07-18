@@ -428,11 +428,30 @@ const OrderDetailModal: React.FC<OrderDetailModalProps> = ({ order, onClose, dep
             <span className="badge" style={{ background: priority.bg, color: priority.color }}>{priority.label}</span>
           </div>
           <div className="modal-header-actions">
-            {editing && (
+            {editing ? (
               <>
                 <button className="modal-icon-btn modal-icon-btn--green" onClick={handleSaveEdit} title={tr.save}><Save size={15} /></button>
                 <button className="modal-icon-btn" onClick={() => setEditing(false)} title={tr.cancel}><X size={15} /></button>
               </>
+            ) : (
+              <button className="modal-icon-btn" title={tr.edit} onClick={() => {
+                setEditData({
+                  orderNumber: currentOrder.orderNumber,
+                  clientName: currentOrder.clientName,
+                  description: currentOrder.description,
+                  orderDate: currentOrder.orderDate ? currentOrder.orderDate.slice(0, 10) : '',
+                  dueDate: currentOrder.dueDate ? currentOrder.dueDate.slice(0, 10) : '',
+                  fileExtensions: currentOrder.fileExtensions || '',
+                  notes: currentOrder.notes || '',
+                  progress: currentOrder.progress ?? 0,
+                  departmentId: currentOrder.departmentId,
+                  departmentIds: currentOrder.departmentIds?.length ? currentOrder.departmentIds : [currentOrder.departmentId],
+                  priority: currentOrder.priority as OrderPriority,
+                  status: currentOrder.status as OrderStatus,
+                  assignedUsers: currentOrder.assignedUsers || [],
+                });
+                setEditing(true);
+              }}><Pencil size={15} /></button>
             )}
             {currentUser?.role === 'admin' && (
               <button className="modal-icon-btn modal-icon-btn--danger" onClick={handleDelete} title={tr.delete}><Trash2 size={15} /></button>
@@ -655,36 +674,7 @@ const OrderDetailModal: React.FC<OrderDetailModalProps> = ({ order, onClose, dep
 
         {/* Title */}
         <div className="od-title-row">
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <h2 className="od-title">{currentOrder.clientName}</h2>
-            {!editing && (currentUser?.role === 'admin' || currentUser?.role === 'manager') && (
-              <button
-                className="modal-icon-btn"
-                title={tr.edit}
-                style={{ flexShrink: 0 }}
-                onClick={() => {
-                  setEditData({
-                    orderNumber: currentOrder.orderNumber,
-                    clientName: currentOrder.clientName,
-                    description: currentOrder.description,
-                    orderDate: currentOrder.orderDate ? currentOrder.orderDate.slice(0, 10) : '',
-                    dueDate: currentOrder.dueDate ? currentOrder.dueDate.slice(0, 10) : '',
-                    fileExtensions: currentOrder.fileExtensions || '',
-                    notes: currentOrder.notes || '',
-                    progress: currentOrder.progress ?? 0,
-                    departmentId: currentOrder.departmentId,
-                    departmentIds: currentOrder.departmentIds?.length ? currentOrder.departmentIds : [currentOrder.departmentId],
-                    priority: currentOrder.priority as OrderPriority,
-                    status: currentOrder.status as OrderStatus,
-                    assignedUsers: currentOrder.assignedUsers || [],
-                  });
-                  setEditing(true);
-                }}
-              >
-                <Pencil size={14} />
-              </button>
-            )}
-          </div>
+          <h2 className="od-title">{currentOrder.clientName}</h2>
           <span className="od-dept-badge" style={{ background: department.color + '22', color: department.color }}>
             {department.name}
           </span>
