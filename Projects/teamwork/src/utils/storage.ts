@@ -222,6 +222,27 @@ export const loadState = async (): Promise<AppState> => {
   return getDefaultState();
 };
 
+// Merge users: union of both sides — never drop a user that exists on either side.
+// Server is authoritative for updates; local-only users (new, not yet synced) are kept.
+const mergeUsers = (server: AppState['users'], local: AppState['users']): AppState['users'] => {
+  const locMap = new Map(local.map((u) => [u.id, u]));
+  const result: AppState['users'] = [...server]; // start with all server users
+  // Add any local-only users (created on this device, not yet on server)
+  local.forEach((u) => {
+    if (!result.find((s) => s.id === u.id)) result.push(u);
+  });
+  // For users present on both sides, prefer the local version only if it changed
+  // (e.g. password/avatar update initiated from this device)
+  return result.map((u) => {
+    const loc = locMap.get(u.id);
+    // If local has a different password/avatar it was probably updated here — keep local
+    if (loc && (loc.password !== u.password || loc.avatar !== u.avatar || loc.fullName !== u.fullName)) {
+      return loc;
+    }
+    return u;
+  });
+};
+
 export const saveState = async (state: AppState): Promise<void> => {
   const toSave = { ...state, currentUser: null };
 
@@ -236,7 +257,7 @@ export const saveState = async (state: AppState): Promise<void> => {
       serverSave(toSave);
       return;
     }
-    // Merge: for each order, keep whichever version is "more final"
+    // Merge orders: keep whichever version is "more final"
     const srvMap = new Map((serverCurrent.orders || []).map((o) => [o.id, o]));
     const mergedOrders = (toSave.orders || []).map((loc) => {
       const srv = srvMap.get(loc.id);
@@ -249,7 +270,9 @@ export const saveState = async (state: AppState): Promise<void> => {
         mergedOrders.push(srv);
       }
     });
-    serverSave({ ...toSave, orders: mergedOrders });
+    // Merge users: union — never drop a user from either side
+    const mergedUsers = mergeUsers(serverCurrent.users || [], toSave.users || []);
+    serverSave({ ...toSave, users: mergedUsers, orders: mergedOrders });
   }).catch(() => {
     // If fetch fails, save what we have — better than losing local changes
     serverSave(toSave);
