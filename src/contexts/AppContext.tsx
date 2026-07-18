@@ -535,9 +535,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const refreshData = async () => {
+    // Hard sync: bypass merge logic entirely — server is the sole source of truth.
+    // Clears local IndexedDB first so stale cache cannot influence the result.
     const serverData = await serverLoad();
     if (serverData) {
-      trackedDispatch({ type: 'SYNC_STATE', payload: serverData });
+      await localforage.setItem('teamwork_app_data_v5', { ...serverData, currentUser: null }).catch(() => {});
+      trackedDispatch({ type: 'INIT_STATE', payload: serverData });
     }
   };
 

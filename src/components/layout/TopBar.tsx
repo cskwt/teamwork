@@ -89,15 +89,33 @@ const TopBar: React.FC<TopBarProps> = ({ onNavigate }) => {
         </button>
         <button
           className="topbar-icon-btn"
-          title={tr.refresh}
+          title="مزامنة فورية من السيرفر"
           onClick={async () => {
+            if (refreshing) return;
             setRefreshing(true);
             await refreshData();
-            setTimeout(() => setRefreshing(false), 600);
+            setRefreshing(false);
           }}
-          style={{ opacity: refreshing ? 0.5 : 1 }}
+          style={{
+            opacity: refreshing ? 0.6 : 1,
+            position: 'relative',
+          }}
         >
-          <RefreshCw size={17} style={{ transition: 'transform 0.6s', transform: refreshing ? 'rotate(360deg)' : 'none' }} />
+          <RefreshCw
+            size={17}
+            style={{
+              transition: 'transform 0.8s ease',
+              transform: refreshing ? 'rotate(720deg)' : 'none',
+            }}
+          />
+          {refreshing && (
+            <span style={{
+              position: 'absolute', bottom: -18, left: '50%', transform: 'translateX(-50%)',
+              fontSize: 10, color: '#6366f1', whiteSpace: 'nowrap', fontWeight: 600,
+            }}>
+              جاري...
+            </span>
+          )}
         </button>
         <div className="notif-wrap" ref={notifRef}>
           <button className="topbar-icon-btn notif-btn" onClick={handleOpenNotif} title={tr.notifications}>
