@@ -110,6 +110,7 @@ const getDefaultState = (): AppState => ({
   orders: INITIAL_ORDERS,
   currentUser: null,
   notifications: [],
+  opsRows: [],
 });
 
 const migrateFromLocalStorage = (): AppState | null => {
@@ -237,6 +238,9 @@ export const loadState = async (): Promise<AppState> => {
       orders: mergedOrders,
       currentUser: null,
       notifications: fromServer.notifications || local?.notifications || [],
+      opsRows: (fromServer.opsRows && fromServer.opsRows.length > 0)
+        ? fromServer.opsRows
+        : (local?.opsRows || []),
     };
 
     // Push back to server when:
@@ -271,7 +275,7 @@ export const loadState = async (): Promise<AppState> => {
 
   // Server unavailable — fall back to local only
   if (local && local.departments?.length) {
-    const full = { ...getDefaultState(), ...local, currentUser: null, notifications: local.notifications || [] };
+    const full = { ...getDefaultState(), ...local, currentUser: null, notifications: local.notifications || [], opsRows: local.opsRows || [] };
     return full;
   }
 

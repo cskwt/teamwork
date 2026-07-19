@@ -110,10 +110,25 @@ export interface AppNotification {
   read: boolean;
 }
 
+export interface OpsRow {
+  id: string;
+  date: string;
+  customer: string;
+  job: string;
+  jobImage: string;
+  qty: string;
+  target: string;
+  finishedQty: string;
+  finish: string;
+  workers: string;
+  progress: string;
+}
+
 export interface AppState {
   users: User[];
   departments: Department[];
   orders: Order[];
   currentUser: User | null;
   notifications: AppNotification[];
+  opsRows: OpsRow[];
 }

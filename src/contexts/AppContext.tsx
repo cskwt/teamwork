@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useReducer, useEffect, useState, useRef } from 'react';
 import localforage from 'localforage';
-import { AppState, User, Department, Order, OrderComment, OrderHistoryEntry, KanbanColumn, AppNotification } from '../types';
+import { AppState, User, Department, Order, OrderComment, OrderHistoryEntry, KanbanColumn, AppNotification, OpsRow } from '../types';
 import { loadState, saveState, saveSession, loadSession, touchSession, serverLoad } from '../utils/storage';
 import { generateId } from '../utils/helpers';
 import { INITIAL_USERS, INITIAL_DEPARTMENTS, INITIAL_ORDERS } from '../data/initialData';
@@ -11,6 +11,7 @@ const DEFAULT_STATE: AppState = {
   orders: INITIAL_ORDERS,
   currentUser: null,
   notifications: [],
+  opsRows: [],
 };
 
 const makeNotif = (
@@ -54,6 +55,7 @@ type Action =
   | { type: 'CLEAR_ARCHIVE' }
   | { type: 'PURGE_OLD_TRASH' }
   | { type: 'MARK_NOTIFICATIONS_READ'; payload: string }  // userId
+  | { type: 'SET_OPS_ROWS'; payload: OpsRow[] }
   | { type: 'INIT_STATE'; payload: AppState }
   | { type: 'SYNC_STATE'; payload: AppState };
 
@@ -166,6 +168,9 @@ const reducer = (state: AppState, action: Action): AppState => {
         users: action.payload.users || state.users,
         departments: mergedDepts,
         orders: mergedOrders,
+        opsRows: (action.payload.opsRows && action.payload.opsRows.length > 0)
+          ? action.payload.opsRows
+          : state.opsRows,
         notifications: [
           ...state.notifications,
           ...(action.payload.notifications || []).filter(
@@ -254,6 +259,8 @@ const reducer = (state: AppState, action: Action): AppState => {
         orders: state.orders.filter((o) => !o.archivedAt && !(o.deletedAt && o.status === 'done')),
       };
     }
+    case 'SET_OPS_ROWS':
+      return { ...state, opsRows: action.payload };
     case 'RESTORE_ORDER':
       return {
         ...state,

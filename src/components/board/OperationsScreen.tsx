@@ -1,23 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { Plus, Trash2, Monitor, Edit2, Check, X } from 'lucide-react';
+import { useApp } from '../../contexts/AppContext';
+import { OpsRow } from '../../types';
 
-interface OperationsRow {
-  id: string;
-  date: string;
-  customer: string;
-  job: string;
-  jobImage: string;
-  qty: string;
-  target: string;
-  finishedQty: string;
-  finish: string;
-  workers: string;
-  progress: string;
-}
-
-const STORAGE_KEY = 'ops_screen_rows';
-
-const emptyRow = (): OperationsRow => ({
+const emptyRow = (): OpsRow => ({
   id: Math.random().toString(36).slice(2),
   date: '',
   customer: '',
@@ -36,7 +22,7 @@ const MONTHS_EN = ['January', 'February', 'March', 'April', 'May', 'June', 'July
 
 const COL_COLORS = ['#64748b', '#3b82f6', '#22c55e', '#22c55e', '#f59e0b', '#ef4444', '#10b981', '#8b5cf6', '#f43f5e'];
 const COL_HEADERS = ['Date', 'Customer', 'Job', 'Photo', 'Quantity', 'Target', 'Finished Qty', 'Finished Date', 'Progress'];
-const COL_FIELDS: (keyof OperationsRow)[] = ['date', 'customer', 'job', 'jobImage', 'qty', 'target', 'finishedQty', 'finish', 'progress'];
+const COL_FIELDS: (keyof OpsRow)[] = ['date', 'customer', 'job', 'jobImage', 'qty', 'target', 'finishedQty', 'finish', 'progress'];
 
 const PieProgress: React.FC<{ pct: number; size?: number }> = ({ pct, size = 52 }) => {
   const r = (size - 8) / 2;
@@ -62,51 +48,48 @@ const PieProgress: React.FC<{ pct: number; size?: number }> = ({ pct, size = 52 
 };
 
 const OperationsScreen: React.FC = () => {
-  const [rows, setRows] = useState<OperationsRow[]>(() => {
-    try {
-      const saved = localStorage.getItem(STORAGE_KEY);
-      return saved ? JSON.parse(saved) : [emptyRow()];
-    } catch { return [emptyRow()]; }
-  });
+  const { state, dispatch } = useApp();
+  const rows: OpsRow[] = state.opsRows && state.opsRows.length > 0 ? state.opsRows : [];
+
+  const setRows = (updater: OpsRow[] | ((prev: OpsRow[]) => OpsRow[])) => {
+    const next = typeof updater === 'function' ? updater(rows) : updater;
+    dispatch({ type: 'SET_OPS_ROWS', payload: next });
+  };
 
   const [now, setNow] = useState(new Date());
   const [fullscreen, setFullscreen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
-  const [editData, setEditData] = useState<OperationsRow | null>(null);
+  const [editData, setEditData] = useState<OpsRow | null>(null);
 
   useEffect(() => {
     const timer = setInterval(() => setNow(new Date()), 1000);
     return () => clearInterval(timer);
   }, []);
 
-  useEffect(() => {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(rows));
-  }, [rows]);
-
   const addRow = () => {
     const r = emptyRow();
-    setRows(prev => [...prev, r]);
+    setRows([...rows, r]);
     setEditingId(r.id);
     setEditData(r);
   };
 
-  const deleteRow = (id: string) => setRows(prev => prev.filter(r => r.id !== id));
+  const deleteRow = (id: string) => setRows(rows.filter(r => r.id !== id));
 
-  const startEdit = (row: OperationsRow) => {
+  const startEdit = (row: OpsRow) => {
     setEditingId(row.id);
     setEditData({ ...row });
   };
 
   const saveEdit = () => {
     if (!editData) return;
-    setRows(prev => prev.map(r => r.id === editData.id ? editData : r));
+    setRows(rows.map(r => r.id === editData.id ? editData : r));
     setEditingId(null);
     setEditData(null);
   };
 
   const cancelEdit = () => {
     if (editData && rows.find(r => r.id === editData.id)?.customer === '') {
-      setRows(prev => prev.filter(r => r.id !== editData.id));
+      setRows(rows.filter(r => r.id !== editData.id));
     }
     setEditingId(null);
     setEditData(null);
@@ -116,7 +99,6 @@ const OperationsScreen: React.FC = () => {
   const dayStr = DAYS_EN[now.getDay()];
   const dateStr = `${now.getDate()} ${MONTHS_EN[now.getMonth()]} ${now.getFullYear()}`;
 
-  /* ── TABLE (shared between normal & fullscreen) ── */
   const tableContent = (isFS: boolean) => (
     <div style={{ width: '100%', overflowX: 'auto' }}>
       <table style={{ width: '100%', borderCollapse: 'separate', borderSpacing: 0, fontSize: isFS ? 28 : 15, fontFamily: 'inherit', direction: 'ltr' }}>
@@ -201,7 +183,7 @@ const OperationsScreen: React.FC = () => {
                       )}
                     </td>
                   ))}
-                  <td style={{ textAlign: 'center', padding: '7px 6px', borderBottom: '1px solid #e2e8f0' }}>
+                  <td style={{ textAlign: 'center', padding: '8px 6px', borderBottom: '1px solid #e2e8f0' }}>
                     <button onClick={saveEdit} title="Save" style={{ background: '#22c55e', border: 'none', color: '#fff', borderRadius: 6, padding: '5px 10px', cursor: 'pointer', marginRight: 4 }}><Check size={14} /></button>
                     <button onClick={cancelEdit} title="Cancel" style={{ background: '#ef4444', border: 'none', color: '#fff', borderRadius: 6, padding: '5px 10px', cursor: 'pointer' }}><X size={14} /></button>
                   </td>
@@ -265,7 +247,6 @@ const OperationsScreen: React.FC = () => {
     </div>
   );
 
-  /* ── FULLSCREEN TV MODE ── */
   if (fullscreen) {
     return (
       <div style={{
@@ -275,7 +256,6 @@ const OperationsScreen: React.FC = () => {
         fontFamily: 'Segoe UI, Arial, sans-serif',
         direction: 'ltr',
       }}>
-        {/* Header bar */}
         <div style={{
           display: 'flex', alignItems: 'center', justifyContent: 'space-between',
           padding: '20px 48px',
@@ -297,7 +277,6 @@ const OperationsScreen: React.FC = () => {
             <X size={16} /> Close
           </button>
         </div>
-        {/* Table */}
         <div style={{ flex: 1, padding: '32px 48px', overflowY: 'auto', background: '#f8fafc' }}>
           <div style={{ background: '#fff', borderRadius: 16, overflow: 'hidden', boxShadow: '0 4px 32px rgba(0,0,0,0.10)', border: '1px solid #e2e8f0' }}>
             {tableContent(true)}
@@ -307,19 +286,16 @@ const OperationsScreen: React.FC = () => {
     );
   }
 
-  /* ── NORMAL PAGE ── */
   return (
     <div className="page" style={{ direction: 'ltr', fontFamily: 'Segoe UI, Arial, sans-serif' }}>
-      {/* Page header */}
       <div style={{ padding: '20px 24px 0', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
         <div>
           <h2 style={{ fontSize: 20, fontWeight: 800, color: '#111827', margin: 0, display: 'flex', alignItems: 'center', gap: 8 }}>
             <Monitor size={20} color="#6366f1" /> Operations Screen
           </h2>
-          <p style={{ color: '#6b7280', fontSize: 13, margin: '4px 0 0' }}>Daily operations board — displayed on TV</p>
+          <p style={{ color: '#6b7280', fontSize: 13, margin: '4px 0 0' }}>Daily operations board — synced across all devices</p>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-          {/* Live clock */}
           <div style={{ background: '#1e293b', borderRadius: 10, padding: '8px 18px', textAlign: 'center' }}>
             <div style={{ color: '#818cf8', fontSize: 20, fontWeight: 800, fontVariantNumeric: 'tabular-nums' }}>{timeStr}</div>
             <div style={{ color: '#64748b', fontSize: 11 }}>{dayStr} — {dateStr}</div>
@@ -339,13 +315,12 @@ const OperationsScreen: React.FC = () => {
         </div>
       </div>
 
-      {/* Table card */}
       <div style={{ padding: 24 }}>
         <div style={{ background: '#fff', borderRadius: 16, overflow: 'hidden', boxShadow: '0 2px 16px rgba(0,0,0,0.08)', border: '1px solid #e2e8f0' }}>
           {tableContent(false)}
         </div>
         <p style={{ color: '#9ca3af', fontSize: 12, marginTop: 10, textAlign: 'center' }}>
-          Data saved automatically on this device • Click ✏️ to edit a row • Press Enter to save
+          Data synced across all devices • Click ✏️ to edit a row • Press Enter to save
         </p>
       </div>
     </div>
