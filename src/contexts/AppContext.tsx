@@ -1,7 +1,7 @@
 import React, { createContext, useContext, useReducer, useEffect, useState, useRef } from 'react';
 import localforage from 'localforage';
 import { AppState, User, Department, Order, OrderComment, OrderHistoryEntry, KanbanColumn, AppNotification, OpsRow } from '../types';
-import { loadState, saveState, saveSession, loadSession, touchSession, serverLoad } from '../utils/storage';
+import { loadState, saveState, saveSession, loadSession, touchSession, serverLoad, mergeOpsRows } from '../utils/storage';
 import { generateId } from '../utils/helpers';
 import { INITIAL_USERS, INITIAL_DEPARTMENTS, INITIAL_ORDERS } from '../data/initialData';
 
@@ -66,9 +66,7 @@ const reducer = (state: AppState, action: Action): AppState => {
         ...action.payload,
         currentUser: null,
         notifications: action.payload.notifications || [],
-        opsRows: (action.payload.opsRows && action.payload.opsRows.length > 0)
-          ? action.payload.opsRows
-          : (state.opsRows || []),
+        opsRows: mergeOpsRows(action.payload.opsRows || [], state.opsRows || []),
       };
     case 'SYNC_STATE': {
       // Server is the source of truth. Merge only allows local to win when it has
@@ -175,17 +173,7 @@ const reducer = (state: AppState, action: Action): AppState => {
         users: action.payload.users || state.users,
         departments: mergedDepts,
         orders: mergedOrders,
-        opsRows: (() => {
-          const srvRows = (action.payload.opsRows && action.payload.opsRows.length > 0)
-            ? action.payload.opsRows
-            : state.opsRows || [];
-          // Restore local jobImages stripped before server save
-          const localMap = new Map((state.opsRows || []).map((r) => [r.id, r]));
-          return srvRows.map((r: any) => ({
-            ...r,
-            jobImage: r.jobImage || localMap.get(r.id)?.jobImage || '',
-          }));
-        })(),
+        opsRows: mergeOpsRows(action.payload.opsRows || [], state.opsRows || []),
         notifications: [
           ...state.notifications,
           ...(action.payload.notifications || []).filter(
@@ -523,8 +511,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         return (h + v) % 999983;
       }, 0);
       const opsRows = s.opsRows || [];
-      const opsHash = opsRows.length + ':' + opsRows.reduce((h, r) => h + r.id + (r.finishedQty || '') + (r.target || ''), '').length;
-      return `${orders.length}:${maxOrderUpdated}:${sortSum}:${deletedCount}:${archivedCount}:${idHash}|${depts.length}:${maxDeptUpdated}|ops:${opsHash}`;
+      const opsHash = opsRows.map((r) =>
+        [r.id, r.customer, r.job, r.qty, r.target, r.finishedQty, r.finish, r.date, r.updatedAt || ''].join(',')
+      ).join('|');
+      return `${orders.length}:${maxOrderUpdated}:${sortSum}:${deletedCount}:${archivedCount}:${idHash}|${depts.length}:${maxDeptUpdated}|ops:${opsRows.length}:${opsHash.length}:${opsHash.slice(0, 80)}`;
     };
 
     const poll = async () => {

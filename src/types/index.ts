@@ -122,6 +122,7 @@ export interface OpsRow {
   finish: string;
   workers: string;
   progress: string;
+  updatedAt?: string;
 }
 
 export interface AppState {

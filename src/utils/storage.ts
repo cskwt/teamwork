@@ -1,6 +1,90 @@
 import localforage from 'localforage';
-import { AppState } from '../types';
+import { AppState, OpsRow } from '../types';
 import { INITIAL_USERS, INITIAL_DEPARTMENTS, INITIAL_ORDERS } from '../data/initialData';
+
+/** How many text fields are filled — used to prefer richer ops rows over empty ones */
+export const opsRowScore = (r: OpsRow): number =>
+  ['date', 'customer', 'job', 'qty', 'target', 'finishedQty', 'finish', 'workers', 'progress']
+    .filter((k) => !!(r as any)[k] && String((r as any)[k]).trim()).length;
+
+/** Merge two ops rows field-by-field; never lose non-empty text; keep local image */
+export const mergeOpsRow = (a: OpsRow, b: OpsRow): OpsRow => {
+  const pick = (x?: string, y?: string) => {
+    const xs = (x || '').trim();
+    const ys = (y || '').trim();
+    if (xs && ys) {
+      // Prefer newer updatedAt when both have values
+      if ((a.updatedAt || '') >= (b.updatedAt || '')) return xs;
+      return ys;
+    }
+    return xs || ys;
+  };
+  const newer = (a.updatedAt || '') >= (b.updatedAt || '') ? a : b;
+  return {
+    id: a.id || b.id,
+    date: pick(a.date, b.date),
+    customer: pick(a.customer, b.customer),
+    job: pick(a.job, b.job),
+    jobImage: a.jobImage || b.jobImage || '',
+    qty: pick(a.qty, b.qty),
+    target: pick(a.target, b.target),
+    finishedQty: pick(a.finishedQty, b.finishedQty),
+    finish: pick(a.finish, b.finish),
+    workers: pick(a.workers, b.workers),
+    progress: pick(a.progress, b.progress),
+    updatedAt: newer.updatedAt || a.updatedAt || b.updatedAt,
+  };
+};
+
+/**
+ * Merge opsRows from two sources.
+ * - Never let an empty/stale side wipe filled rows on the other side.
+ * - Union by id; field-level merge for shared ids.
+ * - If one side is clearly empty of text and the other isn't, prefer the richer side's set.
+ */
+export const mergeOpsRows = (server: OpsRow[] = [], local: OpsRow[] = []): OpsRow[] => {
+  const srvScore = server.reduce((s, r) => s + opsRowScore(r), 0);
+  const locScore = local.reduce((s, r) => s + opsRowScore(r), 0);
+
+  // One side has real data, the other is empty shells → keep the rich side
+  if (locScore > 0 && srvScore === 0) return local.map((r) => ({ ...r }));
+  if (srvScore > 0 && locScore === 0) {
+    // Still restore images from local for matching ids
+    const locMap = new Map(local.map((r) => [r.id, r]));
+    return server.map((r) => ({ ...r, jobImage: r.jobImage || locMap.get(r.id)?.jobImage || '' }));
+  }
+
+  // Both empty → keep whichever has rows (shells with images), prefer local images
+  if (srvScore === 0 && locScore === 0) {
+    if (local.length === 0) return server;
+    if (server.length === 0) return local;
+  }
+
+  // Both have data (or both empty with rows): union + field merge
+  // Prefer local array as authority for which rows exist when local was just edited
+  // (local has updatedAt newer on any row), otherwise union.
+  const localNewer = local.some((r) => {
+    const s = server.find((x) => x.id === r.id);
+    return !s || (r.updatedAt || '') > (s.updatedAt || '');
+  });
+  const localDeleted = local.length < server.length && localNewer && locScore > 0;
+
+  const map = new Map<string, OpsRow>();
+  const base = localDeleted ? local : [...server, ...local];
+  if (localDeleted) {
+    local.forEach((r) => {
+      const s = server.find((x) => x.id === r.id);
+      map.set(r.id, s ? mergeOpsRow(r, s) : r);
+    });
+  } else {
+    base.forEach((r) => {
+      const existing = map.get(r.id);
+      map.set(r.id, existing ? mergeOpsRow(existing, r) : r);
+    });
+  }
+
+  return Array.from(map.values());
+};
 
 // ─── Session management ───────────────────────────────────────────────────────
 const SESSION_KEY      = 'teamwork_session';
@@ -233,16 +317,6 @@ export const loadState = async (): Promise<AppState> => {
       }
     }
 
-    // Restore jobImages from local IndexedDB into server opsRows (images are stripped before server save)
-    const serverOpsRows = (fromServer.opsRows && fromServer.opsRows.length > 0)
-      ? fromServer.opsRows
-      : (local?.opsRows || []);
-    const localOpsMap = new Map((local?.opsRows || []).map((r) => [r.id, r]));
-    const mergedOpsRows = serverOpsRows.map((r: any) => {
-      const localRow = localOpsMap.get(r.id);
-      return { ...r, jobImage: r.jobImage || localRow?.jobImage || '' };
-    });
-
     const merged: AppState = {
       ...getDefaultState(),
       ...fromServer,
@@ -250,7 +324,7 @@ export const loadState = async (): Promise<AppState> => {
       orders: mergedOrders,
       currentUser: null,
       notifications: fromServer.notifications || local?.notifications || [],
-      opsRows: mergedOpsRows,
+      opsRows: mergeOpsRows(fromServer.opsRows || [], local?.opsRows || []),
     };
 
     // Push back to server when:
@@ -358,7 +432,9 @@ export const saveState = async (state: AppState): Promise<void> => {
     });
     // Merge users: union — never drop a user from either side
     const mergedUsers = mergeUsers(serverCurrent.users || [], toSave.users || []);
-    serverSave({ ...toSave, users: mergedUsers, orders: mergedOrders });
+    // Merge opsRows: never let a device with empty ops wipe filled rows on the server
+    const mergedOps = mergeOpsRows(serverCurrent.opsRows || [], toSave.opsRows || []);
+    serverSave({ ...toSave, users: mergedUsers, orders: mergedOrders, opsRows: mergedOps });
   }).catch(() => {
     // If fetch fails, save what we have — better than losing local changes
     serverSave(toSave);

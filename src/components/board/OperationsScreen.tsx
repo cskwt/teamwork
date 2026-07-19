@@ -15,7 +15,13 @@ const emptyRow = (): OpsRow => ({
   finish: '',
   workers: '',
   progress: '',
+  updatedAt: new Date().toISOString(),
 });
+
+const rowTextScore = (r: OpsRow) =>
+  ['date', 'customer', 'job', 'qty', 'target', 'finishedQty', 'finish'].filter(
+    (k) => !!(r as any)[k] && String((r as any)[k]).trim()
+  ).length;
 
 const DAYS_EN = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 const MONTHS_EN = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
@@ -81,17 +87,30 @@ const OperationsScreen: React.FC = () => {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editData, setEditData] = useState<OpsRow | null>(null);
 
-  // After full load: if server/state has no opsRows, recover from local backup
+  // After full load: recover from local backup if state is empty OR only empty shells (image-only)
   useEffect(() => {
     if (!loaded) return;
-    if ((state.opsRows || []).length > 0) {
-      backupOpsRows(state.opsRows); // keep backup up to date
+    const current = state.opsRows || [];
+    const currentScore = current.reduce((s, r) => s + rowTextScore(r), 0);
+    const backup = loadOpsBackup();
+    const backupScore = backup.reduce((s, r) => s + rowTextScore(r), 0);
+
+    if (backupScore > 0 && currentScore === 0) {
+      // State has empty shells (or nothing) but backup has real text — restore & push to server
+      const restored: OpsRow[] = backup.map((b) => {
+        const cur = current.find((c) => c.id === b.id);
+        return { ...b, jobImage: cur?.jobImage || b.jobImage || '', updatedAt: b.updatedAt || new Date().toISOString() };
+      });
+      // Also keep any image-only rows that aren't in backup
+      current.forEach((c) => {
+        if (!restored.find((r) => r.id === c.id) && c.jobImage) restored.push(c);
+      });
+      dispatch({ type: 'SET_OPS_ROWS', payload: restored });
+      backupOpsRows(restored);
       return;
     }
-    const backup = loadOpsBackup();
-    if (backup.length > 0) {
-      dispatch({ type: 'SET_OPS_ROWS', payload: backup });
-      backupOpsRows(backup);
+    if (currentScore > 0) {
+      backupOpsRows(current);
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [loaded]);
@@ -117,7 +136,8 @@ const OperationsScreen: React.FC = () => {
 
   const saveEdit = () => {
     if (!editData) return;
-    setRows(rows.map(r => r.id === editData.id ? editData : r));
+    const stamped = { ...editData, updatedAt: new Date().toISOString() };
+    setRows(rows.map(r => r.id === editData.id ? stamped : r));
     setEditingId(null);
     setEditData(null);
   };
