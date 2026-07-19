@@ -1,7 +1,7 @@
 import React, { createContext, useContext, useReducer, useEffect, useState, useRef } from 'react';
 import localforage from 'localforage';
 import { AppState, User, Department, Order, OrderComment, OrderHistoryEntry, KanbanColumn, AppNotification, OpsRow } from '../types';
-import { loadState, saveState, saveSession, loadSession, touchSession, serverLoad, mergeOpsRows } from '../utils/storage';
+import { loadLocalState, saveState, saveSession, loadSession, touchSession, serverLoad, mergeOpsRows } from '../utils/storage';
 import { generateId } from '../utils/helpers';
 import { INITIAL_USERS, INITIAL_DEPARTMENTS, INITIAL_ORDERS } from '../data/initialData';
 
@@ -439,46 +439,61 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     dispatch(action);
   };
 
-  // Load from IndexedDB / server on mount — always exit loading screen
+  // Open instantly from local cache, then sync server in background
   useEffect(() => {
     let cancelled = false;
     const finish = () => { if (!cancelled) setLoaded(true); };
+    const safetyTimer = setTimeout(finish, 2000); // hard cap: 2 seconds
 
-    // Hard safety: never stay on spinner longer than 12 seconds
-    const safetyTimer = setTimeout(finish, 12000);
+    const migrateDepts = (depts: Department[]) =>
+      (depts || []).map((d) => {
+        if (d.name === 'قسم التسليم') {
+          const hasDefault = (d.columns || []).some((c) => c.id === 'new' && c.title === 'جديد');
+          return {
+            ...d,
+            color: '#8b5cf6',
+            columns: hasDefault ? [
+              { id: 'new',         title: 'الطلبيات الجاهزة', color: '#6366f1', order: 0 },
+              { id: 'in_progress', title: 'للتوصيل',           color: '#f59e0b', order: 1 },
+              { id: 'review',      title: 'قيد التسليم',       color: '#8b5cf6', order: 2 },
+              { id: 'done',        title: 'للاستلام',          color: '#10b981', order: 3 },
+            ] : (d.columns || []),
+          };
+        }
+        return d;
+      });
 
-    loadState()
+    // 1) Local first — show UI immediately
+    loadLocalState()
       .then((saved) => {
         if (cancelled) return;
         try {
-          const depts = saved.departments || [];
-          const migratedDepts = depts.map((d) => {
-            if (d.name === 'قسم التسليم') {
-              const hasDefault = (d.columns || []).some((c) => c.id === 'new' && c.title === 'جديد');
-              return {
-                ...d,
-                color: '#8b5cf6',
-                columns: hasDefault ? [
-                  { id: 'new',         title: 'الطلبيات الجاهزة', color: '#6366f1', order: 0 },
-                  { id: 'in_progress', title: 'للتوصيل',           color: '#f59e0b', order: 1 },
-                  { id: 'review',      title: 'قيد التسليم',       color: '#8b5cf6', order: 2 },
-                  { id: 'done',        title: 'للاستلام',          color: '#10b981', order: 3 },
-                ] : (d.columns || []),
-              };
-            }
-            return d;
+          trackedDispatch({
+            type: 'INIT_STATE',
+            payload: { ...saved, departments: migrateDepts(saved.departments || []), opsRows: saved.opsRows || [] },
           });
-          trackedDispatch({ type: 'INIT_STATE', payload: { ...saved, departments: migratedDepts, opsRows: saved.opsRows || [] } });
           trackedDispatch({ type: 'PURGE_OLD_TRASH' });
-
           const sessionUserId = loadSession();
           if (sessionUserId) {
             const sessionUser = (saved.users || []).find((u) => u.id === sessionUserId);
             if (sessionUser) trackedDispatch({ type: 'LOGIN', payload: sessionUser });
           }
-        } catch { /* ignore init errors — still show UI */ }
+        } catch { /* ignore */ }
         clearTimeout(safetyTimer);
         finish();
+
+        // 2) Background server sync (does not block opening)
+        serverLoad().then((serverData) => {
+          if (cancelled || !serverData) return;
+          trackedDispatch({
+            type: 'SYNC_STATE',
+            payload: {
+              ...serverData,
+              departments: migrateDepts(serverData.departments || []),
+              opsRows: serverData.opsRows || [],
+            },
+          });
+        }).catch(() => {});
       })
       .catch(() => {
         clearTimeout(safetyTimer);

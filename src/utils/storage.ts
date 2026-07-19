@@ -287,12 +287,37 @@ const mergeOrders = (server: AppState['orders'], local: AppState['orders']): App
   return result;
 };
 
+/** Fast local-only load — opens the app within ~1–2 seconds */
+export const loadLocalState = async (): Promise<AppState> => {
+  try {
+    const localRaw = await Promise.race([
+      localforage.getItem<AppState>(DB_KEY).catch(() => null),
+      new Promise<null>((resolve) => setTimeout(() => resolve(null), 1500)),
+    ]);
+    const local = localRaw as AppState | null;
+    if (local && local.departments?.length) {
+      return {
+        ...getDefaultState(),
+        ...local,
+        currentUser: null,
+        notifications: local.notifications || [],
+        opsRows: local.opsRows || [],
+      };
+    }
+    const migrated = migrateFromLocalStorage();
+    if (migrated) {
+      return { ...getDefaultState(), ...migrated, currentUser: null, notifications: [], opsRows: (migrated as any).opsRows || [] };
+    }
+  } catch { /* fall through */ }
+  return getDefaultState();
+};
+
 export const loadState = async (): Promise<AppState> => {
   try {
   // Load both sources in parallel (each has its own timeout / catch)
   const localPromise = Promise.race([
     localforage.getItem<AppState>(DB_KEY).catch(() => null),
-    new Promise<null>((resolve) => setTimeout(() => resolve(null), 5000)),
+    new Promise<null>((resolve) => setTimeout(() => resolve(null), 1500)),
   ]);
   const [fromServer, localRaw] = await Promise.all([
     serverLoad(),
