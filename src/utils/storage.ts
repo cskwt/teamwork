@@ -128,23 +128,43 @@ export const clearSession = () => {
 // ─── Server API ───────────────────────────────────────────────────────────────
 // Use www. — bare csapp.io currently hangs/times out on Hostinger
 const API_URL = 'https://www.csapp.io/teamwork-api/api.php';
-const OPS_API_URL = 'https://www.csapp.io/teamwork-api/ops-sync.php';
 const API_KEY = 'tw_Cs9kWt2026xTeAmWoRk';
+
+// Prefer same-origin Vercel proxy; fall back to Hostinger directly
+const OPS_API_CANDIDATES = [
+  '/api/ops',
+  'https://www.csapp.io/teamwork-api/ops-sync.php',
+];
 
 export type OpsServerPayload = { rows: OpsRow[]; updatedAt: string | null };
 
-/** Fast dedicated ops API (file-based on Hostinger) */
+const opsFetch = async (method: 'GET' | 'POST', body?: OpsServerPayload): Promise<Response | null> => {
+  for (const url of OPS_API_CANDIDATES) {
+    try {
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), 10000);
+      const res = await fetch(url, {
+        method,
+        headers: {
+          'X-API-Key': API_KEY,
+          ...(method === 'POST' ? { 'Content-Type': 'application/json' } : {}),
+        },
+        body: method === 'POST' ? JSON.stringify(body) : undefined,
+        signal: controller.signal,
+        cache: 'no-store',
+      });
+      clearTimeout(timer);
+      if (res.ok) return res;
+    } catch { /* try next candidate */ }
+  }
+  return null;
+};
+
+/** Fast dedicated ops API via Vercel proxy → Hostinger file store */
 export const opsServerLoad = async (): Promise<OpsServerPayload | null> => {
   try {
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), 4000);
-    const res = await fetch(OPS_API_URL, {
-      headers: { 'X-API-Key': API_KEY },
-      signal: controller.signal,
-      cache: 'no-store',
-    });
-    clearTimeout(timer);
-    if (!res.ok) return null;
+    const res = await opsFetch('GET');
+    if (!res) return null;
     const data = await res.json();
     if (!data || !Array.isArray(data.rows) || data.departments || data.orders) {
       return { rows: [], updatedAt: null };
@@ -156,28 +176,25 @@ export const opsServerLoad = async (): Promise<OpsServerPayload | null> => {
 };
 
 export const opsServerSave = async (rows: OpsRow[], updatedAt: string): Promise<boolean> => {
+  const payload: OpsServerPayload = {
+    rows: (rows || []).map((r) => ({ ...r, jobImage: '' })),
+    updatedAt,
+  };
   try {
-    const payload: OpsServerPayload = {
-      rows: (rows || []).map((r) => ({ ...r, jobImage: '' })),
-      updatedAt,
-    };
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), 4000);
-    const res = await fetch(OPS_API_URL, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'X-API-Key': API_KEY,
-      },
-      body: JSON.stringify(payload),
-      signal: controller.signal,
-    });
-    clearTimeout(timer);
-    return res.ok;
+    const res = await opsFetch('POST', payload);
+    return !!res && res.ok;
   } catch {
     return false;
   }
 };
+
+/** Prefer rows that actually have text content over empty shells */
+export const opsRowsScore = (rows: OpsRow[]): number =>
+  (rows || []).reduce((sum, r) => {
+    const filled = ['customer', 'job', 'qty', 'target', 'finishedQty', 'date', 'finish']
+      .filter((k) => !!(r as any)[k] && String((r as any)[k]).trim()).length;
+    return sum + filled;
+  }, 0);
 
 export const serverLoad = async (): Promise<AppState | null> => {
   try {

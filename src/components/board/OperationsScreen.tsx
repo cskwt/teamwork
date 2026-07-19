@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Plus, Trash2, Monitor, Edit2, Check, X } from 'lucide-react';
 import { OpsRow } from '../../types';
-import { opsServerLoad, opsServerSave } from '../../utils/storage';
+import { opsServerLoad, opsServerSave, opsRowsScore } from '../../utils/storage';
 
 const emptyRow = (): OpsRow => ({
   id: Math.random().toString(36).slice(2),
@@ -119,8 +119,10 @@ const OperationsScreen: React.FC = () => {
   useEffect(() => {
     let cancelled = false;
     const backup = loadBackup();
+    const backupScore = opsRowsScore(backup);
     if (backup.length > 0) {
-      const stamp = new Date().toISOString();
+      // Keep original stamps — do NOT invent "now" or we block server updates
+      const stamp = backup.reduce((m, r) => ((r.updatedAt || '') > m ? (r.updatedAt || '') : m), '') || '1970-01-01T00:00:00.000Z';
       applyRows(backup, stamp, false);
       setSyncStatus('ok');
     } else {
@@ -128,48 +130,60 @@ const OperationsScreen: React.FC = () => {
       setRowsState([]);
     }
 
-    // Background sync (short timeout — does not block UI)
     (async () => {
       const remote = await opsServerLoad();
       if (cancelled) return;
       if (!remote) {
         setSyncStatus('error');
+        // Keep retrying in background
         return;
       }
+      const remoteScore = opsRowsScore(remote.rows);
+      const localScore = opsRowsScore(backup);
       const remoteAt = remote.updatedAt || '';
       const localAt = localStampRef.current || '';
-      if (remote.rows.length > 0 && (!localAt || remoteAt >= localAt)) {
+
+      if (remoteScore > localScore || (remoteScore > 0 && remoteAt >= localAt)) {
         applyRows(remote.rows, remoteAt || new Date().toISOString(), false);
-      } else if (backup.length > 0 && remote.rows.length === 0) {
-        // Push local backup to server once
+        setSyncStatus('ok');
+      } else if (localScore > 0 && remoteScore === 0) {
+        // Local has real data, server empty/shells — push local
         const stamp = new Date().toISOString();
         applyRows(backup, stamp, true);
-        return;
+      } else {
+        setSyncStatus('ok');
       }
-      setSyncStatus('ok');
     })();
 
     return () => { cancelled = true; };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Poll dedicated ops API every 3s (lightweight — not the 20MB app state)
+  // Poll + auto-retry sync every 3s
   useEffect(() => {
     const poll = async () => {
       if (savingRef.current || editingId) return;
       const remote = await opsServerLoad();
-      if (!remote) return;
+      if (!remote) {
+        setSyncStatus((s) => (s === 'saving' ? s : 'error'));
+        return;
+      }
+      setSyncStatus((s) => (s === 'saving' ? s : 'ok'));
       const remoteAt = remote.updatedAt || '';
       const localAt = localStampRef.current || updatedAt || '';
-      if (remoteAt && remoteAt > localAt) {
+      const remoteScore = opsRowsScore(remote.rows);
+      const localScore = opsRowsScore(rows);
+      if (remoteScore > localScore || (remoteAt && remoteAt > localAt && remoteScore > 0)) {
         applyRows(remote.rows, remoteAt, false);
-        setSyncStatus('ok');
+      } else if (localScore > 0 && remoteScore === 0) {
+        // Push local filled table if server still empty
+        applyRows(rows, new Date().toISOString(), true);
       }
     };
     const id = setInterval(poll, 3000);
     return () => clearInterval(id);
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [editingId, updatedAt]);
+  }, [editingId, updatedAt, rows]);
 
   useEffect(() => {
     const timer = setInterval(() => setNow(new Date()), 1000);
