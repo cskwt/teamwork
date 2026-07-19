@@ -164,7 +164,7 @@ const OperationsScreen: React.FC = () => {
                         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6 }}>
                           {editData[field] && (
                             <div style={{ position: 'relative' }}>
-                              <img src={editData[field]} alt="job" style={{ width: 64, height: 64, objectFit: 'cover', borderRadius: 8, border: '2px solid #22c55e' }} />
+                              <img src={editData[field]} alt="job" style={{ width: 64, height: 64, objectFit: 'contain', borderRadius: 8, border: '2px solid #22c55e', background: '#f8fafc' }} />
                               <button
                                 onClick={() => setEditData(prev => prev ? { ...prev, jobImage: '' } : prev)}
                                 style={{ position: 'absolute', top: -6, right: -6, background: '#ef4444', border: 'none', color: '#fff', borderRadius: '50%', width: 18, height: 18, cursor: 'pointer', fontSize: 10, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
@@ -223,7 +223,7 @@ const OperationsScreen: React.FC = () => {
                       return (
                         <td key={field} style={{ padding: isFS ? '12px 20px' : '8px 10px', textAlign: 'center', borderBottom: '1px solid #e2e8f0' }}>
                           {row[field]
-                            ? <img src={row[field]} alt="job" style={{ width: isFS ? 100 : 56, height: isFS ? 100 : 56, objectFit: 'cover', borderRadius: 10, border: '2px solid #e2e8f0', boxShadow: '0 2px 8px rgba(0,0,0,0.10)' }} />
+                            ? <img src={row[field]} alt="job" style={{ width: isFS ? 100 : 56, height: isFS ? 100 : 56, objectFit: 'contain', borderRadius: 10, border: '2px solid #e2e8f0', background: '#f8fafc', boxShadow: '0 2px 8px rgba(0,0,0,0.10)' }} />
                             : <span style={{ color: '#cbd5e1', fontSize: isFS ? 20 : 13 }}>—</span>
                           }
                         </td>
