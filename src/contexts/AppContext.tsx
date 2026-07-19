@@ -507,7 +507,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         for (let i = 0; i < Math.min(o.id.length, 8); i++) v += o.id.charCodeAt(i);
         return (h + v) % 999983;
       }, 0);
-      return `${orders.length}:${maxOrderUpdated}:${sortSum}:${deletedCount}:${archivedCount}:${idHash}|${depts.length}:${maxDeptUpdated}`;
+      const opsRows = s.opsRows || [];
+      const opsHash = opsRows.length + ':' + opsRows.reduce((h, r) => h + r.id + (r.finishedQty || '') + (r.target || ''), '').length;
+      return `${orders.length}:${maxOrderUpdated}:${sortSum}:${deletedCount}:${archivedCount}:${idHash}|${depts.length}:${maxDeptUpdated}|ops:${opsHash}`;
     };
 
     const poll = async () => {
