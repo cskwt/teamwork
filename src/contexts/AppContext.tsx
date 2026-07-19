@@ -62,7 +62,14 @@ type Action =
 const reducer = (state: AppState, action: Action): AppState => {
   switch (action.type) {
     case 'INIT_STATE':
-      return { ...action.payload, currentUser: null, notifications: action.payload.notifications || [] };
+      return {
+        ...action.payload,
+        currentUser: null,
+        notifications: action.payload.notifications || [],
+        opsRows: (action.payload.opsRows && action.payload.opsRows.length > 0)
+          ? action.payload.opsRows
+          : (state.opsRows || []),
+      };
     case 'SYNC_STATE': {
       // Server is the source of truth. Merge only allows local to win when it has
       // a genuinely newer change (e.g. user just made an edit that hasn't saved yet).
