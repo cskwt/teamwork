@@ -1,20 +1,24 @@
-UPLOAD THIS FILE TO HOSTINGER (required for Operations Screen sync)
-================================================================
+CRITICAL — Re-upload this file to Hostinger now
+================================================
 
-File:  ops-api.php
+File: ops-api.php  (UPDATED — file-based, no MySQL)
 
-Destination on Hostinger:
-  public_html/teamwork-api/ops-api.php
-  (same folder as the existing api.php)
+Why the red "Sync error":
+  The previous ops-api.php used MySQL. Your database is overloaded
+  by the huge 20MB app_state, so ops-api hung and timed out.
 
-Steps:
-  1. Open Hostinger → Files → File Manager
-  2. Go to public_html/teamwork-api/
-  3. Upload ops-api.php into that folder
-  4. Open in browser (should say Unauthorized without key — that means it works):
-     https://csapp.io/teamwork-api/ops-api.php
+What changed:
+  ops-api.php now saves to a simple file: ops_data.json
+  No MySQL → fast and reliable sync.
 
-Why:
-  The main api.php stores ~20MB of orders. Saving the ops table
-  through it was too slow and kept wiping the table data.
-  ops-api.php uses a tiny separate database table for instant sync.
+Upload steps:
+  1. Hostinger → Files → File Manager
+  2. Go to: public_html/teamwork-api/
+  3. Delete the old ops-api.php (or overwrite it)
+  4. Upload the NEW ops-api.php from:
+       /Users/mac/Projects/teamwork/hostinger-api/ops-api.php
+  5. Make sure the folder is writable (ops_data.json will be created automatically)
+  6. Hard Refresh the app
+
+Test URL (should show Unauthorized without key — proves PHP runs):
+  https://csapp.io/teamwork-api/ops-api.php

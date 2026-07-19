@@ -133,46 +133,64 @@ const API_KEY = 'tw_Cs9kWt2026xTeAmWoRk';
 
 export type OpsServerPayload = { rows: OpsRow[]; updatedAt: string | null };
 
-/** Fast dedicated ops table — NOT the 20MB+ main app_state blob */
+/** Fast dedicated ops API (file-based on Hostinger) — NOT the 20MB+ main app_state blob */
 export const opsServerLoad = async (): Promise<OpsServerPayload | null> => {
-  try {
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), 8000);
-    const res = await fetch(OPS_API_URL, {
-      headers: { 'X-API-Key': API_KEY },
-      signal: controller.signal,
-    });
-    clearTimeout(timer);
-    if (!res.ok) return null; // 404 until ops-api.php is uploaded to Hostinger
-    const data = await res.json();
-    // Guard: never treat main app_state as ops payload
-    if (!data || !Array.isArray(data.rows) || data.departments || data.orders) {
-      return { rows: [], updatedAt: null };
+  for (let attempt = 0; attempt < 3; attempt++) {
+    try {
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), 12000);
+      const res = await fetch(OPS_API_URL, {
+        headers: { 'X-API-Key': API_KEY },
+        signal: controller.signal,
+        cache: 'no-store',
+      });
+      clearTimeout(timer);
+      if (!res.ok) {
+        if (attempt < 2) { await new Promise((r) => setTimeout(r, 500 * (attempt + 1))); continue; }
+        return null;
+      }
+      const data = await res.json();
+      // Guard: never treat main app_state as ops payload
+      if (!data || !Array.isArray(data.rows) || data.departments || data.orders) {
+        return { rows: [], updatedAt: null };
+      }
+      return { rows: data.rows as OpsRow[], updatedAt: data.updatedAt || null };
+    } catch {
+      if (attempt < 2) { await new Promise((r) => setTimeout(r, 500 * (attempt + 1))); continue; }
+      return null;
     }
-    return { rows: data.rows as OpsRow[], updatedAt: data.updatedAt || null };
-  } catch { return null; }
+  }
+  return null;
 };
 
 export const opsServerSave = async (rows: OpsRow[], updatedAt: string): Promise<boolean> => {
-  try {
-    const payload: OpsServerPayload = {
-      rows: (rows || []).map((r) => ({ ...r, jobImage: '' })),
-      updatedAt,
-    };
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), 8000);
-    const res = await fetch(OPS_API_URL, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'X-API-Key': API_KEY,
-      },
-      body: JSON.stringify(payload),
-      signal: controller.signal,
-    });
-    clearTimeout(timer);
-    return res.ok;
-  } catch { return false; }
+  const payload: OpsServerPayload = {
+    rows: (rows || []).map((r) => ({ ...r, jobImage: '' })),
+    updatedAt,
+  };
+  for (let attempt = 0; attempt < 3; attempt++) {
+    try {
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), 12000);
+      const res = await fetch(OPS_API_URL, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-API-Key': API_KEY,
+        },
+        body: JSON.stringify(payload),
+        signal: controller.signal,
+      });
+      clearTimeout(timer);
+      if (res.ok) return true;
+      if (attempt < 2) { await new Promise((r) => setTimeout(r, 500 * (attempt + 1))); continue; }
+      return false;
+    } catch {
+      if (attempt < 2) { await new Promise((r) => setTimeout(r, 500 * (attempt + 1))); continue; }
+      return false;
+    }
+  }
+  return false;
 };
 
 export const serverLoad = async (): Promise<AppState | null> => {
