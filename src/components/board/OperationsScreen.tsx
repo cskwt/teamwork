@@ -43,7 +43,7 @@ const PieProgress: React.FC<{ pct: number; size?: number }> = ({ pct, size = 52 
   const circ = 2 * Math.PI * r;
   const clamped = Math.min(100, Math.max(0, pct));
   const dash = (clamped / 100) * circ;
-  const color = clamped >= 100 ? '#22c55e' : clamped >= 60 ? '#f59e0b' : '#f43f5e';
+  const color = clamped >= 100 ? '#22c55e' : clamped > 50 ? '#f59e0b' : '#f43f5e';
   return (
     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2 }}>
       <svg width={size} height={size} style={{ transform: 'rotate(-90deg)' }}>
