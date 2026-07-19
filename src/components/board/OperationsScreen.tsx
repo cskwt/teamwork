@@ -151,20 +151,14 @@ const OperationsScreen: React.FC = () => {
                   {COL_FIELDS.map((field) => (
                     <td key={field} style={{ padding: '7px 10px', borderBottom: '1px solid #e2e8f0' }}>
                       {field === 'progress' ? (
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                          <input
-                            type="range" min={0} max={100}
-                            value={editData[field] || '0'}
-                            onChange={e => setEditData(prev => prev ? { ...prev, [field]: e.target.value } : prev)}
-                            style={{ flex: 1, accentColor: '#f43f5e' }}
-                          />
-                          <input
-                            type="number" min={0} max={100}
-                            value={editData[field] || '0'}
-                            onChange={e => setEditData(prev => prev ? { ...prev, [field]: e.target.value } : prev)}
-                            style={{ width: 52, background: '#fff', border: '1.5px solid #6366f1', color: '#1e293b', borderRadius: 6, padding: '5px 6px', fontSize: 13, textAlign: 'center', outline: 'none' }}
-                          />
-                          <span style={{ fontSize: 12, color: '#64748b' }}>%</span>
+                        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4 }}>
+                          {(() => {
+                            const t = parseFloat(editData.target);
+                            const f = parseFloat(editData.finishedQty);
+                            const pct = t > 0 && !isNaN(f) ? Math.min(100, Math.round((f / t) * 100)) : 0;
+                            return <PieProgress pct={pct} size={48} />;
+                          })()}
+                          <span style={{ fontSize: 10, color: '#94a3b8' }}>Auto from Target & Finished Qty</span>
                         </div>
                       ) : field === 'jobImage' ? (
                         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6 }}>
@@ -216,10 +210,12 @@ const OperationsScreen: React.FC = () => {
                 <>
                   {COL_FIELDS.map((field, i) => {
                     if (field === 'progress') {
-                      const pct = parseInt(row[field] || '0', 10);
+                      const t = parseFloat(row.target);
+                      const f = parseFloat(row.finishedQty);
+                      const autoPct = t > 0 && !isNaN(f) ? Math.min(100, Math.round((f / t) * 100)) : parseInt(row[field] || '0', 10);
                       return (
                         <td key={field} style={{ padding: isFS ? '16px 28px' : '8px 12px', textAlign: 'center', borderBottom: '1px solid #e2e8f0' }}>
-                          <PieProgress pct={pct} size={isFS ? 80 : 52} />
+                          <PieProgress pct={autoPct} size={isFS ? 80 : 52} />
                         </td>
                       );
                     }
