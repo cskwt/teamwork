@@ -270,17 +270,16 @@ const reducer = (state: AppState, action: Action): AppState => {
         ...state,
         orders: state.orders.map((o) => {
           if (o.id !== action.payload) return o;
-          // Strip file attachments (DataURLs) to free memory — metadata kept
-          const stripped = {
+          // No files in archive — keeps sync payload small and reliable
+          return {
             ...o,
             deletedAt: now,
             archivedAt: now,
             updatedAt: now,
-            invoice: o.invoice ? { ...o.invoice, dataUrl: undefined } : undefined,
-            invoices: (o.invoices || []).map((f) => ({ ...f, dataUrl: undefined })),
-            orderForms: (o.orderForms || []).map((f) => ({ ...f, dataUrl: undefined })),
+            invoice: undefined,
+            invoices: [],
+            orderForms: [],
           };
-          return stripped;
         }),
       };
     }
