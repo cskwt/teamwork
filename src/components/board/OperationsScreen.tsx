@@ -9,6 +9,7 @@ interface OperationsRow {
   target: string;
   finish: string;
   workers: string;
+  progress: string;
 }
 
 const STORAGE_KEY = 'ops_screen_rows';
@@ -21,14 +22,38 @@ const emptyRow = (): OperationsRow => ({
   target: '',
   finish: '',
   workers: '',
+  progress: '',
 });
 
 const DAYS_EN = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 const MONTHS_EN = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
 
-const COL_COLORS = ['#3b82f6', '#22c55e', '#f59e0b', '#ef4444', '#8b5cf6', '#06b6d4'];
-const COL_HEADERS = ['Customer', 'Job', 'Quantity', 'Target', 'Finishing Date', 'Workers'];
-const COL_FIELDS: (keyof OperationsRow)[] = ['customer', 'job', 'qty', 'target', 'finish', 'workers'];
+const COL_COLORS = ['#3b82f6', '#22c55e', '#f59e0b', '#ef4444', '#8b5cf6', '#06b6d4', '#f43f5e'];
+const COL_HEADERS = ['Customer', 'Job', 'Quantity', 'Target', 'Finishing Date', 'Workers', 'Progress'];
+const COL_FIELDS: (keyof OperationsRow)[] = ['customer', 'job', 'qty', 'target', 'finish', 'workers', 'progress'];
+
+const PieProgress: React.FC<{ pct: number; size?: number }> = ({ pct, size = 52 }) => {
+  const r = (size - 8) / 2;
+  const circ = 2 * Math.PI * r;
+  const clamped = Math.min(100, Math.max(0, pct));
+  const dash = (clamped / 100) * circ;
+  const color = clamped >= 100 ? '#22c55e' : clamped >= 60 ? '#f59e0b' : '#f43f5e';
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2 }}>
+      <svg width={size} height={size} style={{ transform: 'rotate(-90deg)' }}>
+        <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke="#e2e8f0" strokeWidth={7} />
+        <circle
+          cx={size / 2} cy={size / 2} r={r} fill="none"
+          stroke={color} strokeWidth={7}
+          strokeDasharray={`${dash} ${circ}`}
+          strokeLinecap="round"
+          style={{ transition: 'stroke-dasharray 0.4s ease' }}
+        />
+      </svg>
+      <span style={{ fontSize: 11, fontWeight: 700, color, marginTop: -2 }}>{clamped}%</span>
+    </div>
+  );
+};
 
 const OperationsScreen: React.FC = () => {
   const [rows, setRows] = useState<OperationsRow[]>(() => {
@@ -119,19 +144,37 @@ const OperationsScreen: React.FC = () => {
                 <>
                   {COL_FIELDS.map((field) => (
                     <td key={field} style={{ padding: '7px 10px', borderBottom: '1px solid #e2e8f0' }}>
-                      <input
-                        type={field === 'finish' ? 'date' : 'text'}
-                        value={editData[field]}
-                        onChange={e => setEditData(prev => prev ? { ...prev, [field]: e.target.value } : prev)}
-                        onKeyDown={e => { if (e.key === 'Enter') saveEdit(); if (e.key === 'Escape') cancelEdit(); }}
-                        autoFocus={field === 'customer'}
-                        style={{
-                          background: '#fff', border: '1.5px solid #6366f1',
-                          color: '#1e293b', borderRadius: 6, padding: '6px 10px',
-                          fontSize: 14, textAlign: 'center', width: '100%', outline: 'none',
-                          boxShadow: '0 0 0 3px rgba(99,102,241,0.12)',
-                        }}
-                      />
+                      {field === 'progress' ? (
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                          <input
+                            type="range" min={0} max={100}
+                            value={editData[field] || '0'}
+                            onChange={e => setEditData(prev => prev ? { ...prev, [field]: e.target.value } : prev)}
+                            style={{ flex: 1, accentColor: '#f43f5e' }}
+                          />
+                          <input
+                            type="number" min={0} max={100}
+                            value={editData[field] || '0'}
+                            onChange={e => setEditData(prev => prev ? { ...prev, [field]: e.target.value } : prev)}
+                            style={{ width: 52, background: '#fff', border: '1.5px solid #6366f1', color: '#1e293b', borderRadius: 6, padding: '5px 6px', fontSize: 13, textAlign: 'center', outline: 'none' }}
+                          />
+                          <span style={{ fontSize: 12, color: '#64748b' }}>%</span>
+                        </div>
+                      ) : (
+                        <input
+                          type={field === 'finish' ? 'date' : 'text'}
+                          value={editData[field]}
+                          onChange={e => setEditData(prev => prev ? { ...prev, [field]: e.target.value } : prev)}
+                          onKeyDown={e => { if (e.key === 'Enter') saveEdit(); if (e.key === 'Escape') cancelEdit(); }}
+                          autoFocus={field === 'customer'}
+                          style={{
+                            background: '#fff', border: '1.5px solid #6366f1',
+                            color: '#1e293b', borderRadius: 6, padding: '6px 10px',
+                            fontSize: 14, textAlign: 'center', width: '100%', outline: 'none',
+                            boxShadow: '0 0 0 3px rgba(99,102,241,0.12)',
+                          }}
+                        />
+                      )}
                     </td>
                   ))}
                   <td style={{ textAlign: 'center', padding: '7px 6px', borderBottom: '1px solid #e2e8f0' }}>
@@ -142,6 +185,18 @@ const OperationsScreen: React.FC = () => {
               ) : (
                 <>
                   {COL_FIELDS.map((field, i) => {
+                    if (field === 'progress') {
+                      const pct = parseInt(row[field] || '0', 10);
+                      return (
+                        <td key={field} style={{
+                          padding: isFS ? '16px 28px' : '8px 12px',
+                          textAlign: 'center',
+                          borderBottom: '1px solid #e2e8f0',
+                        }}>
+                          <PieProgress pct={pct} size={isFS ? 80 : 52} />
+                        </td>
+                      );
+                    }
                     let display = row[field] || '—';
                     if (field === 'finish' && row[field]) {
                       const d = new Date(row[field]);
