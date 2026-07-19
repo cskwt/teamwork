@@ -120,6 +120,7 @@ const OperationsScreen: React.FC = () => {
                   {COL_FIELDS.map((field) => (
                     <td key={field} style={{ padding: '7px 10px', borderBottom: '1px solid #e2e8f0' }}>
                       <input
+                        type={field === 'finish' ? 'date' : 'text'}
                         value={editData[field]}
                         onChange={e => setEditData(prev => prev ? { ...prev, [field]: e.target.value } : prev)}
                         onKeyDown={e => { if (e.key === 'Enter') saveEdit(); if (e.key === 'Escape') cancelEdit(); }}
@@ -140,19 +141,28 @@ const OperationsScreen: React.FC = () => {
                 </>
               ) : (
                 <>
-                  {COL_FIELDS.map((field, i) => (
-                    <td key={field} style={{
-                      padding: isFS ? '22px 32px' : '12px 16px',
-                      textAlign: 'center',
-                      color: row[field] ? '#1e293b' : '#cbd5e1',
-                      fontWeight: row[field] ? 600 : 400,
-                      fontSize: isFS ? 24 : 14,
-                      borderBottom: '1px solid #e2e8f0',
-                      borderLeft: i === 0 ? `4px solid ${COL_COLORS[0]}` : 'none',
-                    }}>
-                      {row[field] || '—'}
-                    </td>
-                  ))}
+                  {COL_FIELDS.map((field, i) => {
+                    let display = row[field] || '—';
+                    if (field === 'finish' && row[field]) {
+                      const d = new Date(row[field]);
+                      if (!isNaN(d.getTime())) {
+                        display = d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
+                      }
+                    }
+                    return (
+                      <td key={field} style={{
+                        padding: isFS ? '22px 32px' : '12px 16px',
+                        textAlign: 'center',
+                        color: row[field] ? '#1e293b' : '#cbd5e1',
+                        fontWeight: row[field] ? 600 : 400,
+                        fontSize: isFS ? 24 : 14,
+                        borderBottom: '1px solid #e2e8f0',
+                        borderLeft: i === 0 ? `4px solid ${COL_COLORS[0]}` : 'none',
+                      }}>
+                        {display}
+                      </td>
+                    );
+                  })}
                   {!isFS && (
                     <td style={{ textAlign: 'center', padding: '8px 6px', borderBottom: '1px solid #e2e8f0' }}>
                       <button onClick={() => startEdit(row)} title="Edit" style={{ background: '#eff6ff', border: 'none', color: '#6366f1', borderRadius: 6, padding: '5px 8px', cursor: 'pointer', marginRight: 4 }}><Edit2 size={13} /></button>
