@@ -181,75 +181,97 @@ export const opsServerSave = async (rows: OpsRow[], updatedAt: string): Promise<
 
 export const serverLoad = async (): Promise<AppState | null> => {
   try {
-    const fetchWork = async (): Promise<AppState | null> => {
-      const controller = new AbortController();
-      const timer = setTimeout(() => controller.abort(), 8000);
-      try {
-        const res = await fetch(API_URL, {
-          headers: { 'X-API-Key': API_KEY },
-          signal: controller.signal,
-        });
-        if (!res.ok) return null;
-        const data = await res.json();
-        if (data && data.departments?.length) return data as AppState;
-        return null;
-      } finally {
-        clearTimeout(timer);
-      }
-    };
-    // Whole load (including JSON parse) must finish within 10s or we fall back to local
-    return await Promise.race([
-      fetchWork(),
-      new Promise<null>((resolve) => setTimeout(() => resolve(null), 10000)),
-    ]);
+    const controller = new AbortController();
+    // After compacting state (~0.5MB) this should be fast; keep 30s safety margin
+    const timer = setTimeout(() => controller.abort(), 30000);
+    try {
+      const res = await fetch(API_URL, {
+        headers: { 'X-API-Key': API_KEY },
+        signal: controller.signal,
+        cache: 'no-store',
+      });
+      if (!res.ok) return null;
+      const data = await res.json();
+      if (data && data.departments?.length) return data as AppState;
+      return null;
+    } finally {
+      clearTimeout(timer);
+    }
   } catch { return null; }
 };
 
-// Files smaller than this threshold are included in the server payload so they
-// can be shared across devices. Larger files are stripped to prevent the JSON
-// payload from exceeding PHP / server limits.
-const MAX_DATAURL_SERVER = 3 * 1024 * 1024; // 3 MB in characters (~2.25 MB binary)
-
-const stripLargeDataUrls = (state: AppState): AppState => {
-  const shouldStrip = (url?: string) => url && url.length > MAX_DATAURL_SERVER;
+/** Strip ALL file DataURLs from server payload — files stay in local IndexedDB only.
+ *  Keeping them on the server bloated the JSON to ~20MB and broke sync for everyone. */
+const stripAllDataUrls = (state: AppState): AppState => {
+  const meta = (f: any) => {
+    if (!f) return f;
+    const { dataUrl, ...rest } = f;
+    return rest;
+  };
   return {
     ...state,
+    users: (state.users || []).map((u) => ({
+      ...u,
+      avatar: (u.avatar && u.avatar.startsWith('data:') && u.avatar.length > 50000) ? '' : u.avatar,
+    })),
     orders: (state.orders || []).map((o) => ({
       ...o,
-      invoice: o.invoice
-        ? { ...o.invoice, dataUrl: shouldStrip(o.invoice.dataUrl) ? undefined : o.invoice.dataUrl }
-        : undefined,
-      invoices: (o.invoices || []).map((inv) => ({
-        ...inv,
-        dataUrl: shouldStrip(inv.dataUrl) ? undefined : inv.dataUrl,
-      })),
-      orderForms: (o.orderForms || []).map((f) => ({
-        ...f,
-        dataUrl: shouldStrip(f.dataUrl) ? undefined : f.dataUrl,
-      })),
+      invoice: o.invoice ? meta(o.invoice) : undefined,
+      invoices: (o.invoices || []).map(meta),
+      orderForms: (o.orderForms || []).map(meta),
     })),
-    // Strip jobImage from server payload entirely — images stay in local IndexedDB only
     opsRows: (state.opsRows || []).map((r) => ({ ...r, jobImage: '' })),
   };
 };
 
 const serverSave = async (state: AppState): Promise<boolean> => {
   try {
-    const payload = stripLargeDataUrls({ ...state, currentUser: null }) as any;
-    // Ops table syncs via ?resource=ops — never embed in the 20MB main blob
+    const payload = stripAllDataUrls({ ...state, currentUser: null }) as any;
     delete payload.opsRows;
     delete payload.opsUpdatedAt;
-    const res = await fetch(API_URL, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'X-API-Key': API_KEY,
-      },
-      body: JSON.stringify(payload),
-    });
-    return res.ok;
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 45000);
+    try {
+      const res = await fetch(API_URL, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-API-Key': API_KEY,
+        },
+        body: JSON.stringify(payload),
+        signal: controller.signal,
+      });
+      return res.ok;
+    } finally {
+      clearTimeout(timer);
+    }
   } catch { return false; }
 };
+
+/** Merge local + server orders for a safe write — never drop either side's orders */
+const mergeOrdersForSave = (
+  serverOrders: AppState['orders'],
+  localOrders: AppState['orders'],
+): AppState['orders'] => {
+  const srvMap = new Map((serverOrders || []).map((o) => [o.id, o]));
+  const result: AppState['orders'] = [];
+  (localOrders || []).forEach((loc) => {
+    const srv = srvMap.get(loc.id);
+    if (!srv) {
+      if (!loc.deletedAt) result.push(loc);
+      return;
+    }
+    result.push(mergeOrder(srv, loc));
+  });
+  (serverOrders || []).forEach((srv) => {
+    if (!result.find((o) => o.id === srv.id)) result.push(srv);
+  });
+  return result;
+};
+
+// Serialize server writes — concurrent saveState calls were racing and wiping orders
+let saveQueue: Promise<void> = Promise.resolve();
+let pendingSave: AppState | null = null;
 
 // ─── Local fallback (IndexedDB) ───────────────────────────────────────────────
 const DB_KEY = 'teamwork_app_data_v5';
@@ -530,19 +552,9 @@ export const loadState = async (): Promise<AppState> => {
       const localDeptMax     = (local.departments || []).reduce((m, d) => (d.updatedAt || '') > m ? (d.updatedAt || '') : m, '');
       const serverDeptMax    = (fromServer.departments || []).reduce((m: string, d: { updatedAt?: string }) => (d.updatedAt || '') > m ? (d.updatedAt || '') : m, '');
 
-      // Check if local has DataURLs the server is missing
-      const srvOrderMap = new Map((fromServer.orders || []).map((o) => [o.id, o]));
-      const localHasMissingFiles = (local.orders || []).some((loc) => {
-        const srv = srvOrderMap.get(loc.id);
-        if (!srv) return false;
-        const srvHasInvoice  = srv.invoice?.dataUrl || (srv.invoices || []).some((i) => i.dataUrl);
-        const locHasInvoice  = loc.invoice?.dataUrl || (loc.invoices || []).some((i) => i.dataUrl);
-        const srvHasForms    = (srv.orderForms || []).some((f) => f.dataUrl);
-        const locHasForms    = (loc.orderForms || []).some((f) => f.dataUrl);
-        return (!srvHasInvoice && locHasInvoice) || (!srvHasForms && locHasForms);
-      });
-
-      if (localMaxUpdated > serverMaxUpdated || localDeptMax > serverDeptMax || localHasMissingFiles) {
+      // Never push file DataURLs back to server (they re-inflate the 20MB blob).
+      // Only push if local has newer order/dept metadata.
+      if (localMaxUpdated > serverMaxUpdated || localDeptMax > serverDeptMax) {
         serverSave({ ...merged, currentUser: null });
       }
     }
@@ -595,92 +607,57 @@ const mergeUsers = (server: AppState['users'], local: AppState['users']): AppSta
 export const saveState = async (state: AppState): Promise<void> => {
   const toSave = { ...state, currentUser: null };
 
-  // Save locally first (instant)
+  // Always persist locally first (instant, offline-safe)
   localforage.setItem(DB_KEY, toSave).catch(() => {});
 
-  // Before pushing to server, fetch current server state and merge.
-  // This prevents a device with stale data from overwriting newer changes
-  // (e.g. an archive/delete made on another device a moment earlier).
-  serverLoad().then((serverCurrent) => {
+  // Coalesce rapid saves: keep only the latest pending snapshot
+  pendingSave = toSave;
+  saveQueue = saveQueue.then(async () => {
+    const snapshot = pendingSave;
+    if (!snapshot) return;
+    pendingSave = null;
+
+    // MUST load server before write. If load fails, RETRY — never overwrite blindly
+    // (blind overwrite was wiping other devices' new orders).
+    let serverCurrent: AppState | null = null;
+    for (let attempt = 0; attempt < 3; attempt++) {
+      serverCurrent = await serverLoad();
+      if (serverCurrent) break;
+      await new Promise((r) => setTimeout(r, 800 * (attempt + 1)));
+    }
     if (!serverCurrent) {
-      serverSave(toSave);
+      // Keep local only; next successful save/poll will sync. Do NOT wipe server.
+      console.warn('[sync] serverLoad failed — skip server write to protect other devices');
       return;
     }
-    // Merge orders: keep whichever version is "more final"
-    const srvMap = new Map((serverCurrent.orders || []).map((o) => [o.id, o]));
 
-    const mergedOrders: AppState['orders'] = [];
-    (toSave.orders || []).forEach((loc) => {
-      const srv = srvMap.get(loc.id);
-      if (!srv) {
-        // Order is not on server. Push it unless it was locally soft-deleted
-        // (SYNC_STATE already removes permanently-deleted orders from local state
-        //  within 3 seconds, so by the time saveState runs they should be gone).
-        if (!loc.deletedAt) mergedOrders.push(loc);
-        return;
-      }
-      mergedOrders.push(mergeOrder(srv, loc));
+    const mergedOrders = mergeOrdersForSave(serverCurrent.orders || [], snapshot.orders || []);
+    const mergedUsers = mergeUsers(serverCurrent.users || [], snapshot.users || []);
+    // Departments: prefer newer by updatedAt, union by id
+    const deptMap = new Map<string, AppState['departments'][0]>();
+    [...(serverCurrent.departments || []), ...(snapshot.departments || [])].forEach((d) => {
+      const prev = deptMap.get(d.id);
+      if (!prev) deptMap.set(d.id, d);
+      else deptMap.set(d.id, (d.updatedAt || '') >= (prev.updatedAt || '') ? d : prev);
     });
-    // Add server-only orders (created on another device, not yet in local state)
-    (serverCurrent.orders || []).forEach((srv) => {
-      if (!mergedOrders.find((o) => o.id === srv.id)) {
-        mergedOrders.push(srv);
-      }
+    const mergedDepts: AppState['departments'] = [];
+    deptMap.forEach((d) => { mergedDepts.push(d); });
+
+    const ok = await serverSave({
+      ...snapshot,
+      users: mergedUsers,
+      departments: mergedDepts,
+      orders: mergedOrders,
+      notifications: snapshot.notifications || serverCurrent.notifications || [],
     });
-    // Merge users: union — never drop a user from either side
-    const mergedUsers = mergeUsers(serverCurrent.users || [], toSave.users || []);
-
-    // Re-fetch right before write to shrink the race window for ops data
-    serverLoad().then((fresh) => {
-      const base = fresh || serverCurrent;
-      // Re-merge orders against freshest server snapshot
-      const freshMap = new Map((base.orders || []).map((o) => [o.id, o]));
-      const freshOrders: AppState['orders'] = [];
-      (toSave.orders || []).forEach((loc) => {
-        const srv = freshMap.get(loc.id);
-        if (!srv) {
-          if (!loc.deletedAt) freshOrders.push(loc);
-          return;
-        }
-        freshOrders.push(mergeOrder(srv, loc));
-      });
-      (base.orders || []).forEach((srv) => {
-        if (!freshOrders.find((o) => o.id === srv.id)) freshOrders.push(srv);
-      });
-
-      const opsResolved = resolveOpsRowsForSave(
-        base.opsRows || [],
-        toSave.opsRows || [],
-        base.opsUpdatedAt,
-        toSave.opsUpdatedAt,
-      );
-
-      serverSave({
-        ...toSave,
-        users: mergeUsers(base.users || [], toSave.users || []),
-        orders: freshOrders,
-        opsRows: opsResolved.opsRows,
-        opsUpdatedAt: opsResolved.opsUpdatedAt,
-      });
-    }).catch(() => {
-      const opsResolved = resolveOpsRowsForSave(
-        serverCurrent.opsRows || [],
-        toSave.opsRows || [],
-        serverCurrent.opsUpdatedAt,
-        toSave.opsUpdatedAt,
-      );
-      serverSave({
-        ...toSave,
-        users: mergedUsers,
-        orders: mergedOrders,
-        opsRows: opsResolved.opsRows,
-        opsUpdatedAt: opsResolved.opsUpdatedAt,
-      });
-    });
-  }).catch(() => {
-    // If fetch fails, save what we have — better than losing local changes
-    serverSave(toSave);
+    if (!ok) {
+      console.warn('[sync] serverSave failed — will retry on next change');
+    }
+  }).catch((err) => {
+    console.warn('[sync] save queue error', err);
   });
+
+  await saveQueue;
 };
 
 export const clearState = async (): Promise<void> => {

@@ -595,7 +595,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       } catch { /* silent */ }
     };
 
-    const interval = setInterval(poll, 3000);
+    // Poll quickly now that server state is compact (~0.5MB)
+    poll(); // immediate
+    const interval = setInterval(poll, 4000);
     return () => clearInterval(interval);
   }, [loaded]);
 
