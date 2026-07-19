@@ -466,7 +466,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       const sortSum      = orders.reduce((s, o) => s + (o.sortOrder ?? 0), 0);
       const deletedCount = orders.filter((o) => !!o.deletedAt).length;
       const archivedCount = orders.filter((o) => !!o.archivedAt).length;
-      return `${orders.length}:${maxOrderUpdated}:${sortSum}:${deletedCount}:${archivedCount}|${depts.length}:${maxDeptUpdated}`;
+      // Lightweight ID hash — prevents false "equal" signatures when order sets differ
+      // (e.g. one device has 3 orders A,B,C while server has 3 orders A,C,D)
+      const idHash = orders.reduce((h, o) => {
+        let v = 0;
+        for (let i = 0; i < Math.min(o.id.length, 8); i++) v += o.id.charCodeAt(i);
+        return (h + v) % 999983;
+      }, 0);
+      return `${orders.length}:${maxOrderUpdated}:${sortSum}:${deletedCount}:${archivedCount}:${idHash}|${depts.length}:${maxDeptUpdated}`;
     };
 
     const poll = async () => {
@@ -535,12 +542,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const refreshData = async () => {
-    // Hard sync: bypass merge logic entirely — server is the sole source of truth.
-    // Clears local IndexedDB first so stale cache cannot influence the result.
+    // Pull fresh state from server and apply via SYNC_STATE (preserves currentUser session)
     const serverData = await serverLoad();
     if (serverData) {
       await localforage.setItem('teamwork_app_data_v5', { ...serverData, currentUser: null }).catch(() => {});
-      trackedDispatch({ type: 'INIT_STATE', payload: serverData });
+      trackedDispatch({ type: 'SYNC_STATE', payload: serverData });
     }
   };
 
