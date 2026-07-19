@@ -9,6 +9,7 @@ interface OperationsRow {
   jobImage: string;
   qty: string;
   target: string;
+  finishedQty: string;
   finish: string;
   workers: string;
   progress: string;
@@ -24,6 +25,7 @@ const emptyRow = (): OperationsRow => ({
   jobImage: '',
   qty: '',
   target: '',
+  finishedQty: '',
   finish: '',
   workers: '',
   progress: '',
@@ -32,9 +34,9 @@ const emptyRow = (): OperationsRow => ({
 const DAYS_EN = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 const MONTHS_EN = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
 
-const COL_COLORS = ['#64748b', '#3b82f6', '#22c55e', '#22c55e', '#f59e0b', '#ef4444', '#8b5cf6', '#f43f5e'];
-const COL_HEADERS = ['Date', 'Customer', 'Job', 'Photo', 'Quantity', 'Target', 'Finishing Date', 'Progress'];
-const COL_FIELDS: (keyof OperationsRow)[] = ['date', 'customer', 'job', 'jobImage', 'qty', 'target', 'finish', 'progress'];
+const COL_COLORS = ['#64748b', '#3b82f6', '#22c55e', '#22c55e', '#f59e0b', '#ef4444', '#10b981', '#8b5cf6', '#f43f5e'];
+const COL_HEADERS = ['Date', 'Customer', 'Job', 'Photo', 'Quantity', 'Target', 'Finished Qty', 'Finishing Date', 'Progress'];
+const COL_FIELDS: (keyof OperationsRow)[] = ['date', 'customer', 'job', 'jobImage', 'qty', 'target', 'finishedQty', 'finish', 'progress'];
 
 const PieProgress: React.FC<{ pct: number; size?: number }> = ({ pct, size = 52 }) => {
   const r = (size - 8) / 2;
