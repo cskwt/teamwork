@@ -53,23 +53,35 @@ export const serverLoad = async (): Promise<AppState | null> => {
   } catch { return null; }
 };
 
-// Strip file DataURLs before sending to server to keep the payload small.
-// DataURLs (base64 encoded files) can be several MB each and cause server
-// saves to fail silently when the payload exceeds PHP post_max_size.
-// Files remain available in the local IndexedDB of the device that uploaded them.
-const stripDataUrls = (state: AppState): AppState => ({
-  ...state,
-  orders: (state.orders || []).map((o) => ({
-    ...o,
-    invoice: o.invoice ? { ...o.invoice, dataUrl: undefined } : undefined,
-    invoices: (o.invoices || []).map((inv) => ({ ...inv, dataUrl: undefined })),
-    orderForms: (o.orderForms || []).map((f) => ({ ...f, dataUrl: undefined })),
-  })),
-});
+// Files smaller than this threshold are included in the server payload so they
+// can be shared across devices. Larger files are stripped to prevent the JSON
+// payload from exceeding PHP / server limits.
+const MAX_DATAURL_SERVER = 3 * 1024 * 1024; // 3 MB in characters (~2.25 MB binary)
+
+const stripLargeDataUrls = (state: AppState): AppState => {
+  const shouldStrip = (url?: string) => url && url.length > MAX_DATAURL_SERVER;
+  return {
+    ...state,
+    orders: (state.orders || []).map((o) => ({
+      ...o,
+      invoice: o.invoice
+        ? { ...o.invoice, dataUrl: shouldStrip(o.invoice.dataUrl) ? undefined : o.invoice.dataUrl }
+        : undefined,
+      invoices: (o.invoices || []).map((inv) => ({
+        ...inv,
+        dataUrl: shouldStrip(inv.dataUrl) ? undefined : inv.dataUrl,
+      })),
+      orderForms: (o.orderForms || []).map((f) => ({
+        ...f,
+        dataUrl: shouldStrip(f.dataUrl) ? undefined : f.dataUrl,
+      })),
+    })),
+  };
+};
 
 const serverSave = async (state: AppState): Promise<boolean> => {
   try {
-    const payload = stripDataUrls({ ...state, currentUser: null });
+    const payload = stripLargeDataUrls({ ...state, currentUser: null });
     const res = await fetch(API_URL, {
       method: 'POST',
       headers: {
