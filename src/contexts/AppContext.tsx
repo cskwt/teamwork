@@ -98,10 +98,37 @@ const reducer = (state: AppState, action: Action): AppState => {
       const serverMap    = new Map(serverOrders.map((o: Order) => [o.id, o]));
       const localMap     = new Map(localOrders.map((o: Order) => [o.id, o]));
 
+      // Restore DataURLs from local state — the server strips large files and may
+      // have older orders saved before file-sharing was fixed. Always prefer a
+      // local DataURL over an absent server DataURL so files remain viewable.
+      const restoreDataUrls = (merged: Order, loc: Order): Order => {
+        const hasLocalFiles =
+          loc.invoice?.dataUrl ||
+          (loc.invoices || []).some((i) => i.dataUrl) ||
+          (loc.orderForms || []).some((f) => f.dataUrl);
+        if (!hasLocalFiles) return merged;
+        return {
+          ...merged,
+          invoice: merged.invoice
+            ? { ...merged.invoice, dataUrl: merged.invoice.dataUrl ?? loc.invoice?.dataUrl }
+            : (loc.invoice?.dataUrl ? loc.invoice : merged.invoice),
+          invoices: (merged.invoices || []).map((inv) => {
+            const locInv = (loc.invoices || []).find((i) => i.id === inv.id);
+            return locInv ? { ...inv, dataUrl: inv.dataUrl ?? locInv.dataUrl } : inv;
+          }),
+          orderForms: (merged.orderForms || []).map((f) => {
+            const locF = (loc.orderForms || []).find((lf) => lf.id === f.id);
+            return locF ? { ...f, dataUrl: f.dataUrl ?? locF.dataUrl } : f;
+          }),
+        };
+      };
+
       // Start with server orders as base (server is authoritative)
       const mergedOrders: Order[] = serverOrders.map((srv: Order) => {
         const loc = localMap.get(srv.id);
-        return loc ? mergeOrderSync(srv, loc) : srv;
+        if (!loc) return srv;
+        const merged = mergeOrderSync(srv, loc);
+        return restoreDataUrls(merged, loc);
       });
       // Include local-only orders only if they were created very recently (within 30s).
       // This covers the case where the user just added an order that hasn't been pushed
