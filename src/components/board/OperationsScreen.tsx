@@ -3,6 +3,7 @@ import { Plus, Trash2, Monitor, Edit2, Check, X } from 'lucide-react';
 
 interface OperationsRow {
   id: string;
+  date: string;
   customer: string;
   job: string;
   qty: string;
@@ -16,6 +17,7 @@ const STORAGE_KEY = 'ops_screen_rows';
 
 const emptyRow = (): OperationsRow => ({
   id: Math.random().toString(36).slice(2),
+  date: '',
   customer: '',
   job: '',
   qty: '',
@@ -28,9 +30,9 @@ const emptyRow = (): OperationsRow => ({
 const DAYS_EN = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 const MONTHS_EN = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
 
-const COL_COLORS = ['#3b82f6', '#22c55e', '#f59e0b', '#ef4444', '#8b5cf6', '#06b6d4', '#f43f5e'];
-const COL_HEADERS = ['Customer', 'Job', 'Quantity', 'Target', 'Finishing Date', 'Workers', 'Progress'];
-const COL_FIELDS: (keyof OperationsRow)[] = ['customer', 'job', 'qty', 'target', 'finish', 'workers', 'progress'];
+const COL_COLORS = ['#64748b', '#3b82f6', '#22c55e', '#f59e0b', '#ef4444', '#8b5cf6', '#06b6d4', '#f43f5e'];
+const COL_HEADERS = ['Date', 'Customer', 'Job', 'Quantity', 'Target', 'Finishing Date', 'Workers', 'Progress'];
+const COL_FIELDS: (keyof OperationsRow)[] = ['date', 'customer', 'job', 'qty', 'target', 'finish', 'workers', 'progress'];
 
 const PieProgress: React.FC<{ pct: number; size?: number }> = ({ pct, size = 52 }) => {
   const r = (size - 8) / 2;
@@ -162,7 +164,7 @@ const OperationsScreen: React.FC = () => {
                         </div>
                       ) : (
                         <input
-                          type={field === 'finish' ? 'date' : 'text'}
+                          type={(field === 'finish' || field === 'date') ? 'date' : 'text'}
                           value={editData[field]}
                           onChange={e => setEditData(prev => prev ? { ...prev, [field]: e.target.value } : prev)}
                           onKeyDown={e => { if (e.key === 'Enter') saveEdit(); if (e.key === 'Escape') cancelEdit(); }}
@@ -198,7 +200,7 @@ const OperationsScreen: React.FC = () => {
                       );
                     }
                     let display = row[field] || '—';
-                    if (field === 'finish' && row[field]) {
+                    if ((field === 'finish' || field === 'date') && row[field]) {
                       const d = new Date(row[field]);
                       if (!isNaN(d.getTime())) {
                         display = d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
