@@ -45,7 +45,56 @@ try {
     exit();
 }
 
-// Create table if it doesn't exist
+// ─── Separate lightweight store for Operations Screen ───────────────────────
+// Main app_state JSON is ~20MB+ and too slow/racy for a simple table.
+// Ops data lives here so sync is fast and never wiped by order saves.
+$pdo->exec("CREATE TABLE IF NOT EXISTS ops_state (
+    id INT PRIMARY KEY DEFAULT 1,
+    state_json LONGTEXT NOT NULL,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+)");
+
+$resource = $_GET['resource'] ?? 'app';
+
+if ($resource === 'ops') {
+    if ($_SERVER['REQUEST_METHOD'] === 'GET') {
+        $stmt = $pdo->query("SELECT state_json FROM ops_state WHERE id = 1");
+        $row  = $stmt->fetch(PDO::FETCH_ASSOC);
+        echo $row ? $row['state_json'] : json_encode(['rows' => [], 'updatedAt' => null]);
+        exit();
+    }
+    if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+        $body = file_get_contents('php://input');
+        $decoded = json_decode($body, true);
+        if (!$body || $decoded === null) {
+            http_response_code(400);
+            echo json_encode(['error' => 'Invalid JSON']);
+            exit();
+        }
+        // Never store heavy DataURL images in ops table
+        if (isset($decoded['rows']) && is_array($decoded['rows'])) {
+            foreach ($decoded['rows'] as &$r) {
+                if (isset($r['jobImage']) && is_string($r['jobImage']) && strlen($r['jobImage']) > 200) {
+                    $r['jobImage'] = '';
+                }
+            }
+            unset($r);
+        }
+        $clean = json_encode($decoded, JSON_UNESCAPED_UNICODE);
+        $stmt = $pdo->prepare(
+            "INSERT INTO ops_state (id, state_json) VALUES (1, ?)
+             ON DUPLICATE KEY UPDATE state_json = VALUES(state_json), updated_at = NOW()"
+        );
+        $stmt->execute([$clean]);
+        echo json_encode(['success' => true, 'updatedAt' => $decoded['updatedAt'] ?? null]);
+        exit();
+    }
+    http_response_code(405);
+    echo json_encode(['error' => 'Method not allowed']);
+    exit();
+}
+
+// ─── Main application state (orders, users, departments, …) ─────────────────
 $pdo->exec("CREATE TABLE IF NOT EXISTS app_state (
     id INT PRIMARY KEY DEFAULT 1,
     state_json LONGTEXT NOT NULL,

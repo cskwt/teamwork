@@ -1,8 +1,7 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Plus, Trash2, Monitor, Edit2, Check, X } from 'lucide-react';
-import { useApp } from '../../contexts/AppContext';
 import { OpsRow } from '../../types';
-import { saveOpsRowsToServer } from '../../utils/storage';
+import { opsServerLoad, opsServerSave } from '../../utils/storage';
 
 const emptyRow = (): OpsRow => ({
   id: Math.random().toString(36).slice(2),
@@ -19,17 +18,51 @@ const emptyRow = (): OpsRow => ({
   updatedAt: new Date().toISOString(),
 });
 
-const rowTextScore = (r: OpsRow) =>
-  ['date', 'customer', 'job', 'qty', 'target', 'finishedQty', 'finish'].filter(
-    (k) => !!(r as any)[k] && String((r as any)[k]).trim()
-  ).length;
-
 const DAYS_EN = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 const MONTHS_EN = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
 
 const COL_COLORS = ['#64748b', '#3b82f6', '#22c55e', '#22c55e', '#f59e0b', '#ef4444', '#10b981', '#8b5cf6', '#f43f5e'];
 const COL_HEADERS = ['Date', 'Customer', 'Job', 'Photo', 'Quantity', 'Target', 'Finished Qty', 'Finished Date', 'Progress'];
 const COL_FIELDS: (keyof OpsRow)[] = ['date', 'customer', 'job', 'jobImage', 'qty', 'target', 'finishedQty', 'finish', 'progress'];
+
+const OPS_BACKUP_KEY = 'ops_screen_backup';
+const OPS_IMAGES_KEY = 'ops_screen_images';
+const LEGACY_LS_KEY = 'ops_screen_rows';
+
+const loadImages = (): Record<string, string> => {
+  try { return JSON.parse(localStorage.getItem(OPS_IMAGES_KEY) || '{}'); } catch { return {}; }
+};
+const saveImages = (map: Record<string, string>) => {
+  try { localStorage.setItem(OPS_IMAGES_KEY, JSON.stringify(map)); } catch { /* ignore quota */ }
+};
+
+const attachLocalImages = (rows: OpsRow[]): OpsRow[] => {
+  const imgs = loadImages();
+  return rows.map((r) => ({ ...r, jobImage: r.jobImage || imgs[r.id] || '' }));
+};
+
+const persistImagesFromRows = (rows: OpsRow[]) => {
+  const imgs = loadImages();
+  rows.forEach((r) => {
+    if (r.jobImage && r.jobImage.startsWith('data:')) imgs[r.id] = r.jobImage;
+    else if (!r.jobImage) delete imgs[r.id];
+  });
+  saveImages(imgs);
+};
+
+const backupRows = (rows: OpsRow[]) => {
+  try {
+    localStorage.setItem(OPS_BACKUP_KEY, JSON.stringify(rows.map((r) => ({ ...r, jobImage: '' }))));
+  } catch { /* ignore */ }
+};
+
+const loadBackup = (): OpsRow[] => {
+  try {
+    const raw = localStorage.getItem(OPS_BACKUP_KEY) || localStorage.getItem(LEGACY_LS_KEY);
+    if (raw) return JSON.parse(raw);
+  } catch { /* ignore */ }
+  return [];
+};
 
 const PieProgress: React.FC<{ pct: number; size?: number }> = ({ pct, size = 52 }) => {
   const r = (size - 8) / 2;
@@ -54,78 +87,87 @@ const PieProgress: React.FC<{ pct: number; size?: number }> = ({ pct, size = 52 
   );
 };
 
-const LEGACY_LS_KEY = 'ops_screen_rows';
-const OPS_BACKUP_KEY = 'ops_screen_backup';
-
-// Save opsRows to localStorage backup (without images to save space)
-const backupOpsRows = (rows: OpsRow[]) => {
-  try {
-    const slim = rows.map(r => ({ ...r, jobImage: '' }));
-    localStorage.setItem(OPS_BACKUP_KEY, JSON.stringify(slim));
-  } catch { /* ignore */ }
-};
-
-const loadOpsBackup = (): OpsRow[] => {
-  try {
-    const raw = localStorage.getItem(OPS_BACKUP_KEY) || localStorage.getItem(LEGACY_LS_KEY);
-    if (raw) return JSON.parse(raw);
-  } catch { /* ignore */ }
-  return [];
-};
-
 const OperationsScreen: React.FC = () => {
-  const { state, dispatch, loaded } = useApp();
-  const rows: OpsRow[] = state.opsRows && state.opsRows.length > 0 ? state.opsRows : [];
-
-  const setRows = (updater: OpsRow[] | ((prev: OpsRow[]) => OpsRow[])) => {
-    const next = typeof updater === 'function' ? updater(rows) : updater;
-    const stamp = new Date().toISOString();
-    const stamped = next.map((r) => ({ ...r, updatedAt: r.updatedAt || stamp }));
-    dispatch({ type: 'SET_OPS_ROWS', payload: stamped, opsUpdatedAt: stamp });
-    backupOpsRows(stamped);
-    // Push ops table to server immediately (independent of other device saves)
-    saveOpsRowsToServer(stamped, stamp).catch(() => {});
-  };
-
+  const [rows, setRowsState] = useState<OpsRow[]>([]);
+  const [updatedAt, setUpdatedAt] = useState<string | null>(null);
+  const [syncStatus, setSyncStatus] = useState<'ok' | 'saving' | 'error' | 'loading'>('loading');
   const [now, setNow] = useState(new Date());
   const [fullscreen, setFullscreen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editData, setEditData] = useState<OpsRow | null>(null);
+  const savingRef = useRef(false);
+  const localStampRef = useRef<string | null>(null);
 
-  // After full load: recover from local backup if state is empty OR only empty shells (image-only)
+  const applyRows = (next: OpsRow[], stamp: string, push: boolean) => {
+    const withImages = attachLocalImages(next);
+    setRowsState(withImages);
+    setUpdatedAt(stamp);
+    localStampRef.current = stamp;
+    backupRows(withImages);
+    persistImagesFromRows(withImages);
+    if (push) {
+      savingRef.current = true;
+      setSyncStatus('saving');
+      opsServerSave(withImages, stamp).then((ok) => {
+        savingRef.current = false;
+        setSyncStatus(ok ? 'ok' : 'error');
+      });
+    }
+  };
+
+  // Initial load from dedicated ops API (+ local backup fallback)
   useEffect(() => {
-    if (!loaded) return;
-    const current = state.opsRows || [];
-    const currentScore = current.reduce((s, r) => s + rowTextScore(r), 0);
-    const backup = loadOpsBackup();
-    const backupScore = backup.reduce((s, r) => s + rowTextScore(r), 0);
-
-    if (backupScore > 0 && currentScore === 0) {
-      // State has empty shells (or nothing) but backup has real text — restore & push to server
-      const restored: OpsRow[] = backup.map((b) => {
-        const cur = current.find((c) => c.id === b.id);
-        return { ...b, jobImage: cur?.jobImage || b.jobImage || '', updatedAt: b.updatedAt || new Date().toISOString() };
-      });
-      // Also keep any image-only rows that aren't in backup
-      current.forEach((c) => {
-        if (!restored.find((r) => r.id === c.id) && c.jobImage) restored.push(c);
-      });
-      const stamp = new Date().toISOString();
-      dispatch({ type: 'SET_OPS_ROWS', payload: restored, opsUpdatedAt: stamp });
-      backupOpsRows(restored);
-      saveOpsRowsToServer(restored, stamp).catch(() => {});
-      return;
-    }
-    if (currentScore > 0) {
-      backupOpsRows(current);
-    }
+    let cancelled = false;
+    (async () => {
+      const remote = await opsServerLoad();
+      if (cancelled) return;
+      if (remote && remote.rows.length > 0) {
+        applyRows(remote.rows, remote.updatedAt || new Date().toISOString(), false);
+        setSyncStatus('ok');
+        return;
+      }
+      const backup = loadBackup();
+      if (backup.length > 0) {
+        const stamp = new Date().toISOString();
+        applyRows(backup, stamp, true); // push backup to new ops API
+        return;
+      }
+      setSyncStatus(remote ? 'ok' : 'error');
+      setRowsState([]);
+    })();
+    return () => { cancelled = true; };
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [loaded]);
+  }, []);
+
+  // Poll dedicated ops API every 3s (lightweight — not the 20MB app state)
+  useEffect(() => {
+    const poll = async () => {
+      if (savingRef.current || editingId) return;
+      const remote = await opsServerLoad();
+      if (!remote) return;
+      const remoteAt = remote.updatedAt || '';
+      const localAt = localStampRef.current || updatedAt || '';
+      if (remoteAt && remoteAt > localAt) {
+        applyRows(remote.rows, remoteAt, false);
+        setSyncStatus('ok');
+      }
+    };
+    const id = setInterval(poll, 3000);
+    return () => clearInterval(id);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [editingId, updatedAt]);
 
   useEffect(() => {
     const timer = setInterval(() => setNow(new Date()), 1000);
     return () => clearInterval(timer);
   }, []);
+
+  const setRows = (updater: OpsRow[] | ((prev: OpsRow[]) => OpsRow[])) => {
+    const next = typeof updater === 'function' ? updater(rows) : updater;
+    const stamp = new Date().toISOString();
+    const stamped = next.map((r) => ({ ...r, updatedAt: r.updatedAt || stamp }));
+    applyRows(stamped, stamp, true);
+  };
 
   const addRow = () => {
     const r = emptyRow();
@@ -134,7 +176,7 @@ const OperationsScreen: React.FC = () => {
     setEditData(r);
   };
 
-  const deleteRow = (id: string) => setRows(rows.filter(r => r.id !== id));
+  const deleteRow = (id: string) => setRows(rows.filter((r) => r.id !== id));
 
   const startEdit = (row: OpsRow) => {
     setEditingId(row.id);
@@ -144,14 +186,14 @@ const OperationsScreen: React.FC = () => {
   const saveEdit = () => {
     if (!editData) return;
     const stamped = { ...editData, updatedAt: new Date().toISOString() };
-    setRows(rows.map(r => r.id === editData.id ? stamped : r));
+    setRows(rows.map((r) => (r.id === editData.id ? stamped : r)));
     setEditingId(null);
     setEditData(null);
   };
 
   const cancelEdit = () => {
-    if (editData && rows.find(r => r.id === editData.id)?.customer === '') {
-      setRows(rows.filter(r => r.id !== editData.id));
+    if (editData && rows.find((r) => r.id === editData.id)?.customer === '') {
+      setRows(rows.filter((r) => r.id !== editData.id));
     }
     setEditingId(null);
     setEditData(null);
@@ -161,6 +203,11 @@ const OperationsScreen: React.FC = () => {
   const dayStr = DAYS_EN[now.getDay()];
   const dateStr = `${now.getDate()} ${MONTHS_EN[now.getMonth()]} ${now.getFullYear()}`;
 
+  const syncLabel =
+    syncStatus === 'saving' ? 'Saving…' :
+    syncStatus === 'error' ? 'Sync error — check API upload' :
+    syncStatus === 'loading' ? 'Loading…' : 'Synced';
+
   const tableContent = (isFS: boolean) => (
     <div style={{ width: '100%', overflowX: 'auto' }}>
       <table style={{ width: '100%', borderCollapse: 'separate', borderSpacing: 0, fontSize: isFS ? 28 : 15, fontFamily: 'inherit', direction: 'ltr' }}>
@@ -168,17 +215,11 @@ const OperationsScreen: React.FC = () => {
           <tr>
             {COL_HEADERS.map((h, i) => (
               <th key={i} style={{
-                background: COL_COLORS[i],
-                color: '#fff',
+                background: COL_COLORS[i], color: '#fff',
                 padding: isFS ? '20px 28px' : '11px 16px',
-                textAlign: 'center',
-                fontWeight: 800,
-                fontSize: isFS ? 26 : 14,
-                letterSpacing: 0.5,
+                textAlign: 'center', fontWeight: 800, fontSize: isFS ? 26 : 14, letterSpacing: 0.5,
                 borderBottom: '3px solid rgba(0,0,0,0.12)',
-              }}>
-                {h}
-              </th>
+              }}>{h}</th>
             ))}
             {!isFS && (
               <th style={{ background: '#f1f5f9', color: '#94a3b8', padding: '11px 10px', textAlign: 'center', fontSize: 12, fontWeight: 600, width: 80, borderBottom: '3px solid #e2e8f0' }}>
@@ -210,7 +251,7 @@ const OperationsScreen: React.FC = () => {
                             <div style={{ position: 'relative' }}>
                               <img src={editData[field]} alt="job" style={{ width: 64, height: 64, objectFit: 'contain', borderRadius: 8, border: '2px solid #22c55e', background: '#f8fafc' }} />
                               <button
-                                onClick={() => setEditData(prev => prev ? { ...prev, jobImage: '' } : prev)}
+                                onClick={() => setEditData((prev) => prev ? { ...prev, jobImage: '' } : prev)}
                                 style={{ position: 'absolute', top: -6, right: -6, background: '#ef4444', border: 'none', color: '#fff', borderRadius: '50%', width: 18, height: 18, cursor: 'pointer', fontSize: 10, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
                               ><X size={10} /></button>
                             </div>
@@ -218,11 +259,11 @@ const OperationsScreen: React.FC = () => {
                           <label style={{ cursor: 'pointer', background: '#eff6ff', border: '1.5px dashed #6366f1', color: '#6366f1', borderRadius: 8, padding: '5px 12px', fontSize: 12, fontWeight: 600, whiteSpace: 'nowrap' }}>
                             {editData[field] ? 'Change' : '+ Upload'}
                             <input type="file" accept="image/*" style={{ display: 'none' }}
-                              onChange={e => {
+                              onChange={(e) => {
                                 const file = e.target.files?.[0];
                                 if (!file) return;
                                 const reader = new FileReader();
-                                reader.onload = ev => setEditData(prev => prev ? { ...prev, jobImage: ev.target?.result as string } : prev);
+                                reader.onload = (ev) => setEditData((prev) => prev ? { ...prev, jobImage: ev.target?.result as string } : prev);
                                 reader.readAsDataURL(file);
                               }}
                             />
@@ -232,8 +273,8 @@ const OperationsScreen: React.FC = () => {
                         <input
                           type={(field === 'finish' || field === 'date') ? 'date' : 'text'}
                           value={editData[field]}
-                          onChange={e => setEditData(prev => prev ? { ...prev, [field]: e.target.value } : prev)}
-                          onKeyDown={e => { if (e.key === 'Enter') saveEdit(); if (e.key === 'Escape') cancelEdit(); }}
+                          onChange={(e) => setEditData((prev) => prev ? { ...prev, [field]: e.target.value } : prev)}
+                          onKeyDown={(e) => { if (e.key === 'Enter') saveEdit(); if (e.key === 'Escape') cancelEdit(); }}
                           autoFocus={field === 'customer'}
                           style={{
                             background: '#fff', border: '1.5px solid #6366f1',
@@ -256,7 +297,7 @@ const OperationsScreen: React.FC = () => {
                     if (field === 'progress') {
                       const t = parseFloat(row.target);
                       const f = parseFloat(row.finishedQty);
-                      const autoPct = t > 0 && !isNaN(f) ? Math.min(100, Math.round((f / t) * 100)) : parseInt(row[field] || '0', 10);
+                      const autoPct = t > 0 && !isNaN(f) ? Math.min(100, Math.round((f / t) * 100)) : 0;
                       return (
                         <td key={field} style={{ padding: isFS ? '16px 28px' : '8px 12px', textAlign: 'center', borderBottom: '1px solid #e2e8f0' }}>
                           <PieProgress pct={autoPct} size={isFS ? 80 : 52} />
@@ -312,17 +353,12 @@ const OperationsScreen: React.FC = () => {
   if (fullscreen) {
     return (
       <div style={{
-        position: 'fixed', inset: 0, zIndex: 9999,
-        background: '#f8fafc',
-        display: 'flex', flexDirection: 'column',
-        fontFamily: 'Segoe UI, Arial, sans-serif',
-        direction: 'ltr',
+        position: 'fixed', inset: 0, zIndex: 9999, background: '#f8fafc',
+        display: 'flex', flexDirection: 'column', fontFamily: 'Segoe UI, Arial, sans-serif', direction: 'ltr',
       }}>
         <div style={{
           display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-          padding: '20px 48px',
-          background: '#1e293b',
-          boxShadow: '0 4px 24px rgba(0,0,0,0.18)',
+          padding: '20px 48px', background: '#1e293b', boxShadow: '0 4px 24px rgba(0,0,0,0.18)',
         }}>
           <div>
             <div style={{ color: '#94a3b8', fontSize: 18, fontWeight: 600 }}>{dayStr}</div>
@@ -355,7 +391,15 @@ const OperationsScreen: React.FC = () => {
           <h2 style={{ fontSize: 20, fontWeight: 800, color: '#111827', margin: 0, display: 'flex', alignItems: 'center', gap: 8 }}>
             <Monitor size={20} color="#6366f1" /> Operations Screen
           </h2>
-          <p style={{ color: '#6b7280', fontSize: 13, margin: '4px 0 0' }}>Daily operations board — synced across all devices</p>
+          <p style={{ color: '#6b7280', fontSize: 13, margin: '4px 0 0' }}>
+            Daily operations board — dedicated sync channel
+            <span style={{
+              marginLeft: 10, fontSize: 11, fontWeight: 700,
+              color: syncStatus === 'ok' ? '#16a34a' : syncStatus === 'error' ? '#dc2626' : '#ca8a04',
+            }}>
+              ● {syncLabel}
+            </span>
+          </p>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
           <div style={{ background: '#1e293b', borderRadius: 10, padding: '8px 18px', textAlign: 'center' }}>
@@ -382,7 +426,7 @@ const OperationsScreen: React.FC = () => {
           {tableContent(false)}
         </div>
         <p style={{ color: '#9ca3af', fontSize: 12, marginTop: 10, textAlign: 'center' }}>
-          Data synced across all devices • Click ✏️ to edit a row • Press Enter to save
+          Synced via dedicated ops API • Click ✏️ to edit • Press Enter to save
         </p>
       </div>
     </div>

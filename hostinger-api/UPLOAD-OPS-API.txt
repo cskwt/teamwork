@@ -1,0 +1,20 @@
+UPLOAD THIS FILE TO HOSTINGER (required for Operations Screen sync)
+================================================================
+
+File:  ops-api.php
+
+Destination on Hostinger:
+  public_html/teamwork-api/ops-api.php
+  (same folder as the existing api.php)
+
+Steps:
+  1. Open Hostinger → Files → File Manager
+  2. Go to public_html/teamwork-api/
+  3. Upload ops-api.php into that folder
+  4. Open in browser (should say Unauthorized without key — that means it works):
+     https://csapp.io/teamwork-api/ops-api.php
+
+Why:
+  The main api.php stores ~20MB of orders. Saving the ops table
+  through it was too slow and kept wiping the table data.
+  ops-api.php uses a tiny separate database table for instant sync.

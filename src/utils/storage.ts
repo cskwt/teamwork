@@ -127,7 +127,53 @@ export const clearSession = () => {
 
 // ─── Server API ───────────────────────────────────────────────────────────────
 const API_URL = 'https://csapp.io/teamwork-api/api.php';
+// Separate file — never POST ops into main api.php (that would wipe the 20MB app_state)
+const OPS_API_URL = 'https://csapp.io/teamwork-api/ops-api.php';
 const API_KEY = 'tw_Cs9kWt2026xTeAmWoRk';
+
+export type OpsServerPayload = { rows: OpsRow[]; updatedAt: string | null };
+
+/** Fast dedicated ops table — NOT the 20MB+ main app_state blob */
+export const opsServerLoad = async (): Promise<OpsServerPayload | null> => {
+  try {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 8000);
+    const res = await fetch(OPS_API_URL, {
+      headers: { 'X-API-Key': API_KEY },
+      signal: controller.signal,
+    });
+    clearTimeout(timer);
+    if (!res.ok) return null; // 404 until ops-api.php is uploaded to Hostinger
+    const data = await res.json();
+    // Guard: never treat main app_state as ops payload
+    if (!data || !Array.isArray(data.rows) || data.departments || data.orders) {
+      return { rows: [], updatedAt: null };
+    }
+    return { rows: data.rows as OpsRow[], updatedAt: data.updatedAt || null };
+  } catch { return null; }
+};
+
+export const opsServerSave = async (rows: OpsRow[], updatedAt: string): Promise<boolean> => {
+  try {
+    const payload: OpsServerPayload = {
+      rows: (rows || []).map((r) => ({ ...r, jobImage: '' })),
+      updatedAt,
+    };
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 8000);
+    const res = await fetch(OPS_API_URL, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-API-Key': API_KEY,
+      },
+      body: JSON.stringify(payload),
+      signal: controller.signal,
+    });
+    clearTimeout(timer);
+    return res.ok;
+  } catch { return false; }
+};
 
 export const serverLoad = async (): Promise<AppState | null> => {
   try {
@@ -185,7 +231,10 @@ const stripLargeDataUrls = (state: AppState): AppState => {
 
 const serverSave = async (state: AppState): Promise<boolean> => {
   try {
-    const payload = stripLargeDataUrls({ ...state, currentUser: null });
+    const payload = stripLargeDataUrls({ ...state, currentUser: null }) as any;
+    // Ops table syncs via ?resource=ops — never embed in the 20MB main blob
+    delete payload.opsRows;
+    delete payload.opsUpdatedAt;
     const res = await fetch(API_URL, {
       method: 'POST',
       headers: {
