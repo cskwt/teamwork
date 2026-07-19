@@ -239,14 +239,29 @@ export const loadState = async (): Promise<AppState> => {
       notifications: fromServer.notifications || local?.notifications || [],
     };
 
-    // Only push back to server if local had genuinely newer orders
-    // (e.g. offline edits not yet synced) — never push back just because local was stale
+    // Push back to server when:
+    // 1. Local has newer orders/depts (offline edits not yet synced), OR
+    // 2. Local has file DataURLs that the server is missing (e.g. after the brief
+    //    period where all DataURLs were stripped — recover them on next load)
     if (local) {
       const localMaxUpdated  = getMaxUpdatedAt(local.orders || []);
       const serverMaxUpdated = getMaxUpdatedAt(fromServer.orders || []);
       const localDeptMax     = (local.departments || []).reduce((m, d) => (d.updatedAt || '') > m ? (d.updatedAt || '') : m, '');
       const serverDeptMax    = (fromServer.departments || []).reduce((m: string, d: { updatedAt?: string }) => (d.updatedAt || '') > m ? (d.updatedAt || '') : m, '');
-      if (localMaxUpdated > serverMaxUpdated || localDeptMax > serverDeptMax) {
+
+      // Check if local has DataURLs the server is missing
+      const srvOrderMap = new Map((fromServer.orders || []).map((o) => [o.id, o]));
+      const localHasMissingFiles = (local.orders || []).some((loc) => {
+        const srv = srvOrderMap.get(loc.id);
+        if (!srv) return false;
+        const srvHasInvoice  = srv.invoice?.dataUrl || (srv.invoices || []).some((i) => i.dataUrl);
+        const locHasInvoice  = loc.invoice?.dataUrl || (loc.invoices || []).some((i) => i.dataUrl);
+        const srvHasForms    = (srv.orderForms || []).some((f) => f.dataUrl);
+        const locHasForms    = (loc.orderForms || []).some((f) => f.dataUrl);
+        return (!srvHasInvoice && locHasInvoice) || (!srvHasForms && locHasForms);
+      });
+
+      if (localMaxUpdated > serverMaxUpdated || localDeptMax > serverDeptMax || localHasMissingFiles) {
         serverSave({ ...merged, currentUser: null });
       }
     }
