@@ -439,38 +439,56 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     dispatch(action);
   };
 
-  // Load from IndexedDB on mount
+  // Load from IndexedDB / server on mount — always exit loading screen
   useEffect(() => {
-    loadState().then((saved) => {
-      // Migrate قسم التسليم columns to delivery-specific names
-      const migratedDepts = saved.departments.map((d) => {
-        if (d.name === 'قسم التسليم') {
-          const hasDefault = d.columns.some((c) => c.id === 'new' && c.title === 'جديد');
-          return {
-            ...d,
-            color: '#8b5cf6',
-            columns: hasDefault ? [
-              { id: 'new',         title: 'الطلبيات الجاهزة', color: '#6366f1', order: 0 },
-              { id: 'in_progress', title: 'للتوصيل',           color: '#f59e0b', order: 1 },
-              { id: 'review',      title: 'قيد التسليم',       color: '#8b5cf6', order: 2 },
-              { id: 'done',        title: 'للاستلام',          color: '#10b981', order: 3 },
-            ] : d.columns,
-          };
-        }
-        return d;
+    let cancelled = false;
+    const finish = () => { if (!cancelled) setLoaded(true); };
+
+    // Hard safety: never stay on spinner longer than 12 seconds
+    const safetyTimer = setTimeout(finish, 12000);
+
+    loadState()
+      .then((saved) => {
+        if (cancelled) return;
+        try {
+          const depts = saved.departments || [];
+          const migratedDepts = depts.map((d) => {
+            if (d.name === 'قسم التسليم') {
+              const hasDefault = (d.columns || []).some((c) => c.id === 'new' && c.title === 'جديد');
+              return {
+                ...d,
+                color: '#8b5cf6',
+                columns: hasDefault ? [
+                  { id: 'new',         title: 'الطلبيات الجاهزة', color: '#6366f1', order: 0 },
+                  { id: 'in_progress', title: 'للتوصيل',           color: '#f59e0b', order: 1 },
+                  { id: 'review',      title: 'قيد التسليم',       color: '#8b5cf6', order: 2 },
+                  { id: 'done',        title: 'للاستلام',          color: '#10b981', order: 3 },
+                ] : (d.columns || []),
+              };
+            }
+            return d;
+          });
+          trackedDispatch({ type: 'INIT_STATE', payload: { ...saved, departments: migratedDepts, opsRows: saved.opsRows || [] } });
+          trackedDispatch({ type: 'PURGE_OLD_TRASH' });
+
+          const sessionUserId = loadSession();
+          if (sessionUserId) {
+            const sessionUser = (saved.users || []).find((u) => u.id === sessionUserId);
+            if (sessionUser) trackedDispatch({ type: 'LOGIN', payload: sessionUser });
+          }
+        } catch { /* ignore init errors — still show UI */ }
+        clearTimeout(safetyTimer);
+        finish();
+      })
+      .catch(() => {
+        clearTimeout(safetyTimer);
+        finish();
       });
-      trackedDispatch({ type: 'INIT_STATE', payload: { ...saved, departments: migratedDepts } });
-      trackedDispatch({ type: 'PURGE_OLD_TRASH' });
 
-      // استعادة الجلسة إذا كانت صالحة
-      const sessionUserId = loadSession();
-      if (sessionUserId) {
-        const sessionUser = saved.users.find((u) => u.id === sessionUserId);
-        if (sessionUser) trackedDispatch({ type: 'LOGIN', payload: sessionUser });
-      }
-
-      setLoaded(true);
-    });
+    return () => {
+      cancelled = true;
+      clearTimeout(safetyTimer);
+    };
   }, []);
 
   // Save whenever state changes (after initial load)

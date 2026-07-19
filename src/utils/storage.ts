@@ -43,6 +43,10 @@ export const mergeOpsRow = (a: OpsRow, b: OpsRow): OpsRow => {
  * - If one side is clearly empty of text and the other isn't, prefer the richer side's set.
  */
 export const mergeOpsRows = (server: OpsRow[] = [], local: OpsRow[] = []): OpsRow[] => {
+  const serverSafe = (server || []).filter((r) => r && r.id);
+  const localSafe = (local || []).filter((r) => r && r.id);
+  server = serverSafe;
+  local = localSafe;
   const srvScore = server.reduce((s, r) => s + opsRowScore(r), 0);
   const locScore = local.reduce((s, r) => s + opsRowScore(r), 0);
 
@@ -127,13 +131,27 @@ const API_KEY = 'tw_Cs9kWt2026xTeAmWoRk';
 
 export const serverLoad = async (): Promise<AppState | null> => {
   try {
-    const res = await fetch(API_URL, {
-      headers: { 'X-API-Key': API_KEY },
-    });
-    if (!res.ok) return null;
-    const data = await res.json();
-    if (data && data.departments?.length) return data as AppState;
-    return null;
+    const fetchWork = async (): Promise<AppState | null> => {
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), 8000);
+      try {
+        const res = await fetch(API_URL, {
+          headers: { 'X-API-Key': API_KEY },
+          signal: controller.signal,
+        });
+        if (!res.ok) return null;
+        const data = await res.json();
+        if (data && data.departments?.length) return data as AppState;
+        return null;
+      } finally {
+        clearTimeout(timer);
+      }
+    };
+    // Whole load (including JSON parse) must finish within 10s or we fall back to local
+    return await Promise.race([
+      fetchWork(),
+      new Promise<null>((resolve) => setTimeout(() => resolve(null), 10000)),
+    ]);
   } catch { return null; }
 };
 
@@ -270,10 +288,15 @@ const mergeOrders = (server: AppState['orders'], local: AppState['orders']): App
 };
 
 export const loadState = async (): Promise<AppState> => {
-  // Load both sources in parallel
+  try {
+  // Load both sources in parallel (each has its own timeout / catch)
+  const localPromise = Promise.race([
+    localforage.getItem<AppState>(DB_KEY).catch(() => null),
+    new Promise<null>((resolve) => setTimeout(() => resolve(null), 5000)),
+  ]);
   const [fromServer, localRaw] = await Promise.all([
     serverLoad(),
-    localforage.getItem<AppState>(DB_KEY).catch(() => null),
+    localPromise,
   ]);
 
   const local = localRaw as AppState | null;
@@ -372,6 +395,10 @@ export const loadState = async (): Promise<AppState> => {
   }
 
   return getDefaultState();
+  } catch {
+    // Never block the app on a load failure
+    return getDefaultState();
+  }
 };
 
 // Merge users: union of both sides — never drop a user that exists on either side.
