@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { AppProvider, useApp } from './contexts/AppContext';
 import { LanguageProvider, useLang } from './contexts/LanguageContext';
 import LoginPage from './components/auth/LoginPage';
@@ -20,8 +20,14 @@ const AppInner: React.FC = () => {
   const { state, loaded } = useApp();
   const { currentUser, departments } = state;
 
-  const [activePage, setActivePage] = useState('projects');
-  const [activeDeptId, setActiveDeptId] = useState<string | null>(departments[0]?.id || null);
+  const [activePage, setActivePage] = useState<string>(() => {
+    const saved = localStorage.getItem('tw_active_page');
+    return saved || 'projects';
+  });
+  const [activeDeptId, setActiveDeptId] = useState<string | null>(() => {
+    const saved = localStorage.getItem('tw_active_dept');
+    return saved || departments[0]?.id || null;
+  });
 
   const { tr } = useLang();
 
@@ -40,6 +46,14 @@ const AppInner: React.FC = () => {
   if (!currentUser) return <LoginPage />;
 
   const activeDept = departments.find((d) => d.id === activeDeptId);
+
+  useEffect(() => {
+    localStorage.setItem('tw_active_page', activePage);
+  }, [activePage]);
+
+  useEffect(() => {
+    if (activeDeptId) localStorage.setItem('tw_active_dept', activeDeptId);
+  }, [activeDeptId]);
 
   const handleNavigate = (page: string) => setActivePage(page);
 
