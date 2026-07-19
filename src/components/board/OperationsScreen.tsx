@@ -27,7 +27,7 @@ const DAYS_EN = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday
 const MONTHS_EN = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
 
 const COL_COLORS = ['#3b82f6', '#22c55e', '#f59e0b', '#ef4444', '#8b5cf6', '#06b6d4'];
-const COL_HEADERS = ['Customer', 'Job', 'QTY', 'Target', 'Finish', 'Workers'];
+const COL_HEADERS = ['Customer', 'Job', 'QTY', 'Target', 'Finishing Date', 'Workers'];
 const COL_FIELDS: (keyof OperationsRow)[] = ['customer', 'job', 'qty', 'target', 'finish', 'workers'];
 
 const OperationsScreen: React.FC = () => {
