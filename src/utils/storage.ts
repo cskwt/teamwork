@@ -53,15 +53,30 @@ export const serverLoad = async (): Promise<AppState | null> => {
   } catch { return null; }
 };
 
+// Strip file DataURLs before sending to server to keep the payload small.
+// DataURLs (base64 encoded files) can be several MB each and cause server
+// saves to fail silently when the payload exceeds PHP post_max_size.
+// Files remain available in the local IndexedDB of the device that uploaded them.
+const stripDataUrls = (state: AppState): AppState => ({
+  ...state,
+  orders: (state.orders || []).map((o) => ({
+    ...o,
+    invoice: o.invoice ? { ...o.invoice, dataUrl: undefined } : undefined,
+    invoices: (o.invoices || []).map((inv) => ({ ...inv, dataUrl: undefined })),
+    orderForms: (o.orderForms || []).map((f) => ({ ...f, dataUrl: undefined })),
+  })),
+});
+
 const serverSave = async (state: AppState): Promise<boolean> => {
   try {
+    const payload = stripDataUrls({ ...state, currentUser: null });
     const res = await fetch(API_URL, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
         'X-API-Key': API_KEY,
       },
-      body: JSON.stringify({ ...state, currentUser: null }),
+      body: JSON.stringify(payload),
     });
     return res.ok;
   } catch { return false; }
@@ -172,6 +187,28 @@ export const loadState = async (): Promise<AppState> => {
     if (local) {
       // Merge orders: server is primary but respect local changes newer than server
       mergedOrders = mergeOrders(fromServer.orders || [], local.orders || []);
+
+      // Re-attach local file DataURLs that were stripped before server save.
+      // The server only stores metadata; the actual files live in local IndexedDB.
+      const localMap = new Map((local.orders || []).map((o) => [o.id, o]));
+      mergedOrders = mergedOrders.map((o) => {
+        const loc = localMap.get(o.id);
+        if (!loc) return o;
+        return {
+          ...o,
+          invoice: o.invoice
+            ? { ...o.invoice, dataUrl: o.invoice.dataUrl ?? loc.invoice?.dataUrl }
+            : loc.invoice,
+          invoices: (o.invoices || []).map((inv) => {
+            const locInv = (loc.invoices || []).find((i) => i.id === inv.id);
+            return locInv ? { ...inv, dataUrl: inv.dataUrl ?? locInv.dataUrl } : inv;
+          }),
+          orderForms: (o.orderForms || []).map((f) => {
+            const locF = (loc.orderForms || []).find((lf) => lf.id === f.id);
+            return locF ? { ...f, dataUrl: f.dataUrl ?? locF.dataUrl } : f;
+          }),
+        };
+      });
 
       // Departments: use whichever is newer
       const localDeptMax  = (local.departments || []).reduce((m, d) => (d.updatedAt || '') > m ? (d.updatedAt || '') : m, '');
