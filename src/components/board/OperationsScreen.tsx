@@ -48,6 +48,23 @@ const PieProgress: React.FC<{ pct: number; size?: number }> = ({ pct, size = 52 
 };
 
 const LEGACY_LS_KEY = 'ops_screen_rows';
+const OPS_BACKUP_KEY = 'ops_screen_backup';
+
+// Save opsRows to localStorage backup (without images to save space)
+const backupOpsRows = (rows: OpsRow[]) => {
+  try {
+    const slim = rows.map(r => ({ ...r, jobImage: '' }));
+    localStorage.setItem(OPS_BACKUP_KEY, JSON.stringify(slim));
+  } catch { /* ignore */ }
+};
+
+const loadOpsBackup = (): OpsRow[] => {
+  try {
+    const raw = localStorage.getItem(OPS_BACKUP_KEY) || localStorage.getItem(LEGACY_LS_KEY);
+    if (raw) return JSON.parse(raw);
+  } catch { /* ignore */ }
+  return [];
+};
 
 const OperationsScreen: React.FC = () => {
   const { state, dispatch, loaded } = useApp();
@@ -56,6 +73,7 @@ const OperationsScreen: React.FC = () => {
   const setRows = (updater: OpsRow[] | ((prev: OpsRow[]) => OpsRow[])) => {
     const next = typeof updater === 'function' ? updater(rows) : updater;
     dispatch({ type: 'SET_OPS_ROWS', payload: next });
+    backupOpsRows(next); // always keep local backup
   };
 
   const [now, setNow] = useState(new Date());
@@ -63,21 +81,18 @@ const OperationsScreen: React.FC = () => {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editData, setEditData] = useState<OpsRow | null>(null);
 
-  // Migrate old localStorage data AFTER app is fully loaded from server
+  // After full load: if server/state has no opsRows, recover from local backup
   useEffect(() => {
     if (!loaded) return;
-    if ((state.opsRows || []).length > 0) return; // server already has data
-    try {
-      const legacy = localStorage.getItem(LEGACY_LS_KEY);
-      if (legacy) {
-        const parsed: OpsRow[] = JSON.parse(legacy);
-        if (parsed && parsed.length > 0) {
-          dispatch({ type: 'SET_OPS_ROWS', payload: parsed });
-          // Only remove after dispatch — saveState will push to server
-          setTimeout(() => localStorage.removeItem(LEGACY_LS_KEY), 5000);
-        }
-      }
-    } catch { /* ignore */ }
+    if ((state.opsRows || []).length > 0) {
+      backupOpsRows(state.opsRows); // keep backup up to date
+      return;
+    }
+    const backup = loadOpsBackup();
+    if (backup.length > 0) {
+      dispatch({ type: 'SET_OPS_ROWS', payload: backup });
+      backupOpsRows(backup);
+    }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [loaded]);
 
