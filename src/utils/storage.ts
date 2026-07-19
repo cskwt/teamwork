@@ -126,9 +126,9 @@ export const clearSession = () => {
 };
 
 // ─── Server API ───────────────────────────────────────────────────────────────
-const API_URL = 'https://csapp.io/teamwork-api/api.php';
-// New file-based endpoint (avoid hung MySQL ops-api.php)
-const OPS_API_URL = 'https://csapp.io/teamwork-api/ops-sync.php';
+// Use www. — bare csapp.io currently hangs/times out on Hostinger
+const API_URL = 'https://www.csapp.io/teamwork-api/api.php';
+const OPS_API_URL = 'https://www.csapp.io/teamwork-api/ops-sync.php';
 const API_KEY = 'tw_Cs9kWt2026xTeAmWoRk';
 
 export type OpsServerPayload = { rows: OpsRow[]; updatedAt: string | null };

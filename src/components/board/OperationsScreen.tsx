@@ -219,7 +219,7 @@ const OperationsScreen: React.FC = () => {
 
   const syncLabel =
     syncStatus === 'saving' ? 'Saving…' :
-    syncStatus === 'error' ? 'Sync error — upload ops-sync.php' :
+    syncStatus === 'error' ? 'Sync error — retrying…' :
     syncStatus === 'loading' ? 'Loading…' : 'Synced';
 
   const tableContent = (isFS: boolean) => (
