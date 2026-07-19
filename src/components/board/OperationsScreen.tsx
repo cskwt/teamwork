@@ -232,7 +232,7 @@ const OperationsScreen: React.FC = () => {
 
   const syncLabel =
     syncStatus === 'saving' ? 'Saving…' :
-    syncStatus === 'error' ? 'Sync error — retrying…' :
+    syncStatus === 'error' ? 'Sync offline — check connection' :
     syncStatus === 'loading' ? 'Loading…' : 'Synced';
 
   const tableContent = (isFS: boolean) => (

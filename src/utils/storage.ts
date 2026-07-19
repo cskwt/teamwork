@@ -130,19 +130,35 @@ export const clearSession = () => {
 const API_URL = 'https://www.csapp.io/teamwork-api/api.php';
 const API_KEY = 'tw_Cs9kWt2026xTeAmWoRk';
 
-// Prefer same-origin Vercel proxy; fall back to Hostinger directly
+// Hostinger file API first (reliable). Same-origin proxy second.
 const OPS_API_CANDIDATES = [
-  '/api/ops',
   'https://www.csapp.io/teamwork-api/ops-sync.php',
+  'https://csapp.io/teamwork-api/ops-sync.php',
+  '/api/ops',
 ];
 
 export type OpsServerPayload = { rows: OpsRow[]; updatedAt: string | null };
 
-const opsFetch = async (method: 'GET' | 'POST', body?: OpsServerPayload): Promise<Response | null> => {
+const parseOpsPayload = async (res: Response): Promise<OpsServerPayload | null> => {
+  const ct = (res.headers.get('content-type') || '').toLowerCase();
+  // SPA fallback returns text/html with 200 — must reject
+  if (ct.includes('text/html')) return null;
+  const text = await res.text();
+  if (!text || text.trim().startsWith('<')) return null;
+  let data: any;
+  try { data = JSON.parse(text); } catch { return null; }
+  if (!data || !Array.isArray(data.rows) || data.departments || data.orders) return null;
+  return { rows: data.rows as OpsRow[], updatedAt: data.updatedAt || null };
+};
+
+const opsFetchJson = async (
+  method: 'GET' | 'POST',
+  body?: OpsServerPayload,
+): Promise<OpsServerPayload | 'saved' | null> => {
   for (const url of OPS_API_CANDIDATES) {
     try {
       const controller = new AbortController();
-      const timer = setTimeout(() => controller.abort(), 10000);
+      const timer = setTimeout(() => controller.abort(), 8000);
       const res = await fetch(url, {
         method,
         headers: {
@@ -154,25 +170,30 @@ const opsFetch = async (method: 'GET' | 'POST', body?: OpsServerPayload): Promis
         cache: 'no-store',
       });
       clearTimeout(timer);
-      if (res.ok) return res;
-    } catch { /* try next candidate */ }
+      if (!res.ok) continue;
+      if (method === 'POST') {
+        const ct = (res.headers.get('content-type') || '').toLowerCase();
+        if (ct.includes('text/html')) continue;
+        const text = await res.text();
+        if (!text || text.trim().startsWith('<')) continue;
+        try {
+          const data = JSON.parse(text);
+          if (data && (data.success === true || Array.isArray(data.rows))) return 'saved';
+        } catch { continue; }
+        continue;
+      }
+      const parsed = await parseOpsPayload(res);
+      if (parsed) return parsed;
+    } catch { /* try next */ }
   }
   return null;
 };
 
-/** Fast dedicated ops API via Vercel proxy → Hostinger file store */
+/** Dedicated ops sync — Hostinger ops-sync.php (file store) */
 export const opsServerLoad = async (): Promise<OpsServerPayload | null> => {
-  try {
-    const res = await opsFetch('GET');
-    if (!res) return null;
-    const data = await res.json();
-    if (!data || !Array.isArray(data.rows) || data.departments || data.orders) {
-      return { rows: [], updatedAt: null };
-    }
-    return { rows: data.rows as OpsRow[], updatedAt: data.updatedAt || null };
-  } catch {
-    return null;
-  }
+  const result = await opsFetchJson('GET');
+  if (!result || result === 'saved') return null;
+  return result;
 };
 
 export const opsServerSave = async (rows: OpsRow[], updatedAt: string): Promise<boolean> => {
@@ -180,12 +201,8 @@ export const opsServerSave = async (rows: OpsRow[], updatedAt: string): Promise<
     rows: (rows || []).map((r) => ({ ...r, jobImage: '' })),
     updatedAt,
   };
-  try {
-    const res = await opsFetch('POST', payload);
-    return !!res && res.ok;
-  } catch {
-    return false;
-  }
+  const result = await opsFetchJson('POST', payload);
+  return result === 'saved';
 };
 
 /** Prefer rows that actually have text content over empty shells */
