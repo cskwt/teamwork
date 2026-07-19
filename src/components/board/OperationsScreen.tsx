@@ -47,6 +47,8 @@ const PieProgress: React.FC<{ pct: number; size?: number }> = ({ pct, size = 52 
   );
 };
 
+const LEGACY_LS_KEY = 'ops_screen_rows';
+
 const OperationsScreen: React.FC = () => {
   const { state, dispatch } = useApp();
   const rows: OpsRow[] = state.opsRows && state.opsRows.length > 0 ? state.opsRows : [];
@@ -60,6 +62,23 @@ const OperationsScreen: React.FC = () => {
   const [fullscreen, setFullscreen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editData, setEditData] = useState<OpsRow | null>(null);
+
+  // Migrate old localStorage data to server state on first load
+  useEffect(() => {
+    if ((state.opsRows || []).length === 0) {
+      try {
+        const legacy = localStorage.getItem(LEGACY_LS_KEY);
+        if (legacy) {
+          const parsed: OpsRow[] = JSON.parse(legacy);
+          if (parsed && parsed.length > 0) {
+            dispatch({ type: 'SET_OPS_ROWS', payload: parsed });
+            localStorage.removeItem(LEGACY_LS_KEY); // clean up after migration
+          }
+        }
+      } catch { /* ignore */ }
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   useEffect(() => {
     const timer = setInterval(() => setNow(new Date()), 1000);
