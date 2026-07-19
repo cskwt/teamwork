@@ -132,4 +132,6 @@ export interface AppState {
   currentUser: User | null;
   notifications: AppNotification[];
   opsRows: OpsRow[];
+  /** ISO timestamp of last intentional ops-screen edit — protects against stale overwrites */
+  opsUpdatedAt?: string;
 }

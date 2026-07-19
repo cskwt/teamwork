@@ -215,7 +215,94 @@ const getDefaultState = (): AppState => ({
   currentUser: null,
   notifications: [],
   opsRows: [],
+  opsUpdatedAt: undefined,
 });
+
+/**
+ * Resolve which opsRows to write to the server.
+ * Critical: devices that never edited the ops screen must NOT wipe server data.
+ */
+export const resolveOpsRowsForSave = (
+  serverRows: OpsRow[] = [],
+  localRows: OpsRow[] = [],
+  serverAt?: string,
+  localAt?: string,
+): { opsRows: OpsRow[]; opsUpdatedAt?: string } => {
+  const sAt = serverAt || '';
+  const lAt = localAt || '';
+  const srvScore = serverRows.reduce((s, r) => s + opsRowScore(r), 0);
+  const locScore = localRows.reduce((s, r) => s + opsRowScore(r), 0);
+
+  // Local never touched ops screen → always keep server ops as-is
+  if (!lAt) {
+    return {
+      opsRows: srvScore > 0 || serverRows.length > 0 ? serverRows : localRows,
+      opsUpdatedAt: sAt || undefined,
+    };
+  }
+
+  // Local edited more recently (or same time) → local table is authority
+  if (lAt >= sAt) {
+    return { opsRows: localRows, opsUpdatedAt: lAt };
+  }
+
+  // Server ops newer → keep server, but fill empty text from local if useful
+  if (srvScore > 0) {
+    return { opsRows: mergeOpsRows(serverRows, localRows), opsUpdatedAt: sAt };
+  }
+
+  // Server newer stamp but empty content, local has content → keep local
+  if (locScore > 0) {
+    return { opsRows: localRows, opsUpdatedAt: lAt };
+  }
+
+  return { opsRows: mergeOpsRows(serverRows, localRows), opsUpdatedAt: sAt || lAt || undefined };
+};
+
+/** Dedicated push of ops table — retries with fresh server fetch to beat race conditions */
+export const saveOpsRowsToServer = async (opsRows: OpsRow[], opsUpdatedAt: string): Promise<boolean> => {
+  const cleanRows = (opsRows || []).map((r) => ({ ...r, jobImage: '' }));
+  for (let attempt = 0; attempt < 3; attempt++) {
+    try {
+      const server = await serverLoad();
+      if (!server) {
+        // No server — still save locally elsewhere; can't push
+        return false;
+      }
+      const resolved = resolveOpsRowsForSave(
+        server.opsRows || [],
+        cleanRows,
+        server.opsUpdatedAt,
+        opsUpdatedAt,
+      );
+      // When this call is from an intentional edit, force our rows if our stamp is newest
+      const finalRows = (opsUpdatedAt >= (server.opsUpdatedAt || ''))
+        ? cleanRows
+        : resolved.opsRows;
+      const finalAt = opsUpdatedAt >= (server.opsUpdatedAt || '')
+        ? opsUpdatedAt
+        : (resolved.opsUpdatedAt || opsUpdatedAt);
+
+      const ok = await serverSave({
+        ...server,
+        currentUser: null,
+        opsRows: finalRows,
+        opsUpdatedAt: finalAt,
+      });
+      if (!ok) continue;
+
+      // Verify write stuck
+      const verify = await serverLoad();
+      if (!verify) continue;
+      const vAt = verify.opsUpdatedAt || '';
+      if (vAt >= opsUpdatedAt) return true;
+      const vScore = (verify.opsRows || []).reduce((s, r) => s + opsRowScore(r), 0);
+      const eScore = cleanRows.reduce((s, r) => s + opsRowScore(r), 0);
+      if (eScore === 0 || vScore >= eScore) return true;
+    } catch { /* retry */ }
+  }
+  return false;
+};
 
 const migrateFromLocalStorage = (): AppState | null => {
   for (const key of OLD_LS_KEYS) {
@@ -372,7 +459,12 @@ export const loadState = async (): Promise<AppState> => {
       orders: mergedOrders,
       currentUser: null,
       notifications: fromServer.notifications || local?.notifications || [],
-      opsRows: mergeOpsRows(fromServer.opsRows || [], local?.opsRows || []),
+      ...resolveOpsRowsForSave(
+        fromServer.opsRows || [],
+        local?.opsRows || [],
+        fromServer.opsUpdatedAt,
+        local?.opsUpdatedAt,
+      ),
     };
 
     // Push back to server when:
@@ -484,9 +576,54 @@ export const saveState = async (state: AppState): Promise<void> => {
     });
     // Merge users: union — never drop a user from either side
     const mergedUsers = mergeUsers(serverCurrent.users || [], toSave.users || []);
-    // Merge opsRows: never let a device with empty ops wipe filled rows on the server
-    const mergedOps = mergeOpsRows(serverCurrent.opsRows || [], toSave.opsRows || []);
-    serverSave({ ...toSave, users: mergedUsers, orders: mergedOrders, opsRows: mergedOps });
+
+    // Re-fetch right before write to shrink the race window for ops data
+    serverLoad().then((fresh) => {
+      const base = fresh || serverCurrent;
+      // Re-merge orders against freshest server snapshot
+      const freshMap = new Map((base.orders || []).map((o) => [o.id, o]));
+      const freshOrders: AppState['orders'] = [];
+      (toSave.orders || []).forEach((loc) => {
+        const srv = freshMap.get(loc.id);
+        if (!srv) {
+          if (!loc.deletedAt) freshOrders.push(loc);
+          return;
+        }
+        freshOrders.push(mergeOrder(srv, loc));
+      });
+      (base.orders || []).forEach((srv) => {
+        if (!freshOrders.find((o) => o.id === srv.id)) freshOrders.push(srv);
+      });
+
+      const opsResolved = resolveOpsRowsForSave(
+        base.opsRows || [],
+        toSave.opsRows || [],
+        base.opsUpdatedAt,
+        toSave.opsUpdatedAt,
+      );
+
+      serverSave({
+        ...toSave,
+        users: mergeUsers(base.users || [], toSave.users || []),
+        orders: freshOrders,
+        opsRows: opsResolved.opsRows,
+        opsUpdatedAt: opsResolved.opsUpdatedAt,
+      });
+    }).catch(() => {
+      const opsResolved = resolveOpsRowsForSave(
+        serverCurrent.opsRows || [],
+        toSave.opsRows || [],
+        serverCurrent.opsUpdatedAt,
+        toSave.opsUpdatedAt,
+      );
+      serverSave({
+        ...toSave,
+        users: mergedUsers,
+        orders: mergedOrders,
+        opsRows: opsResolved.opsRows,
+        opsUpdatedAt: opsResolved.opsUpdatedAt,
+      });
+    });
   }).catch(() => {
     // If fetch fails, save what we have — better than losing local changes
     serverSave(toSave);

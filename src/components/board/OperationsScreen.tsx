@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Plus, Trash2, Monitor, Edit2, Check, X } from 'lucide-react';
 import { useApp } from '../../contexts/AppContext';
 import { OpsRow } from '../../types';
+import { saveOpsRowsToServer } from '../../utils/storage';
 
 const emptyRow = (): OpsRow => ({
   id: Math.random().toString(36).slice(2),
@@ -78,8 +79,12 @@ const OperationsScreen: React.FC = () => {
 
   const setRows = (updater: OpsRow[] | ((prev: OpsRow[]) => OpsRow[])) => {
     const next = typeof updater === 'function' ? updater(rows) : updater;
-    dispatch({ type: 'SET_OPS_ROWS', payload: next });
-    backupOpsRows(next); // always keep local backup
+    const stamp = new Date().toISOString();
+    const stamped = next.map((r) => ({ ...r, updatedAt: r.updatedAt || stamp }));
+    dispatch({ type: 'SET_OPS_ROWS', payload: stamped, opsUpdatedAt: stamp });
+    backupOpsRows(stamped);
+    // Push ops table to server immediately (independent of other device saves)
+    saveOpsRowsToServer(stamped, stamp).catch(() => {});
   };
 
   const [now, setNow] = useState(new Date());
@@ -105,8 +110,10 @@ const OperationsScreen: React.FC = () => {
       current.forEach((c) => {
         if (!restored.find((r) => r.id === c.id) && c.jobImage) restored.push(c);
       });
-      dispatch({ type: 'SET_OPS_ROWS', payload: restored });
+      const stamp = new Date().toISOString();
+      dispatch({ type: 'SET_OPS_ROWS', payload: restored, opsUpdatedAt: stamp });
       backupOpsRows(restored);
+      saveOpsRowsToServer(restored, stamp).catch(() => {});
       return;
     }
     if (currentScore > 0) {

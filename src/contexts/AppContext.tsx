@@ -1,7 +1,7 @@
 import React, { createContext, useContext, useReducer, useEffect, useState, useRef } from 'react';
 import localforage from 'localforage';
 import { AppState, User, Department, Order, OrderComment, OrderHistoryEntry, KanbanColumn, AppNotification, OpsRow } from '../types';
-import { loadLocalState, saveState, saveSession, loadSession, touchSession, serverLoad, mergeOpsRows } from '../utils/storage';
+import { loadLocalState, saveState, saveSession, loadSession, touchSession, serverLoad, mergeOpsRows, resolveOpsRowsForSave } from '../utils/storage';
 import { generateId } from '../utils/helpers';
 import { INITIAL_USERS, INITIAL_DEPARTMENTS, INITIAL_ORDERS } from '../data/initialData';
 
@@ -12,6 +12,7 @@ const DEFAULT_STATE: AppState = {
   currentUser: null,
   notifications: [],
   opsRows: [],
+  opsUpdatedAt: undefined,
 };
 
 const makeNotif = (
@@ -55,19 +56,27 @@ type Action =
   | { type: 'CLEAR_ARCHIVE' }
   | { type: 'PURGE_OLD_TRASH' }
   | { type: 'MARK_NOTIFICATIONS_READ'; payload: string }  // userId
-  | { type: 'SET_OPS_ROWS'; payload: OpsRow[] }
+  | { type: 'SET_OPS_ROWS'; payload: OpsRow[]; opsUpdatedAt?: string }
   | { type: 'INIT_STATE'; payload: AppState }
   | { type: 'SYNC_STATE'; payload: AppState };
 
 const reducer = (state: AppState, action: Action): AppState => {
   switch (action.type) {
-    case 'INIT_STATE':
+    case 'INIT_STATE': {
+      const ops = resolveOpsRowsForSave(
+        action.payload.opsRows || [],
+        state.opsRows || [],
+        action.payload.opsUpdatedAt,
+        state.opsUpdatedAt,
+      );
       return {
         ...action.payload,
         currentUser: null,
         notifications: action.payload.notifications || [],
-        opsRows: mergeOpsRows(action.payload.opsRows || [], state.opsRows || []),
+        opsRows: ops.opsRows,
+        opsUpdatedAt: ops.opsUpdatedAt,
       };
+    }
     case 'SYNC_STATE': {
       // Server is the source of truth. Merge only allows local to win when it has
       // a genuinely newer change (e.g. user just made an edit that hasn't saved yet).
@@ -173,7 +182,27 @@ const reducer = (state: AppState, action: Action): AppState => {
         users: action.payload.users || state.users,
         departments: mergedDepts,
         orders: mergedOrders,
-        opsRows: mergeOpsRows(action.payload.opsRows || [], state.opsRows || []),
+        ...(() => {
+          const ops = resolveOpsRowsForSave(
+            action.payload.opsRows || [],
+            state.opsRows || [],
+            action.payload.opsUpdatedAt,
+            state.opsUpdatedAt,
+          );
+          // On sync, prefer whichever side has the newer opsUpdatedAt (or richer content)
+          const serverAt = action.payload.opsUpdatedAt || '';
+          const localAt = state.opsUpdatedAt || '';
+          if (localAt && localAt > serverAt) {
+            return { opsRows: mergeOpsRows(state.opsRows || [], action.payload.opsRows || []), opsUpdatedAt: localAt };
+          }
+          if (serverAt && serverAt >= localAt) {
+            return {
+              opsRows: mergeOpsRows(action.payload.opsRows || [], state.opsRows || []),
+              opsUpdatedAt: serverAt,
+            };
+          }
+          return { opsRows: ops.opsRows, opsUpdatedAt: ops.opsUpdatedAt };
+        })(),
         notifications: [
           ...state.notifications,
           ...(action.payload.notifications || []).filter(
@@ -263,7 +292,11 @@ const reducer = (state: AppState, action: Action): AppState => {
       };
     }
     case 'SET_OPS_ROWS':
-      return { ...state, opsRows: action.payload };
+      return {
+        ...state,
+        opsRows: action.payload,
+        opsUpdatedAt: action.opsUpdatedAt || new Date().toISOString(),
+      };
     case 'RESTORE_ORDER':
       return {
         ...state,
@@ -547,7 +580,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       const opsHash = opsRows.map((r) =>
         [r.id, r.customer, r.job, r.qty, r.target, r.finishedQty, r.finish, r.date, r.updatedAt || ''].join(',')
       ).join('|');
-      return `${orders.length}:${maxOrderUpdated}:${sortSum}:${deletedCount}:${archivedCount}:${idHash}|${depts.length}:${maxDeptUpdated}|ops:${opsRows.length}:${opsHash.length}:${opsHash.slice(0, 80)}`;
+      return `${orders.length}:${maxOrderUpdated}:${sortSum}:${deletedCount}:${archivedCount}:${idHash}|${depts.length}:${maxDeptUpdated}|ops:${s.opsUpdatedAt || ''}:${opsRows.length}:${opsHash.length}:${opsHash.slice(0, 120)}`;
     };
 
     const poll = async () => {
