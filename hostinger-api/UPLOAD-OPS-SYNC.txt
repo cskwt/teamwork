@@ -1,0 +1,18 @@
+UPLOAD THIS FILE (new name — required)
+=====================================
+
+File:  ops-sync.php
+
+Put it here on Hostinger:
+  public_html/teamwork-api/ops-sync.php
+
+(Same folder as api.php)
+
+Why a new filename?
+  The old ops-api.php is stuck/hanging on the server (MySQL).
+  Using ops-sync.php avoids that stuck process.
+
+After upload:
+  1. Hard Refresh the app
+  2. Status should show ● Synced (green)
+  3. Add a row → check other devices

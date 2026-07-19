@@ -90,7 +90,7 @@ const PieProgress: React.FC<{ pct: number; size?: number }> = ({ pct, size = 52 
 const OperationsScreen: React.FC = () => {
   const [rows, setRowsState] = useState<OpsRow[]>([]);
   const [updatedAt, setUpdatedAt] = useState<string | null>(null);
-  const [syncStatus, setSyncStatus] = useState<'ok' | 'saving' | 'error' | 'loading'>('loading');
+  const [syncStatus, setSyncStatus] = useState<'ok' | 'saving' | 'error' | 'loading'>('ok');
   const [now, setNow] = useState(new Date());
   const [fullscreen, setFullscreen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -115,26 +115,40 @@ const OperationsScreen: React.FC = () => {
     }
   };
 
-  // Initial load from dedicated ops API (+ local backup fallback)
+  // Open instantly from local backup — never stay on Loading
   useEffect(() => {
     let cancelled = false;
+    const backup = loadBackup();
+    if (backup.length > 0) {
+      const stamp = new Date().toISOString();
+      applyRows(backup, stamp, false);
+      setSyncStatus('ok');
+    } else {
+      setSyncStatus('ok');
+      setRowsState([]);
+    }
+
+    // Background sync (short timeout — does not block UI)
     (async () => {
       const remote = await opsServerLoad();
       if (cancelled) return;
-      if (remote && remote.rows.length > 0) {
-        applyRows(remote.rows, remote.updatedAt || new Date().toISOString(), false);
-        setSyncStatus('ok');
+      if (!remote) {
+        setSyncStatus('error');
         return;
       }
-      const backup = loadBackup();
-      if (backup.length > 0) {
+      const remoteAt = remote.updatedAt || '';
+      const localAt = localStampRef.current || '';
+      if (remote.rows.length > 0 && (!localAt || remoteAt >= localAt)) {
+        applyRows(remote.rows, remoteAt || new Date().toISOString(), false);
+      } else if (backup.length > 0 && remote.rows.length === 0) {
+        // Push local backup to server once
         const stamp = new Date().toISOString();
-        applyRows(backup, stamp, true); // push backup to new ops API
+        applyRows(backup, stamp, true);
         return;
       }
-      setSyncStatus(remote ? 'ok' : 'error');
-      setRowsState([]);
+      setSyncStatus('ok');
     })();
+
     return () => { cancelled = true; };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -205,7 +219,7 @@ const OperationsScreen: React.FC = () => {
 
   const syncLabel =
     syncStatus === 'saving' ? 'Saving…' :
-    syncStatus === 'error' ? 'Sync error — re-upload ops-api.php' :
+    syncStatus === 'error' ? 'Sync error — upload ops-sync.php' :
     syncStatus === 'loading' ? 'Loading…' : 'Synced';
 
   const tableContent = (isFS: boolean) => (

@@ -127,70 +127,56 @@ export const clearSession = () => {
 
 // ─── Server API ───────────────────────────────────────────────────────────────
 const API_URL = 'https://csapp.io/teamwork-api/api.php';
-// Separate file — never POST ops into main api.php (that would wipe the 20MB app_state)
-const OPS_API_URL = 'https://csapp.io/teamwork-api/ops-api.php';
+// New file-based endpoint (avoid hung MySQL ops-api.php)
+const OPS_API_URL = 'https://csapp.io/teamwork-api/ops-sync.php';
 const API_KEY = 'tw_Cs9kWt2026xTeAmWoRk';
 
 export type OpsServerPayload = { rows: OpsRow[]; updatedAt: string | null };
 
-/** Fast dedicated ops API (file-based on Hostinger) — NOT the 20MB+ main app_state blob */
+/** Fast dedicated ops API (file-based on Hostinger) */
 export const opsServerLoad = async (): Promise<OpsServerPayload | null> => {
-  for (let attempt = 0; attempt < 3; attempt++) {
-    try {
-      const controller = new AbortController();
-      const timer = setTimeout(() => controller.abort(), 12000);
-      const res = await fetch(OPS_API_URL, {
-        headers: { 'X-API-Key': API_KEY },
-        signal: controller.signal,
-        cache: 'no-store',
-      });
-      clearTimeout(timer);
-      if (!res.ok) {
-        if (attempt < 2) { await new Promise((r) => setTimeout(r, 500 * (attempt + 1))); continue; }
-        return null;
-      }
-      const data = await res.json();
-      // Guard: never treat main app_state as ops payload
-      if (!data || !Array.isArray(data.rows) || data.departments || data.orders) {
-        return { rows: [], updatedAt: null };
-      }
-      return { rows: data.rows as OpsRow[], updatedAt: data.updatedAt || null };
-    } catch {
-      if (attempt < 2) { await new Promise((r) => setTimeout(r, 500 * (attempt + 1))); continue; }
-      return null;
+  try {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 4000);
+    const res = await fetch(OPS_API_URL, {
+      headers: { 'X-API-Key': API_KEY },
+      signal: controller.signal,
+      cache: 'no-store',
+    });
+    clearTimeout(timer);
+    if (!res.ok) return null;
+    const data = await res.json();
+    if (!data || !Array.isArray(data.rows) || data.departments || data.orders) {
+      return { rows: [], updatedAt: null };
     }
+    return { rows: data.rows as OpsRow[], updatedAt: data.updatedAt || null };
+  } catch {
+    return null;
   }
-  return null;
 };
 
 export const opsServerSave = async (rows: OpsRow[], updatedAt: string): Promise<boolean> => {
-  const payload: OpsServerPayload = {
-    rows: (rows || []).map((r) => ({ ...r, jobImage: '' })),
-    updatedAt,
-  };
-  for (let attempt = 0; attempt < 3; attempt++) {
-    try {
-      const controller = new AbortController();
-      const timer = setTimeout(() => controller.abort(), 12000);
-      const res = await fetch(OPS_API_URL, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'X-API-Key': API_KEY,
-        },
-        body: JSON.stringify(payload),
-        signal: controller.signal,
-      });
-      clearTimeout(timer);
-      if (res.ok) return true;
-      if (attempt < 2) { await new Promise((r) => setTimeout(r, 500 * (attempt + 1))); continue; }
-      return false;
-    } catch {
-      if (attempt < 2) { await new Promise((r) => setTimeout(r, 500 * (attempt + 1))); continue; }
-      return false;
-    }
+  try {
+    const payload: OpsServerPayload = {
+      rows: (rows || []).map((r) => ({ ...r, jobImage: '' })),
+      updatedAt,
+    };
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 4000);
+    const res = await fetch(OPS_API_URL, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-API-Key': API_KEY,
+      },
+      body: JSON.stringify(payload),
+      signal: controller.signal,
+    });
+    clearTimeout(timer);
+    return res.ok;
+  } catch {
+    return false;
   }
-  return false;
 };
 
 export const serverLoad = async (): Promise<AppState | null> => {
