@@ -6,6 +6,7 @@ interface OperationsRow {
   date: string;
   customer: string;
   job: string;
+  jobImage: string;
   qty: string;
   target: string;
   finish: string;
@@ -20,6 +21,7 @@ const emptyRow = (): OperationsRow => ({
   date: '',
   customer: '',
   job: '',
+  jobImage: '',
   qty: '',
   target: '',
   finish: '',
@@ -30,9 +32,9 @@ const emptyRow = (): OperationsRow => ({
 const DAYS_EN = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 const MONTHS_EN = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
 
-const COL_COLORS = ['#64748b', '#3b82f6', '#22c55e', '#f59e0b', '#ef4444', '#8b5cf6', '#06b6d4', '#f43f5e'];
-const COL_HEADERS = ['Date', 'Customer', 'Job', 'Quantity', 'Target', 'Finishing Date', 'Workers', 'Progress'];
-const COL_FIELDS: (keyof OperationsRow)[] = ['date', 'customer', 'job', 'qty', 'target', 'finish', 'workers', 'progress'];
+const COL_COLORS = ['#64748b', '#3b82f6', '#22c55e', '#22c55e', '#f59e0b', '#ef4444', '#8b5cf6', '#06b6d4', '#f43f5e'];
+const COL_HEADERS = ['Date', 'Customer', 'Job', 'Photo', 'Quantity', 'Target', 'Finishing Date', 'Workers', 'Progress'];
+const COL_FIELDS: (keyof OperationsRow)[] = ['date', 'customer', 'job', 'jobImage', 'qty', 'target', 'finish', 'workers', 'progress'];
 
 const PieProgress: React.FC<{ pct: number; size?: number }> = ({ pct, size = 52 }) => {
   const r = (size - 8) / 2;
@@ -162,6 +164,30 @@ const OperationsScreen: React.FC = () => {
                           />
                           <span style={{ fontSize: 12, color: '#64748b' }}>%</span>
                         </div>
+                      ) : field === 'jobImage' ? (
+                        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6 }}>
+                          {editData[field] && (
+                            <div style={{ position: 'relative' }}>
+                              <img src={editData[field]} alt="job" style={{ width: 64, height: 64, objectFit: 'cover', borderRadius: 8, border: '2px solid #22c55e' }} />
+                              <button
+                                onClick={() => setEditData(prev => prev ? { ...prev, jobImage: '' } : prev)}
+                                style={{ position: 'absolute', top: -6, right: -6, background: '#ef4444', border: 'none', color: '#fff', borderRadius: '50%', width: 18, height: 18, cursor: 'pointer', fontSize: 10, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                              ><X size={10} /></button>
+                            </div>
+                          )}
+                          <label style={{ cursor: 'pointer', background: '#eff6ff', border: '1.5px dashed #6366f1', color: '#6366f1', borderRadius: 8, padding: '5px 12px', fontSize: 12, fontWeight: 600, whiteSpace: 'nowrap' }}>
+                            {editData[field] ? 'Change' : '+ Upload'}
+                            <input type="file" accept="image/*" style={{ display: 'none' }}
+                              onChange={e => {
+                                const file = e.target.files?.[0];
+                                if (!file) return;
+                                const reader = new FileReader();
+                                reader.onload = ev => setEditData(prev => prev ? { ...prev, jobImage: ev.target?.result as string } : prev);
+                                reader.readAsDataURL(file);
+                              }}
+                            />
+                          </label>
+                        </div>
                       ) : (
                         <input
                           type={(field === 'finish' || field === 'date') ? 'date' : 'text'}
@@ -190,12 +216,18 @@ const OperationsScreen: React.FC = () => {
                     if (field === 'progress') {
                       const pct = parseInt(row[field] || '0', 10);
                       return (
-                        <td key={field} style={{
-                          padding: isFS ? '16px 28px' : '8px 12px',
-                          textAlign: 'center',
-                          borderBottom: '1px solid #e2e8f0',
-                        }}>
+                        <td key={field} style={{ padding: isFS ? '16px 28px' : '8px 12px', textAlign: 'center', borderBottom: '1px solid #e2e8f0' }}>
                           <PieProgress pct={pct} size={isFS ? 80 : 52} />
+                        </td>
+                      );
+                    }
+                    if (field === 'jobImage') {
+                      return (
+                        <td key={field} style={{ padding: isFS ? '12px 20px' : '8px 10px', textAlign: 'center', borderBottom: '1px solid #e2e8f0' }}>
+                          {row[field]
+                            ? <img src={row[field]} alt="job" style={{ width: isFS ? 100 : 56, height: isFS ? 100 : 56, objectFit: 'cover', borderRadius: 10, border: '2px solid #e2e8f0', boxShadow: '0 2px 8px rgba(0,0,0,0.10)' }} />
+                            : <span style={{ color: '#cbd5e1', fontSize: isFS ? 20 : 13 }}>—</span>
+                          }
                         </td>
                       );
                     }
