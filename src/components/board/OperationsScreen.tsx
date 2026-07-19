@@ -119,7 +119,6 @@ const OperationsScreen: React.FC = () => {
   useEffect(() => {
     let cancelled = false;
     const backup = loadBackup();
-    const backupScore = opsRowsScore(backup);
     if (backup.length > 0) {
       // Keep original stamps — do NOT invent "now" or we block server updates
       const stamp = backup.reduce((m, r) => ((r.updatedAt || '') > m ? (r.updatedAt || '') : m), '') || '1970-01-01T00:00:00.000Z';
