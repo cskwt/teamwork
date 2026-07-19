@@ -31,6 +31,14 @@ const AppInner: React.FC = () => {
 
   const { tr } = useLang();
 
+  useEffect(() => {
+    localStorage.setItem('tw_active_page', activePage);
+  }, [activePage]);
+
+  useEffect(() => {
+    if (activeDeptId) localStorage.setItem('tw_active_dept', activeDeptId);
+  }, [activeDeptId]);
+
   if (!loaded) return (
     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100vh', flexDirection: 'column', gap: 24, background: '#f8fafc' }}>
       <img
@@ -46,14 +54,6 @@ const AppInner: React.FC = () => {
   if (!currentUser) return <LoginPage />;
 
   const activeDept = departments.find((d) => d.id === activeDeptId);
-
-  useEffect(() => {
-    localStorage.setItem('tw_active_page', activePage);
-  }, [activePage]);
-
-  useEffect(() => {
-    if (activeDeptId) localStorage.setItem('tw_active_dept', activeDeptId);
-  }, [activeDeptId]);
 
   const handleNavigate = (page: string) => setActivePage(page);
 
