@@ -12,6 +12,7 @@ import DepartmentsPage from './components/departments/DepartmentsPage';
 import UsersPage from './components/departments/UsersPage';
 import TrashPage from './components/board/TrashPage';
 import SettingsPage from './components/board/SettingsPage';
+import OperationsScreen from './components/board/OperationsScreen';
 import NotificationPopup from './components/layout/NotificationPopup';
 import './App.css';
 
@@ -70,6 +71,8 @@ const AppInner: React.FC = () => {
         return <OrdersPage archiveMode />;
       case 'trash':
         return <TrashPage />;
+      case 'operations':
+        return <OperationsScreen />;
       default:
         return <ProjectsPage onOpenBoard={handleOpenBoard} />;
     }

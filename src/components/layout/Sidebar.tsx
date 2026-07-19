@@ -1,7 +1,7 @@
 import React from 'react';
 import {
   BarChart2, Settings, LogOut,
-  Archive, Trash2, UserCog, LayoutGrid
+  Archive, Trash2, UserCog, LayoutGrid, Monitor
 } from 'lucide-react';
 import { useApp } from '../../contexts/AppContext';
 import { useLang } from '../../contexts/LanguageContext';
@@ -25,6 +25,7 @@ const Sidebar: React.FC<SidebarProps> = ({ activePage, onNavigate }) => {
   const navItems = [
     { id: 'dashboard', label: tr.dashboard, icon: <BarChart2 size={18} /> },
     { id: 'projects', label: tr.departments, icon: <LayoutGrid size={18} /> },
+    { id: 'operations', label: 'شاشة العمليات', icon: <Monitor size={18} /> },
     { id: 'archive', label: tr.archive, icon: <Archive size={18} /> },
     { id: 'trash', label: tr.trash, icon: <Trash2 size={18} /> },
   ];
