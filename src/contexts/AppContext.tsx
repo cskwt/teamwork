@@ -175,9 +175,17 @@ const reducer = (state: AppState, action: Action): AppState => {
         users: action.payload.users || state.users,
         departments: mergedDepts,
         orders: mergedOrders,
-        opsRows: (action.payload.opsRows && action.payload.opsRows.length > 0)
-          ? action.payload.opsRows
-          : state.opsRows,
+        opsRows: (() => {
+          const srvRows = (action.payload.opsRows && action.payload.opsRows.length > 0)
+            ? action.payload.opsRows
+            : state.opsRows || [];
+          // Restore local jobImages stripped before server save
+          const localMap = new Map((state.opsRows || []).map((r) => [r.id, r]));
+          return srvRows.map((r: any) => ({
+            ...r,
+            jobImage: r.jobImage || localMap.get(r.id)?.jobImage || '',
+          }));
+        })(),
         notifications: [
           ...state.notifications,
           ...(action.payload.notifications || []).filter(

@@ -76,6 +76,8 @@ const stripLargeDataUrls = (state: AppState): AppState => {
         dataUrl: shouldStrip(f.dataUrl) ? undefined : f.dataUrl,
       })),
     })),
+    // Strip jobImage from server payload entirely — images stay in local IndexedDB only
+    opsRows: (state.opsRows || []).map((r) => ({ ...r, jobImage: '' })),
   };
 };
 
@@ -231,6 +233,16 @@ export const loadState = async (): Promise<AppState> => {
       }
     }
 
+    // Restore jobImages from local IndexedDB into server opsRows (images are stripped before server save)
+    const serverOpsRows = (fromServer.opsRows && fromServer.opsRows.length > 0)
+      ? fromServer.opsRows
+      : (local?.opsRows || []);
+    const localOpsMap = new Map((local?.opsRows || []).map((r) => [r.id, r]));
+    const mergedOpsRows = serverOpsRows.map((r: any) => {
+      const localRow = localOpsMap.get(r.id);
+      return { ...r, jobImage: r.jobImage || localRow?.jobImage || '' };
+    });
+
     const merged: AppState = {
       ...getDefaultState(),
       ...fromServer,
@@ -238,9 +250,7 @@ export const loadState = async (): Promise<AppState> => {
       orders: mergedOrders,
       currentUser: null,
       notifications: fromServer.notifications || local?.notifications || [],
-      opsRows: (fromServer.opsRows && fromServer.opsRows.length > 0)
-        ? fromServer.opsRows
-        : (local?.opsRows || []),
+      opsRows: mergedOpsRows,
     };
 
     // Push back to server when:
