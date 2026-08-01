@@ -132,6 +132,35 @@ textarea.form-input { padding: 10px 12px; resize: vertical; color: #111827; min-
 .login-btn:hover:not(:disabled) { transform: translateY(-1px); background: #1f2937; box-shadow: 0 6px 18px rgba(0,0,0,.3); }
 .login-btn:active:not(:disabled) { transform: translateY(0); }
 .login-btn:disabled { opacity: .6; cursor: not-allowed; }
+
+/* أدوات الإنتاج — تحت زر الدخول (نفس ترتيب المحاسب الذكي) */
+.login-tools {
+  margin-top: 22px;
+  padding-top: 18px;
+  border-top: 2px solid #eee;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.login-tool-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  width: 100%;
+  padding: 12px 22px;
+  border-radius: 10px;
+  text-decoration: none;
+  font-weight: 700;
+  font-size: 15px;
+  color: #fff !important;
+  box-sizing: border-box;
+  transition: filter .15s, transform .15s;
+}
+.login-tool-btn:hover { filter: brightness(.94); transform: translateY(-1px); }
+.login-tool-attendance { background: #0d9488; }
+.login-tool-cost { background: #6f42c1; }
+.login-tool-templates { background: #1e3a5f; }
 .spinner { width: 20px; height: 20px; border: 2px solid rgba(255,255,255,.3); border-top-color: #fff; border-radius: 50%; animation: spin .7s linear infinite; }
 @keyframes spin { to { transform: rotate(360deg); } }
 .login-hint { margin-top: 18px; padding-top: 16px; border-top: 1px solid #f3f4f6; text-align: center; }
@@ -665,7 +694,23 @@ textarea.form-input { padding: 10px 12px; resize: vertical; color: #111827; min-
 .order-card:hover { box-shadow: 0 2px 12px rgba(0,0,0,.08); transform: translateY(-1px); border-right-color: var(--primary); }
 .order-card.card-dragging { opacity: .4; }
 .order-card.card-no-drag { cursor: default !important; }
-.order-card.card-overdue { border-right-color: var(--danger) !important; }
+.order-card.card-is-new { border-right-color: #6366f1; }
+.card-new-badge {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  z-index: 3;
+  background: #6366f1;
+  color: #fff;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.6px;
+  padding: 3px 7px;
+  border-radius: 5px;
+  line-height: 1.2;
+  box-shadow: 0 2px 6px rgba(99, 102, 241, 0.35);
+  pointer-events: none;
+}
 .card-overdue-banner {
   display: flex; align-items: center; gap: 4px;
   background: #fef2f2; color: var(--danger); font-size: 10px; font-weight: 700;
@@ -938,15 +983,23 @@ textarea.form-input { padding: 10px 12px; resize: vertical; color: #111827; min-
 }
 .modal-close-corner:hover { background: #dc2626; }
 .modal-icon-btn {
-  width: 36px; height: 36px;
+  min-width: 36px; height: 36px;
+  padding: 0 8px;
   border-radius: 8px;
   border: none;
   background: #f3f4f6;
   color: #374151;
-  display: inline-flex; align-items: center; justify-content: center;
+  display: inline-flex; align-items: center; justify-content: center; gap: 4px;
   cursor: pointer;
   flex-shrink: 0;
   transition: background .15s;
+  white-space: nowrap;
+}
+.modal-icon-btn--wide {
+  width: auto;
+  padding: 0 10px;
+  font-size: 12px;
+  font-weight: 700;
 }
 .modal-icon-btn:hover { background: #e5e7eb; }
 .modal-icon-btn--danger  { color: #ef4444; }
@@ -1006,10 +1059,14 @@ textarea.form-input { padding: 10px 12px; resize: vertical; color: #111827; min-
   padding: 16px 20px; border-bottom: 1px solid #e5e7eb;
   position: sticky; top: 0; background: #ffffff; z-index: 1;
   border-radius: 16px 16px 0 0;
+  flex-wrap: wrap;
 }
 .modal-heading { font-size: 15px; font-weight: 700; }
-.modal-header-info { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; flex: 1; }
-.modal-header-actions { display: flex; align-items: center; gap: 6px; }
+.modal-header-info { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; flex: 1; min-width: 0; }
+.modal-header-actions {
+  display: flex; align-items: center; gap: 6px;
+  flex-shrink: 0; flex-wrap: wrap; max-width: 100%;
+}
 .modal-order-id { font-size: 11px; color: var(--text-muted); font-family: monospace; }
 .modal-status, .modal-priority { font-size: 11px; font-weight: 700; padding: 3px 10px; border-radius: 20px; }
 .modal-title-section { padding: 14px 20px 0; }
@@ -1205,6 +1262,7 @@ textarea.form-input { padding: 10px 12px; resize: vertical; color: #111827; min-
 .od-files-title-row { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
 .od-upload-btn { display: inline-flex; align-items: center; gap: 5px; padding: 5px 12px; background: #f0fdf4; color: #16a34a; border: 1px solid #bbf7d0; border-radius: 8px; font-size: 12px; font-weight: 600; cursor: pointer; transition: background 0.15s; }
 .od-upload-btn:hover { background: #dcfce7; }
+.od-upload-btn--busy { opacity: 0.7; pointer-events: none; cursor: wait; }
 .od-files-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(100px, 1fr)); gap: 8px; }
 .od-file-card { background: #f9fafb; border: 1px solid #e5e7eb; border-radius: var(--radius-sm); overflow: hidden; }
 .od-file-preview { width: 100%; height: 80px; object-fit: cover; display: block; }

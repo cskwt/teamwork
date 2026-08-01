@@ -1,7 +1,16 @@
 import React, { useState } from 'react';
 import { useApp } from '../../contexts/AppContext';
-import { Eye, EyeOff, Lock, User } from 'lucide-react';
+import { Eye, EyeOff, Lock, User, UserRoundCheck, Calculator, Scissors } from 'lucide-react';
 import logo from '../../assets/teamwork-logo-login.png';
+
+/** أدوات الإنتاج — أونلاين عبر المحاسب الذكي، أو محلياً عبر ProductionToolsSuite */
+const TOOLS_BASE = (
+  process.env.REACT_APP_TOOLS_URL ||
+  (typeof window !== 'undefined' &&
+  (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')
+    ? 'http://127.0.0.1:8765'
+    : 'https://acc.csapp.io')
+).replace(/\/$/, '');
 
 const LoginPage: React.FC = () => {
   const { login } = useApp();
@@ -87,6 +96,20 @@ const LoginPage: React.FC = () => {
             {loading ? <span className="spinner" /> : 'دخول'}
           </button>
 
+          <div className="login-tools">
+            <a className="login-tool-btn login-tool-attendance" href={`${TOOLS_BASE}/attendance`} target="_blank" rel="noreferrer">
+              <UserRoundCheck size={18} />
+              <span>الحضور والانصراف</span>
+            </a>
+            <a className="login-tool-btn login-tool-cost" href={`${TOOLS_BASE}/cost-calculator`} target="_blank" rel="noreferrer">
+              <Calculator size={18} />
+              <span>حاسبة التكاليف</span>
+            </a>
+            <a className="login-tool-btn login-tool-templates" href={`${TOOLS_BASE}/template-maker`} target="_blank" rel="noreferrer">
+              <Scissors size={18} />
+              <span>صانع القوالب</span>
+            </a>
+          </div>
         </form>
       </div>
     </div>
