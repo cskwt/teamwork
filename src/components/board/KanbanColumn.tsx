@@ -50,7 +50,10 @@ interface KanbanColumnProps {
 const KanbanColumn: React.FC<KanbanColumnProps> = ({ column, orders, onOrderClick, department, isDefault }) => {
   const { dispatch } = useApp();
   const { lang } = useLang();
-  const { setNodeRef, isOver } = useDroppable({ id: column.id });
+  const { setNodeRef, isOver } = useDroppable({
+    id: column.id,
+    data: { type: 'column', columnId: column.id },
+  });
   const [editing, setEditing] = useState(false);
   const [title, setTitle] = useState(column.title);
   const [color, setColor] = useState(column.color);

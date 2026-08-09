@@ -1,7 +1,9 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo, useCallback } from 'react';
 import {
   DndContext, DragEndEvent, DragOverlay, DragStartEvent,
-  closestCorners, PointerSensor, useSensor, useSensors
+  closestCorners, pointerWithin, rectIntersection,
+  PointerSensor, TouchSensor, useSensor, useSensors,
+  CollisionDetection, getFirstCollision,
 } from '@dnd-kit/core';
 import {
   SortableContext, horizontalListSortingStrategy,
@@ -10,9 +12,11 @@ import {
 import { CSS } from '@dnd-kit/utilities';
 import { ChevronLeft, Folder, Plus, GripVertical } from 'lucide-react';
 import { useApp } from '../../contexts/AppContext';
+import { useViewMode } from '../../contexts/ViewModeContext';
+import { useLang } from '../../contexts/LanguageContext';
 import { Department, Order, KanbanColumn as KanbanColumnType } from '../../types';
 import KanbanColumn from './KanbanColumn';
-import OrderCard from './OrderCard';
+import OrderCard, { canAcknowledgeNew } from './OrderCard';
 import OrderDetailModal from '../modals/OrderDetailModal';
 import AddOrderModal from '../modals/AddOrderModal';
 import Header from '../layout/Header';
@@ -22,14 +26,18 @@ interface KanbanBoardProps {
   onBack?: () => void;
 }
 
-// Sortable wrapper for a column
 const SortableColumn: React.FC<{
   col: KanbanColumnType;
   orders: Order[];
   onOrderClick: (o: Order) => void;
   department: Department;
-}> = ({ col, orders, onOrderClick, department }) => {
-  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: `col::${col.id}` });
+  disableColumnDrag?: boolean;
+}> = ({ col, orders, onOrderClick, department, disableColumnDrag }) => {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
+    id: `col::${col.id}`,
+    disabled: !!disableColumnDrag,
+    data: { type: 'column-shell', columnId: col.id },
+  });
   const style = {
     transform: CSS.Transform.toString(transform),
     transition,
@@ -37,9 +45,11 @@ const SortableColumn: React.FC<{
   };
   return (
     <div ref={setNodeRef} style={style} className="sortable-col-wrap">
-      <div className="col-drag-handle" {...attributes} {...listeners} title="اسحب لتغيير الترتيب">
-        <GripVertical size={14} />
-      </div>
+      {!disableColumnDrag && (
+        <div className="col-drag-handle" {...attributes} {...listeners} title="اسحب لتغيير الترتيب">
+          <GripVertical size={14} />
+        </div>
+      )}
       <KanbanColumn
         column={col}
         orders={orders}
@@ -50,9 +60,40 @@ const SortableColumn: React.FC<{
   );
 };
 
+const sortColOrders = (list: Order[]) =>
+  [...list].sort((a, b) => {
+    const aHas = a.sortOrder !== undefined && a.sortOrder !== null;
+    const bHas = b.sortOrder !== undefined && b.sortOrder !== null;
+    if (aHas && bHas) return (a.sortOrder as number) - (b.sortOrder as number);
+    if (aHas) return -1;
+    if (bHas) return 1;
+    return new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime();
+  });
+
+const resolveColumnId = (
+  overId: string,
+  overData: Record<string, unknown> | undefined,
+  deptOrders: Order[],
+): string | null => {
+  const dataType = overData?.type as string | undefined;
+  if (dataType === 'column' || dataType === 'column-shell') {
+    return String(overData?.columnId || overId.replace(/^col::/, ''));
+  }
+  if (dataType === 'card' && overData?.columnId) {
+    return String(overData.columnId);
+  }
+  if (overId.startsWith('col::')) return overId.replace(/^col::/, '');
+  const overOrder = deptOrders.find((o) => o.id === overId);
+  if (overOrder) return overOrder.status;
+  // bare column id (useDroppable)
+  return overId;
+};
+
 const KanbanBoard: React.FC<KanbanBoardProps> = ({ department, onBack }) => {
   const { state, dispatch, addHistoryEntry } = useApp();
   const { orders, currentUser } = state;
+  const { isPhone } = useViewMode();
+  const { tr } = useLang();
   const [activeOrder, setActiveOrder] = useState<Order | null>(null);
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
   const [showAddModal, setShowAddModal] = useState(false);
@@ -77,31 +118,116 @@ const KanbanBoard: React.FC<KanbanBoardProps> = ({ department, onBack }) => {
     setShowAddCol(false);
   };
 
+  const handleOrderClick = (o: Order) => {
+    if (o.status === 'new' && o.isNew !== false && currentUser && canAcknowledgeNew(currentUser, o)) {
+      dispatch({ type: 'ACKNOWLEDGE_NEW_ORDER', payload: { orderId: o.id, userId: currentUser.id } });
+    }
+    setSelectedOrder(o);
+  };
+
   const sensors = useSensors(
-    useSensor(PointerSensor, { activationConstraint: { distance: 8 } })
+    useSensor(PointerSensor, { activationConstraint: { distance: isPhone ? 10 : 5 } }),
+    useSensor(TouchSensor, { activationConstraint: { delay: 180, tolerance: 8 } }),
   );
 
   const isDeliveryDept = department.name === 'قسم التسليم';
 
-  // Fixed default column: "الطلبيات الجاهزة" for delivery, "الطلبيات الجديدة" for others
   const DEFAULT_COL: KanbanColumnType = isDeliveryDept
     ? { id: 'new', title: 'الطلبيات الجاهزة', color: '#10b981', order: 0 }
     : { id: 'new', title: 'الطلبيات الجديدة', color: '#6366f1', order: 0 };
 
-  const deptOrders = orders.filter((o) => o.departmentId === department.id && !o.deletedAt && !o.archivedAt);
+  const deptOrders = orders.filter(
+    (o) =>
+      o.departmentId === department.id &&
+      !o.deletedAt &&
+      !o.archivedAt &&
+      !o.isOrderRequest &&
+      !o.digitalPrinting &&
+      !o.largeFormat,
+  );
 
-  // Exclude 'new' column from user-managed columns (it's always rendered separately)
   const columns = [...department.columns]
     .filter((c) => c.id !== 'new')
     .sort((a, b) => b.order - a.order);
   const colSortableIds = columns.map((c) => `col::${c.id}`);
+  const allColumnIds = useMemo(
+    () => new Set(['new', ...columns.map((c) => c.id)]),
+    [columns],
+  );
+
+  const columnDroppableIds = useMemo(() => {
+    return new Set<string>(['new', ...columns.map((c) => c.id), ...columns.map((c) => `col::${c.id}`)]);
+  }, [columns]);
+
+  /** Prefer cards over column shells so reorder + empty-column drops both work */
+  const collisionDetection: CollisionDetection = useCallback((args) => {
+    const activeId = String(args.active.id);
+    if (activeId.startsWith('col::')) {
+      return closestCorners(args);
+    }
+
+    const pointerHits = pointerWithin(args);
+    const intersections = pointerHits.length > 0 ? pointerHits : rectIntersection(args);
+
+    const cardHits = intersections.filter((c) => !columnDroppableIds.has(String(c.id)));
+    if (cardHits.length > 0) return cardHits;
+
+    // Empty column / column body
+    const columnHits = intersections.filter((c) => columnDroppableIds.has(String(c.id)));
+    if (columnHits.length > 0) return columnHits;
+
+    const corners = closestCorners(args);
+    const cardCorners = corners.filter((c) => !columnDroppableIds.has(String(c.id)));
+    if (cardCorners.length > 0) return cardCorners;
+
+    const first = getFirstCollision(intersections.length ? intersections : corners);
+    return first ? [first] : corners;
+  }, [columnDroppableIds]);
 
   const handleDragStart = (event: DragStartEvent) => {
-    const id = event.active.id as string;
+    const id = String(event.active.id);
     if (!id.startsWith('col::')) {
-      const order = orders.find((o) => o.id === id);
-      setActiveOrder(order || null);
+      setActiveOrder(orders.find((o) => o.id === id) || null);
     }
+  };
+
+  const applyColumnSort = (colOrders: Order[], oldIndex: number, newIndex: number) => {
+    if (oldIndex === -1 || newIndex === -1 || oldIndex === newIndex) return;
+    const reordered = arrayMove(colOrders, oldIndex, newIndex);
+    const sortOrderAt = new Date().toISOString();
+    dispatch({
+      type: 'SET_ORDERS_SORT',
+      payload: reordered.map((o, i) => ({ id: o.id, sortOrder: i, sortOrderAt })),
+    });
+  };
+
+  const moveOrderToColumn = (order: Order, targetColId: string, insertIndex?: number) => {
+    if (!currentUser) return;
+    const allCols = [DEFAULT_COL, ...columns];
+    const fromLabel = allCols.find((c) => c.id === order.status)?.title || order.status;
+    const toLabel = allCols.find((c) => c.id === targetColId)?.title || targetColId;
+
+    if (order.status !== targetColId) {
+      dispatch({ type: 'MOVE_ORDER', payload: { orderId: order.id, status: targetColId, triggerUserId: currentUser.id } });
+      addHistoryEntry(order.id, 'تغيير الحالة', fromLabel, toLabel);
+    }
+
+    const targetOrders = sortColOrders(
+      deptOrders.filter((o) => o.status === targetColId && o.id !== order.id),
+    );
+    const moved: Order = { ...order, status: targetColId as Order['status'] };
+    let next: Order[];
+    if (typeof insertIndex === 'number' && insertIndex >= 0 && insertIndex <= targetOrders.length) {
+      next = [...targetOrders];
+      next.splice(insertIndex, 0, moved);
+    } else {
+      next = [...targetOrders, moved];
+    }
+    const sortOrderAt = new Date().toISOString();
+    dispatch({
+      type: 'SET_ORDERS_SORT',
+      payload: next.map((o, i) => ({ id: o.id, sortOrder: i, sortOrderAt })),
+    });
   };
 
   const handleDragEnd = (event: DragEndEvent) => {
@@ -109,13 +235,17 @@ const KanbanBoard: React.FC<KanbanBoardProps> = ({ department, onBack }) => {
     setActiveOrder(null);
     if (!over || active.id === over.id) return;
 
-    const activeId = active.id as string;
-    const overId = over.id as string;
+    const activeId = String(active.id);
+    const overId = String(over.id);
+    const overData = over.data?.current as Record<string, unknown> | undefined;
+    const activeData = active.data?.current as Record<string, unknown> | undefined;
 
-    // Column reorder
-    if (activeId.startsWith('col::') && overId.startsWith('col::')) {
+    // Column reorder (desktop)
+    if (activeId.startsWith('col::') && (overId.startsWith('col::') || overData?.type === 'column-shell')) {
+      if (isPhone) return;
+      const overColId = overId.startsWith('col::') ? overId : `col::${overData?.columnId}`;
       const oldIndex = columns.findIndex((c) => `col::${c.id}` === activeId);
-      const newIndex = columns.findIndex((c) => `col::${c.id}` === overId);
+      const newIndex = columns.findIndex((c) => `col::${c.id}` === overColId);
       if (oldIndex === -1 || newIndex === -1) return;
       const reordered = arrayMove(columns, oldIndex, newIndex);
       const updatedCols = reordered.map((c, i) => ({ ...c, order: reordered.length - i }));
@@ -126,64 +256,42 @@ const KanbanBoard: React.FC<KanbanBoardProps> = ({ department, onBack }) => {
       return;
     }
 
-    if (!activeId.startsWith('col::')) {
-      const orderId = activeId;
-      const order = orders.find((o) => o.id === orderId);
-      if (!order) return;
+    if (activeId.startsWith('col::') || activeData?.type === 'column-shell') return;
 
+    const order = orders.find((o) => o.id === activeId);
+    if (!order) return;
+
+    const targetColId = resolveColumnId(overId, overData, deptOrders);
+    if (!targetColId || !allColumnIds.has(targetColId)) return;
+
+    // Same-column reorder onto another card
+    if (targetColId === order.status) {
+      const colOrders = sortColOrders(deptOrders.filter((o) => o.status === order.status));
       const overOrder = deptOrders.find((o) => o.id === overId);
-
-      // ── Same-column reorder: allowed for ALL users ──
       if (overOrder && overOrder.status === order.status) {
-        // Use the same sort logic as KanbanColumn to get the true display order
-        const sortColOrders = (list: Order[]) =>
-          [...list].sort((a, b) => {
-            const aHas = a.sortOrder !== undefined && a.sortOrder !== null;
-            const bHas = b.sortOrder !== undefined && b.sortOrder !== null;
-            if (aHas && bHas) return (a.sortOrder as number) - (b.sortOrder as number);
-            if (aHas) return -1;
-            if (bHas) return 1;
-            return new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime();
-          });
-
-        const colOrders = sortColOrders(
-          deptOrders.filter((o) => o.status === order.status)
+        applyColumnSort(
+          colOrders,
+          colOrders.findIndex((o) => o.id === activeId),
+          colOrders.findIndex((o) => o.id === overId),
         );
-        const oldIndex = colOrders.findIndex((o) => o.id === activeId);
-        const newIndex = colOrders.findIndex((o) => o.id === overId);
-        if (oldIndex === -1 || newIndex === -1 || oldIndex === newIndex) return;
-        const reordered = arrayMove(colOrders, oldIndex, newIndex);
-        reordered.forEach((o, i) => {
-          if ((o.sortOrder ?? -1) === i) return; // no change needed
-          // Fetch the latest version to avoid overwriting fields changed on server.
-          // Do NOT touch updatedAt — sortOrder is cosmetic and must not override
-          // deletions or department-moves that have a later updatedAt on the server.
-          const latest = orders.find((x) => x.id === o.id) || o;
-          dispatch({ type: 'UPDATE_ORDER', payload: { ...latest, sortOrder: i }, silent: true } as any);
-        });
         return;
       }
-
-      // ── Cross-column move: admin / manager only ──
-      const userDeptIds = currentUser?.departmentIds?.length ? currentUser.departmentIds : (currentUser?.departmentId ? [currentUser.departmentId] : []);
-      const isOwnDept = userDeptIds.includes(department.id);
-      if (currentUser?.role !== 'admin' && !(currentUser?.role === 'manager' && isOwnDept)) return;
-
-      let targetColId = overId.startsWith('col::') ? overId.replace('col::', '') : null;
-      if (!targetColId && overOrder) targetColId = overOrder.status;
-
-      if (!targetColId) return;
-      const allCols = [DEFAULT_COL, ...columns];
-      const isCol = allCols.some((c) => c.id === targetColId);
-      if (!isCol) return;
-
-      if (order.status !== targetColId) {
-        const fromLabel = allCols.find((c) => c.id === order.status)?.title || order.status;
-        const toLabel = allCols.find((c) => c.id === targetColId)?.title || targetColId;
-        dispatch({ type: 'MOVE_ORDER', payload: { orderId, status: targetColId, triggerUserId: currentUser?.id } });
-        addHistoryEntry(orderId, 'تغيير الحالة', fromLabel, toLabel);
+      const overIndex = over.data?.current?.sortable?.index;
+      if (typeof overIndex === 'number') {
+        applyColumnSort(colOrders, colOrders.findIndex((o) => o.id === activeId), overIndex);
       }
+      return;
     }
+
+    // Cross-column move
+    const overOrder = deptOrders.find((o) => o.id === overId);
+    let insertIndex: number | undefined;
+    if (overOrder && overOrder.status === targetColId) {
+      const targetList = sortColOrders(deptOrders.filter((o) => o.status === targetColId));
+      insertIndex = targetList.findIndex((o) => o.id === overId);
+      if (insertIndex < 0) insertIndex = undefined;
+    }
+    moveOrderToColumn(order, targetColId, insertIndex);
   };
 
   return (
@@ -207,13 +315,12 @@ const KanbanBoard: React.FC<KanbanBoardProps> = ({ department, onBack }) => {
 
       <DndContext
         sensors={sensors}
-        collisionDetection={closestCorners}
+        collisionDetection={collisionDetection}
         onDragStart={handleDragStart}
         onDragEnd={handleDragEnd}
       >
         <SortableContext items={colSortableIds} strategy={horizontalListSortingStrategy}>
           <div className="kanban-board">
-            {/* Add Column */}
             {showAddCol ? (
               <div className="kanban-col col-add-form">
                 <div className="col-add-body">
@@ -251,28 +358,40 @@ const KanbanBoard: React.FC<KanbanBoardProps> = ({ department, onBack }) => {
                 key={col.id}
                 col={col}
                 orders={deptOrders.filter((o) => o.status === col.id)}
-                onOrderClick={(o) => setSelectedOrder(o)}
+                onOrderClick={handleOrderClick}
                 department={department}
+                disableColumnDrag={isPhone}
               />
             ))}
 
-            {/* Default fixed column – rightmost (first in Arabic). "الطلبيات الجاهزة" for delivery, "الطلبيات الجديدة" for others */}
             <KanbanColumn
               column={DEFAULT_COL}
               orders={deptOrders.filter((o) => o.status === 'new')}
-              onOrderClick={(o) => setSelectedOrder(o)}
+              onOrderClick={handleOrderClick}
               department={department}
               isDefault
             />
           </div>
         </SortableContext>
 
-        <DragOverlay>
+        <DragOverlay dropAnimation={null}>
           {activeOrder && (
-            <OrderCard order={activeOrder} onClick={() => {}} isDragging />
+            <OrderCard order={activeOrder} onClick={() => {}} overlay />
           )}
         </DragOverlay>
       </DndContext>
+
+      {isPhone && (
+        <button
+          type="button"
+          className="phone-fab"
+          onClick={() => setShowAddModal(true)}
+          title={tr.newOrderFab}
+        >
+          <Plus size={22} />
+          <span>{tr.newOrderFab}</span>
+        </button>
+      )}
 
       {selectedOrder && (
         <OrderDetailModal
