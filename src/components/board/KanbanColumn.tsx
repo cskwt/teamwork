@@ -45,9 +45,13 @@ interface KanbanColumnProps {
   onOrderClick: (order: Order) => void;
   department: Department;
   isDefault?: boolean;
+  onMoveClick?: (order: Order) => void;
+  phoneMode?: boolean;
 }
 
-const KanbanColumn: React.FC<KanbanColumnProps> = ({ column, orders, onOrderClick, department, isDefault }) => {
+const KanbanColumn: React.FC<KanbanColumnProps> = ({
+  column, orders, onOrderClick, department, isDefault, onMoveClick, phoneMode,
+}) => {
   const { dispatch } = useApp();
   const { lang } = useLang();
   const { setNodeRef, isOver } = useDroppable({
@@ -78,7 +82,10 @@ const KanbanColumn: React.FC<KanbanColumnProps> = ({ column, orders, onOrderClic
   };
 
   return (
-    <div className={`kanban-col ${isOver ? 'col-over' : ''}`} style={{ '--col-color': column.color } as any}>
+    <div
+      className={`kanban-col ${isOver ? 'col-over' : ''} ${phoneMode ? 'kanban-col--phone' : ''}`}
+      style={{ '--col-color': column.color } as any}
+    >
       <div className="col-header">
         {editing ? (
           <div className="col-edit-form">
@@ -145,7 +152,12 @@ const KanbanColumn: React.FC<KanbanColumnProps> = ({ column, orders, onOrderClic
                 <div className="col-empty"><p>لا توجد طلبيات</p></div>
               ) : (
                 sorted.map((order) => (
-                  <OrderCard key={order.id} order={order} onClick={() => onOrderClick(order)} />
+                  <OrderCard
+                    key={order.id}
+                    order={order}
+                    onClick={() => onOrderClick(order)}
+                    onMoveClick={onMoveClick}
+                  />
                 ))
               )}
             </SortableContext>

@@ -1,7 +1,7 @@
 import React from 'react';
 import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
-import { MessageSquare, Calendar, User, AlertTriangle } from 'lucide-react';
+import { MessageSquare, Calendar, User, AlertTriangle, ArrowLeftRight } from 'lucide-react';
 import { Order } from '../../types';
 import { useApp } from '../../contexts/AppContext';
 import { getPriorityConfig, formatDateShort, isOverdue } from '../../utils/helpers';
@@ -14,6 +14,8 @@ interface OrderCardProps {
   canDrag?: boolean;
   /** Visual-only card for DragOverlay — must NOT call useSortable */
   overlay?: boolean;
+  /** Phone: open move-to-column sheet */
+  onMoveClick?: (order: Order) => void;
 }
 
 const CircleProgress: React.FC<{ value: number }> = ({ value }) => {
@@ -43,7 +45,6 @@ const CircleProgress: React.FC<{ value: number }> = ({ value }) => {
   );
 };
 
-/** Manager/admin of the order's department can clear the NEW badge */
 export const canAcknowledgeNew = (
   user: { id: string; role: string; departmentId?: string; departmentIds?: string[]; deletedAt?: string } | null | undefined,
   order: Order,
@@ -169,7 +170,6 @@ const OrderCardBody: React.FC<{
   </>
 );
 
-/** DragOverlay preview — no sortable hook (avoids duplicate IDs) */
 const OrderCardOverlay: React.FC<{ order: Order }> = ({ order }) => {
   const vm = useCardViewModel(order);
   return (
@@ -184,7 +184,8 @@ const OrderCardSortable: React.FC<{
   onClick: () => void;
   isDragging?: boolean;
   canDrag?: boolean;
-}> = ({ order, onClick, isDragging, canDrag }) => {
+  onMoveClick?: (order: Order) => void;
+}> = ({ order, onClick, isDragging, canDrag, onMoveClick }) => {
   const isDragAllowed = canDrag !== undefined ? canDrag : true;
   const vm = useCardViewModel(order);
   const { attributes, listeners, setNodeRef, transform, transition, isDragging: sortDragging } = useSortable({
@@ -201,27 +202,52 @@ const OrderCardSortable: React.FC<{
         transition,
         opacity: sortDragging ? 0.35 : 1,
       }}
-      {...(isDragAllowed ? attributes : {})}
-      {...(isDragAllowed ? listeners : {})}
       className={`order-card ${isDragging ? 'card-dragging' : ''} ${vm.overdue ? 'card-overdue' : ''} ${
         !isDragAllowed ? 'card-no-drag' : ''
-      } ${vm.showNew ? 'card-is-new' : ''}`}
-      onClick={(e) => {
-        e.stopPropagation();
-        onClick();
-      }}
+      } ${vm.showNew ? 'card-is-new' : ''} ${onMoveClick ? 'order-card--with-move' : ''}`}
     >
-      <OrderCardBody order={order} {...vm} />
+      <div
+        className="card-main-hit"
+        {...(isDragAllowed ? attributes : {})}
+        {...(isDragAllowed ? listeners : {})}
+        onClick={(e) => {
+          e.stopPropagation();
+          onClick();
+        }}
+      >
+        <OrderCardBody order={order} {...vm} />
+      </div>
+      {onMoveClick && (
+        <button
+          type="button"
+          className="card-move-btn"
+          onClick={(e) => {
+            e.stopPropagation();
+            onMoveClick(order);
+          }}
+          title="نقل إلى عمود آخر"
+        >
+          <ArrowLeftRight size={16} />
+          <span>نقل</span>
+        </button>
+      )}
     </div>
   );
 };
 
-const OrderCard: React.FC<OrderCardProps> = ({ order, onClick, isDragging, canDrag, overlay }) => {
-  // DragOverlay must never call useSortable (duplicate id breaks dnd-kit)
+const OrderCard: React.FC<OrderCardProps> = ({ order, onClick, isDragging, canDrag, overlay, onMoveClick }) => {
   if (overlay) {
     return <OrderCardOverlay order={order} />;
   }
-  return <OrderCardSortable order={order} onClick={onClick} isDragging={isDragging} canDrag={canDrag} />;
+  return (
+    <OrderCardSortable
+      order={order}
+      onClick={onClick}
+      isDragging={isDragging}
+      canDrag={canDrag}
+      onMoveClick={onMoveClick}
+    />
+  );
 };
 
 export default OrderCard;

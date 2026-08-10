@@ -1,12 +1,16 @@
 import React, { useState, useRef } from 'react';
 import { X, Upload, FileText, Image, Trash2, Users, Building2 } from 'lucide-react';
 import { useApp } from '../../contexts/AppContext';
+import { useViewMode } from '../../contexts/ViewModeContext';
 import { Order, OrderPriority, FileAttachment } from '../../types';
 import { generateId } from '../../utils/helpers';
+import { uploadRawFileWithLocalFallback } from '../../utils/files';
 
 interface AddOrderModalProps {
   departmentId: string;
   onClose: () => void;
+  /** Optional tag applied when creating from أمر طلبية (e.g. Digital Printing) */
+  presetTag?: string;
 }
 
 const PRIORITY_OPTIONS: { value: OrderPriority; label: string; color: string; bg: string }[] = [
@@ -16,17 +20,11 @@ const PRIORITY_OPTIONS: { value: OrderPriority; label: string; color: string; bg
   { value: 'low',    label: 'عادية',   color: '#16a34a', bg: '#f0fdf4' },
 ];
 
-const readFileAsDataUrl = (file: File): Promise<string> =>
-  new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => resolve(reader.result as string);
-    reader.onerror = reject;
-    reader.readAsDataURL(file);
-  });
-
-const AddOrderModal: React.FC<AddOrderModalProps> = ({ departmentId, onClose }) => {
+const AddOrderModal: React.FC<AddOrderModalProps> = ({ departmentId, onClose, presetTag }) => {
   const { state, dispatch, addHistoryEntry } = useApp();
-  const { users, departments, currentUser } = state;
+  const { isPhone } = useViewMode();
+  const { users: allUsers, departments, currentUser } = state;
+  const users = allUsers.filter((u) => !u.deletedAt);
 
   const [orderNumber, setOrderNumber] = useState('');
   const [clientName, setClientName] = useState('');
@@ -54,33 +52,64 @@ const AddOrderModal: React.FC<AddOrderModalProps> = ({ departmentId, onClose }) 
 
   const handleFormsUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files || []);
+    e.target.value = '';
     if (!files.length) return;
     setUploading(true);
     const results: FileAttachment[] = [];
+    let localOnly = 0;
     for (const file of files) {
-      const dataUrl = await readFileAsDataUrl(file);
-      results.push({ id: generateId(), name: file.name, type: file.type, size: file.size, dataUrl });
+      const id = generateId();
+      const attached = await uploadRawFileWithLocalFallback(id, file);
+      if (!attached.url) localOnly += 1;
+      results.push(attached);
     }
     setOrderForms((prev) => [...prev, ...results]);
     setUploading(false);
-    e.target.value = '';
+    if (localOnly > 0) {
+      alert(
+        `تم حفظ ${localOnly} ملف محلياً لأن رفع الخادم فشل مؤقتاً.\n` +
+        'الملف سيظهر على هذا الجهاز. أعد رفع ملفات API على Hostinger للمزامنة بين الأجهزة.'
+      );
+    }
   };
 
   const handleInvoiceUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files || []);
-    for (const file of files) {
-      const dataUrl = await readFileAsDataUrl(file);
-      setInvoices((prev) => [...prev, { id: generateId(), name: file.name, type: file.type, size: file.size, dataUrl }]);
-    }
     e.target.value = '';
+    if (!files.length) return;
+    setUploading(true);
+    let localOnly = 0;
+    for (const file of files) {
+      const id = generateId();
+      const attached = await uploadRawFileWithLocalFallback(id, file);
+      if (!attached.url) localOnly += 1;
+      setInvoices((prev) => [...prev, attached]);
+    }
+    setUploading(false);
+    if (localOnly > 0) {
+      alert(
+        `تم حفظ ${localOnly} فاتورة محلياً لأن رفع الخادم فشل مؤقتاً.\n` +
+        'الملف سيظهر على هذا الجهاز. أعد رفع ملفات API على Hostinger للمزامنة بين الأجهزة.'
+      );
+    }
   };
 
   const removeInvoice = (id: string) => setInvoices((prev) => prev.filter((f) => f.id !== id));
 
   const removeForm = (id: string) => setOrderForms((prev) => prev.filter((f) => f.id !== id));
 
-  const doSave = () => {
+  const doSave = async () => {
     if (!orderNumber.trim() || !clientName.trim() || !currentUser) return;
+    const failedForms = orderForms.filter((f) => !f.url && !f.dataUrl);
+    const failedInvs = invoices.filter((f) => !f.url && !f.dataUrl);
+    if (failedForms.length || failedInvs.length) {
+      alert(
+        `تعذر حفظ ${failedForms.length + failedInvs.length} ملف/ملفات.\n` +
+        'أزلها أو أعد رفعها قبل حفظ الطلبية.'
+      );
+      return;
+    }
+
     const now = new Date().toISOString();
     const depts = selectedDepts.length > 0 ? selectedDepts : [''];
     const groupId = depts.length > 1 ? generateId() : undefined;
@@ -103,13 +132,14 @@ const AddOrderModal: React.FC<AddOrderModalProps> = ({ departmentId, onClose }) 
         orderDate: new Date(orderDate).toISOString(),
         updatedAt: now,
         dueDate: dueDate ? new Date(dueDate).toISOString() : undefined,
-        orderForms,
+        orderForms: orderForms,
         invoices: invoices.length > 0 ? invoices : undefined,
         fileExtensions: fileExtensions.trim(),
         notes: notes.trim(),
-        tags: [],
+        tags: presetTag ? [presetTag] : [],
         comments: [],
         history: [],
+        isNew: true,
       };
       dispatch({ type: 'ADD_ORDER', payload: newOrder, triggerUserId: state.currentUser?.id } as any);
       addHistoryEntry(newOrder.id, 'إنشاء الطلبية');
@@ -143,7 +173,10 @@ const AddOrderModal: React.FC<AddOrderModalProps> = ({ departmentId, onClose }) 
 
   return (
     <div className="modal-overlay" onClick={onClose}>
-      <div className="modal-panel modal-2xl" onClick={(e) => e.stopPropagation()}>
+      <div
+        className={`modal-panel modal-2xl add-order-modal ${isPhone ? 'add-order-modal--phone' : ''}`}
+        onClick={(e) => e.stopPropagation()}
+      >
 
         {/* Duplicate Order Number Warning */}
         {dupWarning && (
@@ -191,13 +224,134 @@ const AddOrderModal: React.FC<AddOrderModalProps> = ({ departmentId, onClose }) 
           <button className="modal-close-corner" onClick={onClose} title="إغلاق"><X size={18} /></button>
         </div>
 
-        <form onSubmit={handleSubmit}>
-          <div className="add-order-body">
+        <form onSubmit={handleSubmit} className={isPhone ? 'add-order-form--phone' : undefined}>
+          <div className={`add-order-body ${isPhone ? 'add-order-body--phone' : ''}`}>
 
-            {/* Left Column - Files & Users */}
-            <div className="add-order-col">
+            {/* Phone: essentials first in one tall column */}
+            <div className="add-order-col add-order-col--fields">
 
-              {/* Upload Order Forms */}
+              <div className={`form-row ${isPhone ? 'form-row--stack' : ''}`}>
+                <div className="form-group">
+                  <label className="form-label">رقم الطلبية *</label>
+                  <input
+                    className="form-input"
+                    value={orderNumber}
+                    onChange={(e) => setOrderNumber(e.target.value)}
+                    placeholder="مثال: 1001"
+                    inputMode="numeric"
+                    required
+                  />
+                </div>
+                <div className="form-group">
+                  <label className="form-label">اسم العميل *</label>
+                  <input
+                    className="form-input"
+                    value={clientName}
+                    onChange={(e) => setClientName(e.target.value)}
+                    placeholder="اسم العميل"
+                    required
+                  />
+                </div>
+              </div>
+
+              <div className="form-group">
+                <label className="form-label">وصف الطلب</label>
+                <textarea
+                  className="form-input"
+                  value={description}
+                  onChange={(e) => setDescription(e.target.value)}
+                  placeholder="تفاصيل الطلبية..."
+                  rows={isPhone ? 4 : 3}
+                />
+              </div>
+
+              <div className={`form-row ${isPhone ? 'form-row--stack' : ''}`}>
+                <div className="form-group">
+                  <label className="form-label">موعد التسليم</label>
+                  <input type="date" className="form-input" value={dueDate} onChange={(e) => setDueDate(e.target.value)} min={orderDate} />
+                </div>
+                <div className="form-group">
+                  <label className="form-label">تاريخ الطلب</label>
+                  <input type="date" className="form-input" value={orderDate} onChange={(e) => setOrderDate(e.target.value)} />
+                </div>
+              </div>
+
+              <div className="form-group">
+                <label className="form-label">الأولوية</label>
+                <div className={`priority-picker ${isPhone ? 'priority-picker--phone' : ''}`}>
+                  {PRIORITY_OPTIONS.map((p) => (
+                    <button
+                      key={p.value}
+                      type="button"
+                      className={`priority-opt ${priority === p.value ? 'priority-active' : ''}`}
+                      style={{
+                        background: priority === p.value ? p.bg : '#f9fafb',
+                        color: p.color,
+                        borderColor: priority === p.value ? p.color : '#e5e7eb',
+                        fontWeight: priority === p.value ? 700 : 500,
+                      }}
+                      onClick={() => setPriority(p.value)}
+                    >
+                      {p.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div className="form-group">
+                <label className="form-label"><Building2 size={13} /> القسم المختص</label>
+                <div className={`dept-picker-grid ${isPhone ? 'dept-picker-grid--phone' : ''}`}>
+                  {departments.filter((d) => d.name !== 'قسم التسليم').map((d) => {
+                    const selected = selectedDepts.includes(d.id);
+                    return (
+                      <button
+                        key={d.id}
+                        type="button"
+                        className={`user-pick-btn ${selected ? 'user-selected' : ''}`}
+                        onClick={() => setSelectedDepts(prev =>
+                          selected ? prev.filter(id => id !== d.id) : [...prev, d.id]
+                        )}
+                      >
+                        <div style={{ width: 12, height: 12, borderRadius: '50%', background: d.color, flexShrink: 0 }} />
+                        <div className="user-pick-info">
+                          <span className="user-pick-name">{d.name}</span>
+                        </div>
+                        {selected && <div className="user-pick-check">✓</div>}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {!isPhone && (
+                <>
+                  <div className="form-row">
+                    <div className="form-group">
+                      <label className="form-label">امتداد الملفات المطلوبة</label>
+                      <textarea
+                        className="form-input"
+                        value={fileExtensions}
+                        onChange={(e) => setFileExtensions(e.target.value)}
+                        placeholder="مثال: PDF, AI, CDR, PNG"
+                        style={{ resize: 'none', flex: 1, minHeight: 80 }}
+                      />
+                    </div>
+                  </div>
+                  <div className="form-group">
+                    <label className="form-label">الملاحظات</label>
+                    <textarea
+                      className="form-input"
+                      value={notes}
+                      onChange={(e) => setNotes(e.target.value)}
+                      placeholder="أضف ملاحظات إضافية للطلبية..."
+                      style={{ resize: 'none', minHeight: 72 }}
+                    />
+                  </div>
+                </>
+              )}
+            </div>
+
+            <div className="add-order-col add-order-col--files">
               <div className="form-group">
                 <label className="form-label"><Image size={13} /> نماذج الطلبية</label>
                 <div className="upload-zone" onClick={() => formsRef.current?.click()}>
@@ -235,7 +389,6 @@ const AddOrderModal: React.FC<AddOrderModalProps> = ({ departmentId, onClose }) 
                 )}
               </div>
 
-              {/* Upload Invoice */}
               <div className="form-group">
                 <label className="form-label"><FileText size={13} /> رفع الفاتورة (PDF)</label>
                 {invoices.length > 0 && (
@@ -261,10 +414,9 @@ const AddOrderModal: React.FC<AddOrderModalProps> = ({ departmentId, onClose }) 
                 </div>
               </div>
 
-              {/* Assign Users */}
               <div className="form-group">
                 <label className="form-label"><Users size={13} /> المستخدمون المسؤولون</label>
-                <div className="users-picker">
+                <div className={`users-picker ${isPhone ? 'users-picker--phone' : ''}`}>
                   {users.map((u) => {
                     const dept = departments.find((d) => d.id === u.departmentId);
                     const selected = assignedUsers.includes(u.id);
@@ -293,144 +445,41 @@ const AddOrderModal: React.FC<AddOrderModalProps> = ({ departmentId, onClose }) 
                 </div>
               </div>
 
-            </div>
-
-            {/* Right Column - Form Fields */}
-            <div className="add-order-col">
-
-              {/* Order Number + Client Name */}
-              <div className="form-row">
-                <div className="form-group">
-                  <label className="form-label">رقم الطلبية *</label>
-                  <input
-                    className="form-input"
-                    value={orderNumber}
-                    onChange={(e) => setOrderNumber(e.target.value)}
-                    placeholder="مثال: 1001"
-                    required
-                  />
-                </div>
-                <div className="form-group">
-                  <label className="form-label">اسم العميل *</label>
-                  <input
-                    className="form-input"
-                    value={clientName}
-                    onChange={(e) => setClientName(e.target.value)}
-                    placeholder="اسم العميل"
-                    required
-                  />
-                </div>
-              </div>
-
-              {/* Description */}
-              <div className="form-group">
-                <label className="form-label">وصف الطلب</label>
-                <textarea
-                  className="form-input"
-                  value={description}
-                  onChange={(e) => setDescription(e.target.value)}
-                  placeholder="تفاصيل الطلبية..."
-                  rows={3}
-                />
-              </div>
-
-              {/* Order Date + Due Date */}
-              <div className="form-row">
-                <div className="form-group">
-                  <label className="form-label">موعد التسليم</label>
-                  <input type="date" className="form-input" value={dueDate} onChange={(e) => setDueDate(e.target.value)} min={orderDate} />
-                </div>
-                <div className="form-group">
-                  <label className="form-label">تاريخ الطلب</label>
-                  <input type="date" className="form-input" value={orderDate} onChange={(e) => setOrderDate(e.target.value)} />
-                </div>
-              </div>
-
-              {/* Department - Full Width */}
-              <div className="form-group">
-                <label className="form-label"><Building2 size={13} /> القسم المختص</label>
-                <div className="dept-picker-grid">
-                  {departments.filter((d) => d.name !== 'قسم التسليم').map((d) => {
-                    const selected = selectedDepts.includes(d.id);
-                    return (
-                      <button
-                        key={d.id}
-                        type="button"
-                        className={`user-pick-btn ${selected ? 'user-selected' : ''}`}
-                        onClick={() => setSelectedDepts(prev =>
-                          selected ? prev.filter(id => id !== d.id) : [...prev, d.id]
-                        )}
-                      >
-                        <div style={{ width: 12, height: 12, borderRadius: '50%', background: d.color, flexShrink: 0 }} />
-                        <div className="user-pick-info">
-                          <span className="user-pick-name">{d.name}</span>
-                        </div>
-                        {selected && <div className="user-pick-check">✓</div>}
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-
-              {/* Priority + File Extensions */}
-              <div className="form-row">
-                <div className="form-group">
-                  <label className="form-label">الأولوية</label>
-                  <div className="priority-picker">
-                    {PRIORITY_OPTIONS.map((p) => (
-                      <button
-                        key={p.value}
-                        type="button"
-                        className={`priority-opt ${priority === p.value ? 'priority-active' : ''}`}
-                        style={{
-                          background: priority === p.value ? p.bg : '#f9fafb',
-                          color: p.color,
-                          borderColor: priority === p.value ? p.color : '#e5e7eb',
-                          fontWeight: priority === p.value ? 700 : 500,
-                        }}
-                        onClick={() => setPriority(p.value)}
-                      >
-                        {p.label}
-                      </button>
-                    ))}
+              {isPhone && (
+                <>
+                  <div className="form-group">
+                    <label className="form-label">امتداد الملفات المطلوبة</label>
+                    <textarea
+                      className="form-input"
+                      value={fileExtensions}
+                      onChange={(e) => setFileExtensions(e.target.value)}
+                      placeholder="مثال: PDF, AI, CDR, PNG"
+                      rows={3}
+                    />
                   </div>
-                </div>
-                <div className="form-group">
-                  <label className="form-label">امتداد الملفات المطلوبة</label>
-                  <textarea
-                    className="form-input"
-                    value={fileExtensions}
-                    onChange={(e) => setFileExtensions(e.target.value)}
-                    placeholder="مثال: PDF, AI, CDR, PNG"
-                    style={{ resize: 'none', flex: 1, minHeight: 80 }}
-                  />
-                </div>
-              </div>
-
-              {/* Notes */}
-              <div className="form-group">
-                <label className="form-label">الملاحظات</label>
-                <textarea
-                  className="form-input"
-                  value={notes}
-                  onChange={(e) => setNotes(e.target.value)}
-                  placeholder="أضف ملاحظات إضافية للطلبية..."
-                  style={{ resize: 'none', minHeight: 72 }}
-                />
-              </div>
-
+                  <div className="form-group">
+                    <label className="form-label">الملاحظات</label>
+                    <textarea
+                      className="form-input"
+                      value={notes}
+                      onChange={(e) => setNotes(e.target.value)}
+                      placeholder="أضف ملاحظات إضافية للطلبية..."
+                      rows={3}
+                    />
+                  </div>
+                </>
+              )}
             </div>
           </div>
 
-          {/* Footer */}
-          <div className="modal-footer add-order-footer">
+          <div className={`modal-footer add-order-footer ${isPhone ? 'add-order-footer--phone' : ''}`}>
             <button type="button" className="btn-secondary" onClick={onClose}>إلغاء</button>
             <button
               type="submit"
               className="btn-primary"
               disabled={!orderNumber.trim() || !clientName.trim() || uploading}
             >
-              إضافة الطلبية
+              {uploading ? 'جاري الرفع...' : 'إضافة الطلبية'}
             </button>
           </div>
         </form>
