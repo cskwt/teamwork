@@ -5,6 +5,7 @@ import {
   ShoppingCart, Palette, Zap, Printer, Truck, Building2
 } from 'lucide-react';
 import { useApp } from '../../contexts/AppContext';
+import { useViewMode } from '../../contexts/ViewModeContext';
 import { useLang } from '../../contexts/LanguageContext';
 import { Department } from '../../types';
 import { generateId } from '../../utils/helpers';
@@ -54,6 +55,7 @@ const COLORS = [
 
 const ProjectsPage: React.FC<ProjectsPageProps> = ({ onOpenBoard }) => {
   const { state, dispatch } = useApp();
+  const { isPhone } = useViewMode();
   const { lang } = useLang();
   const { departments, orders, currentUser } = state;
 
@@ -130,7 +132,7 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ onOpenBoard }) => {
   };
 
   return (
-    <div className="projects-page">
+    <div className={`projects-page ${isPhone ? 'projects-page--phone' : ''}`}>
       <Header title="الأقسام" />
 
       {isAdmin && (
@@ -159,7 +161,7 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ onOpenBoard }) => {
           // Match KanbanBoard order: default 'new' col first, then user cols
           const cols = [defaultCol, ...userCols];
 
-          const allDeptOrders = orders.filter((o) => !o.deletedAt && !o.archivedAt && o.departmentId === dept.id && o.status !== 'cancelled');
+          const allDeptOrders = orders.filter((o) => !o.deletedAt && !o.archivedAt && !o.isOrderRequest && !o.digitalPrinting && !o.largeFormat && o.departmentId === dept.id && o.status !== 'cancelled');
 
           const colStats = cols.map((col) => ({
             ...col,
@@ -169,7 +171,7 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ onOpenBoard }) => {
           return (
             <div
               key={dept.id}
-              className="dept-project-card"
+              className={`dept-project-card ${isPhone ? 'dept-project-card--phone' : ''}`}
               onClick={() => onOpenBoard(dept.id)}
             >
               {/* Card Header */}
@@ -194,21 +196,20 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ onOpenBoard }) => {
                 <h3 className="dpc-name">{dept.name}</h3>
                 {dept.description && <p className="dpc-desc">{dept.description}</p>}
 
-
-                {/* Stats — عمود بعمود */}
-                <div className="dpc-stats">
-                  {colStats.map((col) => (
-                    <div
-                      className="dpc-stat"
-                      key={col.id}
-                      style={{ background: col.color + '18', borderRight: `3px solid ${col.color}` }}
-                    >
-                      <span className="dpc-stat-label" style={{ color: '#111827' }}>{lang === 'en' ? (COL_NAME_MAP[col.title] || col.title) : col.title}</span>
-                      <span className="dpc-stat-count" style={{ color: col.color }}>{col.count}</span>
-                    </div>
-                  ))}
-                </div>
-
+                {!isPhone && (
+                  <div className="dpc-stats">
+                    {colStats.map((col) => (
+                      <div
+                        className="dpc-stat"
+                        key={col.id}
+                        style={{ background: col.color + '18', borderRight: `3px solid ${col.color}` }}
+                      >
+                        <span className="dpc-stat-label" style={{ color: '#111827' }}>{lang === 'en' ? (COL_NAME_MAP[col.title] || col.title) : col.title}</span>
+                        <span className="dpc-stat-count" style={{ color: col.color }}>{col.count}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
             </div>
           );
