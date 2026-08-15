@@ -1,18 +1,22 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Home, Bell, Search, X, MessageSquare, Plus, Pencil, UserCheck, RefreshCw, Languages } from 'lucide-react';
+import { Home, Bell, Search, X, MessageSquare, Plus, Pencil, UserCheck, RefreshCw, Languages, Smartphone, Monitor, Menu } from 'lucide-react';
 import { useApp } from '../../contexts/AppContext';
 import { useLang } from '../../contexts/LanguageContext';
+import { useViewMode } from '../../contexts/ViewModeContext';
 import { formatDate, getPriorityConfig, getColumnStatus } from '../../utils/helpers';
 import { Order } from '../../types';
 import OrderDetailModal from '../modals/OrderDetailModal';
 
 interface TopBarProps {
   onNavigate: (page: string) => void;
+  onToggleSidebar?: () => void;
+  sidebarOpen?: boolean;
 }
 
-const TopBar: React.FC<TopBarProps> = ({ onNavigate }) => {
+const TopBar: React.FC<TopBarProps> = ({ onNavigate, onToggleSidebar }) => {
   const { state, dispatch, refreshData } = useApp();
   const { lang, toggleLang, tr } = useLang();
+  const { isPhone, toggleViewMode } = useViewMode();
   const priorityConfig = getPriorityConfig(lang);
   const [refreshing, setRefreshing] = useState(false);
   const { orders, departments, currentUser, notifications: allNotifs } = state;
@@ -30,6 +34,9 @@ const TopBar: React.FC<TopBarProps> = ({ onNavigate }) => {
     ? orders.filter((o) =>
         !o.deletedAt &&
         !o.archivedAt &&
+        !o.isOrderRequest &&
+        !o.digitalPrinting &&
+        !o.largeFormat &&
         (
           o.orderNumber?.toLowerCase().includes(searchQuery.toLowerCase()) ||
           o.clientName?.toLowerCase().includes(searchQuery.toLowerCase())
@@ -75,16 +82,36 @@ const TopBar: React.FC<TopBarProps> = ({ onNavigate }) => {
     <>
     <header className="topbar-global">
       <div className="topbar-right">
+        {isPhone && (
+          <button
+            className="topbar-icon-btn topbar-menu-btn"
+            title={tr.openMenu}
+            onClick={onToggleSidebar}
+            type="button"
+          >
+            <Menu size={22} strokeWidth={1.75} />
+            <span>{tr.openMenu}</span>
+          </button>
+        )}
         <button className="topbar-icon-btn" onClick={() => onNavigate('dashboard')} title={tr.home}>
-          <Home size={18} />
+          <Home size={isPhone ? 22 : 18} strokeWidth={isPhone ? 1.75 : 2} />
           <span>{tr.home}</span>
+        </button>
+        <button
+          className="topbar-icon-btn lang-toggle-btn"
+          title={isPhone ? tr.desktopView : tr.phoneView}
+          onClick={toggleViewMode}
+          type="button"
+        >
+          {isPhone ? <Monitor size={22} strokeWidth={1.75} /> : <Smartphone size={17} />}
+          <span>{isPhone ? tr.desktopView : tr.phoneView}</span>
         </button>
         <button
           className="topbar-icon-btn lang-toggle-btn"
           title={lang === 'ar' ? 'Switch to English' : 'التبديل للعربية'}
           onClick={toggleLang}
         >
-          <Languages size={17} />
+          <Languages size={isPhone ? 22 : 17} strokeWidth={isPhone ? 1.75 : 2} />
           <span>{lang === 'ar' ? 'EN' : 'ع'}</span>
         </button>
         <button
@@ -102,7 +129,8 @@ const TopBar: React.FC<TopBarProps> = ({ onNavigate }) => {
           }}
         >
           <RefreshCw
-            size={17}
+            size={isPhone ? 22 : 17}
+            strokeWidth={isPhone ? 1.75 : 2}
             style={{
               transition: 'transform 0.8s ease',
               transform: refreshing ? 'rotate(720deg)' : 'none',
@@ -119,7 +147,7 @@ const TopBar: React.FC<TopBarProps> = ({ onNavigate }) => {
         </button>
         <div className="notif-wrap" ref={notifRef}>
           <button className="topbar-icon-btn notif-btn" onClick={handleOpenNotif} title={tr.notifications}>
-            <Bell size={18} color={unreadCount > 0 ? '#ef4444' : undefined} />
+            <Bell size={isPhone ? 22 : 18} strokeWidth={isPhone ? 1.75 : 2} color={unreadCount > 0 ? '#ef4444' : undefined} />
             {unreadCount > 0 && <span className="notif-dot">{unreadCount}</span>}
           </button>
 

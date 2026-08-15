@@ -7,7 +7,8 @@ import Header from '../layout/Header';
 
 const UsersPage: React.FC = () => {
   const { state, dispatch } = useApp();
-  const { users, departments, orders } = state;
+  const { users: allUsers, departments, orders } = state;
+  const users = allUsers.filter((u) => !u.deletedAt);
   const [showModal, setShowModal] = useState(false);
   const [editUser, setEditUser] = useState<User | null>(null);
   const [fullName, setFullName] = useState('');

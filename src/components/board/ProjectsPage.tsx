@@ -138,7 +138,7 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ onOpenBoard }) => {
       {isAdmin && (
         <div className="page-actions" style={{ padding: '0 24px 12px' }}>
           <button className="btn-primary" onClick={openAdd}>
-            <Plus size={16} />
+            <Plus size={isPhone ? 18 : 16} strokeWidth={isPhone ? 1.75 : 2} />
             <span>إضافة قسم</span>
           </button>
         </div>
@@ -177,7 +177,7 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({ onOpenBoard }) => {
               {/* Card Header */}
               <div className="dpc-header" style={{ background: dept.color }}>
                 <div className="dpc-header-icon">
-                  {renderIcon(dept.icon, 30)}
+                  {renderIcon(dept.icon, isPhone ? 26 : 30)}
                 </div>
                 {isAdmin && (
                   <div className="dpc-actions" onClick={(e) => e.stopPropagation()}>

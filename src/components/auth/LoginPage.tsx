@@ -1,16 +1,8 @@
 import React, { useState } from 'react';
 import { useApp } from '../../contexts/AppContext';
-import { Eye, EyeOff, Lock, User, UserRoundCheck, Calculator, Scissors } from 'lucide-react';
+import { Eye, EyeOff, Lock, User, UserRoundCheck } from 'lucide-react';
 import logo from '../../assets/teamwork-logo-login.png';
-
-/** أدوات الإنتاج — أونلاين عبر المحاسب الذكي، أو محلياً عبر ProductionToolsSuite */
-const TOOLS_BASE = (
-  process.env.REACT_APP_TOOLS_URL ||
-  (typeof window !== 'undefined' &&
-  (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')
-    ? 'http://127.0.0.1:8765'
-    : 'https://acc.csapp.io')
-).replace(/\/$/, '');
+import { ATTENDANCE_URL } from '../../utils/tools';
 
 const LoginPage: React.FC = () => {
   const { login } = useApp();
@@ -24,12 +16,16 @@ const LoginPage: React.FC = () => {
     e.preventDefault();
     setError('');
     setLoading(true);
-    await new Promise((r) => setTimeout(r, 600));
-    const success = login(username.trim(), password);
-    if (!success) {
-      setError('اسم المستخدم أو كلمة المرور غير صحيحة');
+    try {
+      const success = await Promise.resolve(login(username.trim(), password));
+      if (!success) {
+        setError(
+          'تعذر تسجيل الدخول. تأكد من اسم المستخدم وكلمة المرور، أو اطلب من المدير الدخول من جهازه لإعادة مزامنة السيرفر ثم أعد المحاولة.',
+        );
+      }
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   };
 
   return (
@@ -97,17 +93,9 @@ const LoginPage: React.FC = () => {
           </button>
 
           <div className="login-tools">
-            <a className="login-tool-btn login-tool-attendance" href={`${TOOLS_BASE}/attendance`} target="_blank" rel="noreferrer">
+            <a className="login-tool-btn login-tool-attendance" href={ATTENDANCE_URL} target="_blank" rel="noreferrer">
               <UserRoundCheck size={18} />
               <span>الحضور والانصراف</span>
-            </a>
-            <a className="login-tool-btn login-tool-cost" href={`${TOOLS_BASE}/cost-calculator`} target="_blank" rel="noreferrer">
-              <Calculator size={18} />
-              <span>حاسبة التكاليف</span>
-            </a>
-            <a className="login-tool-btn login-tool-templates" href={`${TOOLS_BASE}/template-maker`} target="_blank" rel="noreferrer">
-              <Scissors size={18} />
-              <span>صانع القوالب</span>
             </a>
           </div>
         </form>

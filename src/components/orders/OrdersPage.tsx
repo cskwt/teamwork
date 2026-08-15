@@ -30,6 +30,7 @@ const OrdersPage: React.FC<OrdersPageProps> = ({ archiveMode = false }) => {
     }
   };
   const activeOrders = orders.filter((o) => {
+    if (o.isOrderRequest || o.digitalPrinting || o.largeFormat) return false;
     if (archiveMode) {
       // New-style: properly archived (has archivedAt flag)
       if (o.archivedAt) return true;

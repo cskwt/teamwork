@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Plus, Trash2, Monitor, Edit2, Check, X } from 'lucide-react';
+import { Plus, Trash2, Monitor, Edit2, Check, X, ChevronUp, ChevronDown, Play } from 'lucide-react';
 import { OpsRow } from '../../types';
 import { opsServerLoad, opsServerSave, opsRowsScore } from '../../utils/storage';
+import { uploadDataUrlToServer } from '../../utils/files';
 
 const emptyRow = (): OpsRow => ({
   id: Math.random().toString(36).slice(2),
@@ -38,7 +39,28 @@ const saveImages = (map: Record<string, string>) => {
 
 const attachLocalImages = (rows: OpsRow[]): OpsRow[] => {
   const imgs = loadImages();
-  return rows.map((r) => ({ ...r, jobImage: r.jobImage || imgs[r.id] || '' }));
+  return rows.map((r) => {
+    const current = r.jobImage || '';
+    if (current.startsWith('http') || current.startsWith('data:')) return { ...r, jobImage: current };
+    return { ...r, jobImage: imgs[r.id] || '' };
+  });
+};
+
+/** Prefer http URLs from either side so images are never wiped by a device without them */
+const mergeRowImages = (incoming: OpsRow[], local: OpsRow[]): OpsRow[] => {
+  const locMap = new Map(local.map((r) => [r.id, r]));
+  return incoming.map((r) => {
+    const l = locMap.get(r.id);
+    const a = r.jobImage || '';
+    const b = l?.jobImage || '';
+    const jobImage =
+      (a.startsWith('http') ? a : '') ||
+      (b.startsWith('http') ? b : '') ||
+      (a.startsWith('data:') ? a : '') ||
+      (b.startsWith('data:') ? b : '') ||
+      a || b || '';
+    return { ...r, jobImage };
+  });
 };
 
 const persistImagesFromRows = (rows: OpsRow[]) => {
@@ -52,8 +74,26 @@ const persistImagesFromRows = (rows: OpsRow[]) => {
 
 const backupRows = (rows: OpsRow[]) => {
   try {
-    localStorage.setItem(OPS_BACKUP_KEY, JSON.stringify(rows.map((r) => ({ ...r, jobImage: '' }))));
+    // Keep shared http URLs in backup; strip only local data: blobs
+    localStorage.setItem(OPS_BACKUP_KEY, JSON.stringify(rows.map((r) => ({
+      ...r,
+      jobImage: (r.jobImage || '').startsWith('http') ? r.jobImage : '',
+    }))));
   } catch { /* ignore */ }
+};
+
+/** Upload any local data: images to Hostinger so other devices can see them */
+const ensureSharedImages = async (rows: OpsRow[]): Promise<OpsRow[]> => {
+  const out: OpsRow[] = [];
+  for (const r of rows) {
+    if (r.jobImage?.startsWith('data:')) {
+      const url = await uploadDataUrlToServer(`ops_${r.id}`, r.jobImage, `ops-${r.id}.jpg`);
+      out.push(url ? { ...r, jobImage: url } : r);
+    } else {
+      out.push(r);
+    }
+  }
+  return out;
 };
 
 const loadBackup = (): OpsRow[] => {
@@ -95,11 +135,26 @@ const OperationsScreen: React.FC = () => {
   const [fullscreen, setFullscreen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editData, setEditData] = useState<OpsRow | null>(null);
+  const [inProgressId, setInProgressId] = useState<string | null>(null);
   const savingRef = useRef(false);
   const localStampRef = useRef<string | null>(null);
+  const inProgressRef = useRef<string | null>(null);
 
-  const applyRows = (next: OpsRow[], stamp: string, push: boolean) => {
-    const withImages = attachLocalImages(next);
+  const setProgress = (id: string | null) => {
+    inProgressRef.current = id;
+    setInProgressId(id);
+  };
+
+  const applyRows = (next: OpsRow[], stamp: string, push: boolean, progressId?: string | null) => {
+    if (progressId !== undefined) setProgress(progressId);
+    const merged = mergeRowImages(next, rows);
+    const withImages = attachLocalImages(merged);
+    // Drop in-progress if that row was deleted
+    let progress = inProgressRef.current;
+    if (progress && !withImages.some((r) => r.id === progress)) {
+      progress = null;
+      setProgress(null);
+    }
     setRowsState(withImages);
     setUpdatedAt(stamp);
     localStampRef.current = stamp;
@@ -108,10 +163,17 @@ const OperationsScreen: React.FC = () => {
     if (push) {
       savingRef.current = true;
       setSyncStatus('saving');
-      opsServerSave(withImages, stamp).then((ok) => {
+      (async () => {
+        const shared = await ensureSharedImages(withImages);
+        if (shared.some((r, i) => r.jobImage !== withImages[i].jobImage)) {
+          setRowsState(attachLocalImages(shared));
+          backupRows(shared);
+          persistImagesFromRows(shared);
+        }
+        const ok = await opsServerSave(shared, stamp, progress);
         savingRef.current = false;
         setSyncStatus(ok ? 'ok' : 'error');
-      });
+      })();
     }
   };
 
@@ -143,13 +205,14 @@ const OperationsScreen: React.FC = () => {
       const localAt = localStampRef.current || '';
 
       if (remoteScore > localScore || (remoteScore > 0 && remoteAt >= localAt)) {
-        applyRows(remote.rows, remoteAt || new Date().toISOString(), false);
+        applyRows(remote.rows, remoteAt || new Date().toISOString(), false, remote.inProgressId ?? null);
         setSyncStatus('ok');
       } else if (localScore > 0 && remoteScore === 0) {
         // Local has real data, server empty/shells — push local
         const stamp = new Date().toISOString();
         applyRows(backup, stamp, true);
       } else {
+        if (remote.inProgressId !== undefined) setProgress(remote.inProgressId ?? null);
         setSyncStatus('ok');
       }
     })();
@@ -173,16 +236,32 @@ const OperationsScreen: React.FC = () => {
       const remoteScore = opsRowsScore(remote.rows);
       const localScore = opsRowsScore(rows);
       if (remoteScore > localScore || (remoteAt && remoteAt > localAt && remoteScore > 0)) {
-        applyRows(remote.rows, remoteAt, false);
+        applyRows(remote.rows, remoteAt, false, remote.inProgressId ?? null);
       } else if (localScore > 0 && remoteScore === 0) {
         // Push local filled table if server still empty
         applyRows(rows, new Date().toISOString(), true);
+      } else if (remote.inProgressId !== undefined && remote.inProgressId !== inProgressRef.current) {
+        setProgress(remote.inProgressId ?? null);
       }
     };
     const id = setInterval(poll, 3000);
     return () => clearInterval(id);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [editingId, updatedAt, rows]);
+
+  // One-time: upload any local-only photos so other devices can see them
+  const migrateAttempts = useRef(0);
+  useEffect(() => {
+    if (editingId || savingRef.current) return;
+    if (!rows.some((r) => r.jobImage?.startsWith('data:'))) return;
+    if (migrateAttempts.current >= 2) return;
+    migrateAttempts.current += 1;
+    const t = setTimeout(() => {
+      applyRows(rows, new Date().toISOString(), true);
+    }, 1000);
+    return () => clearTimeout(t);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [rows, editingId]);
 
   useEffect(() => {
     const timer = setInterval(() => setNow(new Date()), 1000);
@@ -205,14 +284,30 @@ const OperationsScreen: React.FC = () => {
 
   const deleteRow = (id: string) => setRows(rows.filter((r) => r.id !== id));
 
+  const moveRow = (id: string, dir: -1 | 1) => {
+    if (editingId) return;
+    const idx = rows.findIndex((r) => r.id === id);
+    const next = idx + dir;
+    if (idx < 0 || next < 0 || next >= rows.length) return;
+    const copy = [...rows];
+    [copy[idx], copy[next]] = [copy[next], copy[idx]];
+    setRows(copy);
+  };
+
   const startEdit = (row: OpsRow) => {
     setEditingId(row.id);
     setEditData({ ...row });
   };
 
-  const saveEdit = () => {
+  const saveEdit = async () => {
     if (!editData) return;
-    const stamped = { ...editData, updatedAt: new Date().toISOString() };
+    let stamped = { ...editData, updatedAt: new Date().toISOString() };
+    if (stamped.jobImage?.startsWith('data:')) {
+      setSyncStatus('saving');
+      const url = await uploadDataUrlToServer(`ops_${stamped.id}`, stamped.jobImage, `ops-${stamped.id}.jpg`);
+      if (url) stamped = { ...stamped, jobImage: url };
+      else alert('Failed to upload photo to server — other devices may not see it. Check connection and try again.');
+    }
     setRows(rows.map((r) => (r.id === editData.id ? stamped : r)));
     setEditingId(null);
     setEditData(null);
@@ -225,6 +320,136 @@ const OperationsScreen: React.FC = () => {
     setEditingId(null);
     setEditData(null);
   };
+
+  /** Upload/replace photo on a row from any device (no need for original uploader) */
+  const uploadPhotoForRow = (rowId: string, file: File) => {
+    const reader = new FileReader();
+    reader.onload = async () => {
+      const dataUrl = reader.result as string;
+      setSyncStatus('saving');
+      const url = await uploadDataUrlToServer(`ops_${rowId}`, dataUrl, file.name || `ops-${rowId}.jpg`);
+      if (!url) {
+        setSyncStatus('error');
+        alert('Failed to upload photo — check connection and try again.');
+        return;
+      }
+      const stamp = new Date().toISOString();
+      setRows(rows.map((r) => (r.id === rowId ? { ...r, jobImage: url, updatedAt: stamp } : r)));
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const setInProgressOrder = (id: string | null) => {
+    setProgress(id);
+    const stamp = new Date().toISOString();
+    localStampRef.current = stamp;
+    setUpdatedAt(stamp);
+    savingRef.current = true;
+    setSyncStatus('saving');
+    opsServerSave(rows, stamp, id).then((ok) => {
+      savingRef.current = false;
+      setSyncStatus(ok ? 'ok' : 'error');
+    });
+  };
+
+  const inProgressRow = rows.find((r) => r.id === inProgressId) || null;
+  const rowLabel = (r: OpsRow, i: number) => {
+    const cust = r.customer?.trim() || 'Untitled';
+    const job = r.job?.trim();
+    return job ? `#${i + 1}  ${cust} — ${job}` : `#${i + 1}  ${cust}`;
+  };
+
+  const progressCard = (isFS: boolean) => (
+    <div style={{
+      display: 'flex',
+      alignItems: isFS ? 'center' : 'stretch',
+      gap: isFS ? 24 : 16,
+      flexWrap: 'wrap',
+      background: inProgressRow
+        ? 'linear-gradient(135deg, #ecfdf5 0%, #eff6ff 100%)'
+        : '#f8fafc',
+      border: inProgressRow ? '2px solid #10b981' : '1px solid #e2e8f0',
+      borderRadius: isFS ? 20 : 14,
+      padding: isFS ? '22px 32px' : '14px 18px',
+      marginBottom: isFS ? 28 : 16,
+      boxShadow: inProgressRow ? '0 8px 28px rgba(16,185,129,0.15)' : 'none',
+    }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: isFS ? 280 : 160 }}>
+        <div style={{
+          width: isFS ? 56 : 40, height: isFS ? 56 : 40, borderRadius: 12,
+          background: inProgressRow ? '#10b981' : '#94a3b8',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          color: '#fff', flexShrink: 0,
+        }}>
+          <Play size={isFS ? 28 : 18} fill="#fff" />
+        </div>
+        <div>
+          <div style={{
+            fontSize: isFS ? 14 : 11, fontWeight: 800, letterSpacing: 1.2,
+            color: inProgressRow ? '#059669' : '#94a3b8', textTransform: 'uppercase',
+          }}>
+            What&apos;s in Progress
+          </div>
+          {inProgressRow ? (
+            <div style={{ fontSize: isFS ? 32 : 18, fontWeight: 800, color: '#0f172a', lineHeight: 1.2, marginTop: 2 }}>
+              {inProgressRow.customer || 'Untitled'}
+              {inProgressRow.job ? (
+                <span style={{ fontWeight: 600, color: '#475569', fontSize: isFS ? 24 : 15 }}>
+                  {' '}— {inProgressRow.job}
+                </span>
+              ) : null}
+            </div>
+          ) : (
+            <div style={{ fontSize: isFS ? 22 : 14, fontWeight: 600, color: '#94a3b8', marginTop: 2 }}>
+              No order selected
+            </div>
+          )}
+        </div>
+      </div>
+
+      {inProgressRow?.jobImage ? (
+        <img
+          src={inProgressRow.jobImage}
+          alt=""
+          style={{
+            width: isFS ? 88 : 52, height: isFS ? 88 : 52, objectFit: 'contain',
+            borderRadius: 10, border: '2px solid #fff', background: '#fff',
+            boxShadow: '0 2px 10px rgba(0,0,0,0.1)',
+          }}
+        />
+      ) : null}
+
+      {!isFS && (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginLeft: 'auto', flexWrap: 'wrap' }}>
+          <select
+            value={inProgressId || ''}
+            onChange={(e) => setInProgressOrder(e.target.value || null)}
+            style={{
+              minWidth: 220, maxWidth: 360, padding: '10px 12px', borderRadius: 10,
+              border: '1.5px solid #cbd5e1', background: '#fff', fontSize: 14, fontWeight: 600,
+              color: '#1e293b', outline: 'none', cursor: 'pointer',
+            }}
+          >
+            <option value="">Select order…</option>
+            {rows.map((r, i) => (
+              <option key={r.id} value={r.id}>{rowLabel(r, i)}</option>
+            ))}
+          </select>
+          {inProgressId && (
+            <button
+              onClick={() => setInProgressOrder(null)}
+              style={{
+                padding: '10px 14px', borderRadius: 10, border: '1px solid #fecaca',
+                background: '#fef2f2', color: '#dc2626', fontWeight: 700, fontSize: 13, cursor: 'pointer',
+              }}
+            >
+              Clear
+            </button>
+          )}
+        </div>
+      )}
+    </div>
+  );
 
   const timeStr = now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true });
   const dayStr = DAYS_EN[now.getDay()];
@@ -249,15 +474,21 @@ const OperationsScreen: React.FC = () => {
               }}>{h}</th>
             ))}
             {!isFS && (
-              <th style={{ background: '#f1f5f9', color: '#94a3b8', padding: '11px 10px', textAlign: 'center', fontSize: 12, fontWeight: 600, width: 80, borderBottom: '3px solid #e2e8f0' }}>
+              <th style={{ background: '#f1f5f9', color: '#94a3b8', padding: '11px 10px', textAlign: 'center', fontSize: 12, fontWeight: 600, width: 140, borderBottom: '3px solid #e2e8f0' }}>
                 Actions
               </th>
             )}
           </tr>
         </thead>
         <tbody>
-          {rows.map((row, idx) => (
-            <tr key={row.id} style={{ background: idx % 2 === 0 ? '#ffffff' : '#f8fafc' }}>
+          {rows.map((row, idx) => {
+            const isActive = row.id === inProgressId;
+            return (
+            <tr key={row.id} style={{
+              background: isActive ? '#ecfdf5' : (idx % 2 === 0 ? '#ffffff' : '#f8fafc'),
+              outline: isActive ? '2px solid #10b981' : undefined,
+              outlineOffset: isActive ? -2 : undefined,
+            }}>
               {editingId === row.id && editData ? (
                 <>
                   {COL_FIELDS.map((field) => (
@@ -334,15 +565,61 @@ const OperationsScreen: React.FC = () => {
                     if (field === 'jobImage') {
                       return (
                         <td key={field} style={{ padding: isFS ? '12px 20px' : '8px 10px', textAlign: 'center', borderBottom: '1px solid #e2e8f0' }}>
-                          {row[field]
-                            ? <img src={row[field]} alt="job" style={{ width: isFS ? 100 : 56, height: isFS ? 100 : 56, objectFit: 'contain', borderRadius: 10, border: '2px solid #e2e8f0', background: '#f8fafc', boxShadow: '0 2px 8px rgba(0,0,0,0.10)' }} />
-                            : <span style={{ color: '#cbd5e1', fontSize: isFS ? 20 : 13 }}>—</span>
-                          }
+                          {isFS ? (
+                            row[field]
+                              ? <img src={row[field]} alt="job" style={{ width: 100, height: 100, objectFit: 'contain', borderRadius: 10, border: '2px solid #e2e8f0', background: '#f8fafc', boxShadow: '0 2px 8px rgba(0,0,0,0.10)' }} />
+                              : <span style={{ color: '#cbd5e1', fontSize: 20 }}>—</span>
+                          ) : (
+                            <label style={{ display: 'inline-flex', flexDirection: 'column', alignItems: 'center', gap: 4, cursor: 'pointer' }} title={row[field] ? 'Change photo' : 'Upload photo'}>
+                              {row[field]
+                                ? <img src={row[field]} alt="job" style={{ width: 56, height: 56, objectFit: 'contain', borderRadius: 10, border: '2px solid #e2e8f0', background: '#f8fafc', boxShadow: '0 2px 8px rgba(0,0,0,0.10)' }} />
+                                : <span style={{ display: 'inline-block', width: 56, height: 56, lineHeight: '56px', borderRadius: 10, border: '1.5px dashed #94a3b8', color: '#64748b', fontSize: 11, fontWeight: 600, background: '#f8fafc' }}>+ Photo</span>
+                              }
+                              <input
+                                type="file"
+                                accept="image/*"
+                                style={{ display: 'none' }}
+                                onChange={(e) => {
+                                  const file = e.target.files?.[0];
+                                  e.target.value = '';
+                                  if (file) uploadPhotoForRow(row.id, file);
+                                }}
+                              />
+                            </label>
+                          )}
                         </td>
                       );
                     }
-                    let display = row[field] || '—';
-                    if ((field === 'finish' || field === 'date') && row[field]) {
+                    if (field === 'date' && row.date) {
+                      const d = new Date(row.date);
+                      if (!isNaN(d.getTime())) {
+                        const dayName = DAYS_EN[d.getDay()];
+                        const dateStr = d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
+                        return (
+                          <td key={field} style={{
+                            padding: isFS ? '18px 28px' : '10px 14px',
+                            textAlign: 'center',
+                            borderBottom: '1px solid #e2e8f0',
+                            borderLeft: `4px solid ${COL_COLORS[0]}`,
+                          }}>
+                            <div style={{
+                              fontSize: isFS ? 18 : 11,
+                              fontWeight: 700,
+                              color: '#64748b',
+                              letterSpacing: 0.3,
+                              marginBottom: isFS ? 4 : 2,
+                            }}>{dayName}</div>
+                            <div style={{
+                              fontSize: isFS ? 24 : 14,
+                              fontWeight: 700,
+                              color: '#1e293b',
+                            }}>{dateStr}</div>
+                          </td>
+                        );
+                      }
+                    }
+                    let display: React.ReactNode = row[field] || '—';
+                    if (field === 'finish' && row[field]) {
                       const d = new Date(row[field]);
                       if (!isNaN(d.getTime())) {
                         display = d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
@@ -363,15 +640,45 @@ const OperationsScreen: React.FC = () => {
                     );
                   })}
                   {!isFS && (
-                    <td style={{ textAlign: 'center', padding: '8px 6px', borderBottom: '1px solid #e2e8f0' }}>
-                      <button onClick={() => startEdit(row)} title="Edit" style={{ background: '#eff6ff', border: 'none', color: '#6366f1', borderRadius: 6, padding: '5px 8px', cursor: 'pointer', marginRight: 4 }}><Edit2 size={13} /></button>
+                    <td style={{ textAlign: 'center', padding: '8px 6px', borderBottom: '1px solid #e2e8f0', whiteSpace: 'nowrap' }}>
+                      <button
+                        onClick={() => moveRow(row.id, -1)}
+                        disabled={idx === 0}
+                        title="Move up"
+                        style={{
+                          background: idx === 0 ? '#f1f5f9' : '#ecfdf5', border: 'none',
+                          color: idx === 0 ? '#cbd5e1' : '#059669', borderRadius: 6,
+                          padding: '5px 7px', cursor: idx === 0 ? 'default' : 'pointer', marginRight: 3,
+                        }}
+                      ><ChevronUp size={14} /></button>
+                      <button
+                        onClick={() => moveRow(row.id, 1)}
+                        disabled={idx === rows.length - 1}
+                        title="Move down"
+                        style={{
+                          background: idx === rows.length - 1 ? '#f1f5f9' : '#fff7ed', border: 'none',
+                          color: idx === rows.length - 1 ? '#cbd5e1' : '#ea580c', borderRadius: 6,
+                          padding: '5px 7px', cursor: idx === rows.length - 1 ? 'default' : 'pointer', marginRight: 3,
+                        }}
+                      ><ChevronDown size={14} /></button>
+                      <button
+                        onClick={() => setInProgressOrder(isActive ? null : row.id)}
+                        title={isActive ? 'Clear in progress' : 'Set as in progress'}
+                        style={{
+                          background: isActive ? '#10b981' : '#ecfdf5', border: 'none',
+                          color: isActive ? '#fff' : '#059669', borderRadius: 6,
+                          padding: '5px 7px', cursor: 'pointer', marginRight: 3,
+                        }}
+                      ><Play size={13} fill={isActive ? '#fff' : 'none'} /></button>
+                      <button onClick={() => startEdit(row)} title="Edit" style={{ background: '#eff6ff', border: 'none', color: '#6366f1', borderRadius: 6, padding: '5px 8px', cursor: 'pointer', marginRight: 3 }}><Edit2 size={13} /></button>
                       <button onClick={() => deleteRow(row.id)} title="Delete" style={{ background: '#fef2f2', border: 'none', color: '#ef4444', borderRadius: 6, padding: '5px 8px', cursor: 'pointer' }}><Trash2 size={13} /></button>
                     </td>
                   )}
                 </>
               )}
             </tr>
-          ))}
+            );
+          })}
         </tbody>
       </table>
     </div>
@@ -403,6 +710,7 @@ const OperationsScreen: React.FC = () => {
           </button>
         </div>
         <div style={{ flex: 1, padding: '32px 48px', overflowY: 'auto', background: '#f8fafc' }}>
+          {progressCard(true)}
           <div style={{ background: '#fff', borderRadius: 16, overflow: 'hidden', boxShadow: '0 4px 32px rgba(0,0,0,0.10)', border: '1px solid #e2e8f0' }}>
             {tableContent(true)}
           </div>
@@ -449,11 +757,12 @@ const OperationsScreen: React.FC = () => {
       </div>
 
       <div style={{ padding: 24 }}>
+        {progressCard(false)}
         <div style={{ background: '#fff', borderRadius: 16, overflow: 'hidden', boxShadow: '0 2px 16px rgba(0,0,0,0.08)', border: '1px solid #e2e8f0' }}>
           {tableContent(false)}
         </div>
         <p style={{ color: '#9ca3af', fontSize: 12, marginTop: 10, textAlign: 'center' }}>
-          Synced via dedicated ops API • Click ✏️ to edit • Press Enter to save
+          Synced via dedicated ops API • Click ▶ to mark in progress • Press Enter to save
         </p>
       </div>
     </div>

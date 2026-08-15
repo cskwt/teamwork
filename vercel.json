@@ -1,7 +1,77 @@
 {
   "rewrites": [
-    { "source": "/api/(.*)", "destination": "/api/$1" },
-    { "source": "/((?!api/).*)", "destination": "/index.html" }
+    {
+      "source": "/attendance",
+      "destination": "https://acc.csapp.io/attendance"
+    },
+    {
+      "source": "/attendance/:path*",
+      "destination": "https://acc.csapp.io/attendance/:path*"
+    },
+    {
+      "source": "/template-maker",
+      "destination": "https://acc.csapp.io/template-maker"
+    },
+    {
+      "source": "/template-maker/:path*",
+      "destination": "https://acc.csapp.io/template-maker/:path*"
+    },
+    {
+      "source": "/cost-calculator",
+      "destination": "https://acc.csapp.io/cost-calculator"
+    },
+    {
+      "source": "/cost-calculator/:path*",
+      "destination": "https://acc.csapp.io/cost-calculator/:path*"
+    },
+    {
+      "source": "/cost-calculator-pdf",
+      "destination": "https://acc.csapp.io/cost-calculator-pdf"
+    },
+    {
+      "source": "/cost-calculator-digital-pdf",
+      "destination": "https://acc.csapp.io/cost-calculator-digital-pdf"
+    },
+    {
+      "source": "/api/template-export-pdf",
+      "destination": "https://acc.csapp.io/api/template-export-pdf"
+    },
+    {
+      "source": "/logo.png",
+      "destination": "https://acc.csapp.io/logo.png"
+    },
+    {
+      "source": "/assets/paper-bag-icon.png",
+      "destination": "https://acc.csapp.io/assets/paper-bag-icon.png"
+    },
+    {
+      "source": "/assets/slidebox-icon.png",
+      "destination": "https://acc.csapp.io/assets/slidebox-icon.png"
+    },
+    {
+      "source": "/assets/lidbox-icon.png",
+      "destination": "https://acc.csapp.io/assets/lidbox-icon.png"
+    },
+    {
+      "source": "/assets/pinchlock-icon.png",
+      "destination": "https://acc.csapp.io/assets/pinchlock-icon.png"
+    },
+    {
+      "source": "/assets/tucklock-icon.png",
+      "destination": "https://acc.csapp.io/assets/tucklock-icon.png"
+    },
+    {
+      "source": "/assets/acrylic-pricing-template.xlsx",
+      "destination": "https://acc.csapp.io/assets/acrylic-pricing-template.xlsx"
+    },
+    {
+      "source": "/api/(.*)",
+      "destination": "/api/$1"
+    },
+    {
+      "source": "/((?!api/|attendance(?:/|$)|template-maker(?:/|$)|cost-calculator(?:/|$)|cost-calculator-pdf$|cost-calculator-digital-pdf$|logo\\.png$|assets/(?:paper-bag|slidebox|lidbox|pinchlock|tucklock)-icon\\.png$|assets/acrylic-pricing-template\\.xlsx$).*)",
+      "destination": "/index.html"
+    }
   ],
   "github": {
     "enabled": false

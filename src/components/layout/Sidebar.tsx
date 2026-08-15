@@ -1,7 +1,7 @@
 import React from 'react';
 import {
   BarChart2, Settings, LogOut,
-  Archive, Trash2, UserCog, LayoutGrid, Monitor
+  Archive, Trash2, UserCog, LayoutGrid, Monitor, Wrench
 } from 'lucide-react';
 import { useApp } from '../../contexts/AppContext';
 import { useLang } from '../../contexts/LanguageContext';
@@ -12,9 +12,11 @@ interface SidebarProps {
   onNavigate: (page: string) => void;
   activeDeptId: string | null;
   onSelectDept: (id: string) => void;
+  open?: boolean;
+  onClose?: () => void;
 }
 
-const Sidebar: React.FC<SidebarProps> = ({ activePage, onNavigate }) => {
+const Sidebar: React.FC<SidebarProps> = ({ activePage, onNavigate, open }) => {
   const { state, logout } = useApp();
   const { tr } = useLang();
   const { currentUser } = state;
@@ -25,7 +27,8 @@ const Sidebar: React.FC<SidebarProps> = ({ activePage, onNavigate }) => {
   const navItems = [
     { id: 'dashboard', label: tr.dashboard, icon: <BarChart2 size={18} /> },
     { id: 'projects', label: tr.departments, icon: <LayoutGrid size={18} /> },
-    { id: 'operations', label: 'شاشة العمليات', icon: <Monitor size={18} /> },
+    { id: 'operations', label: tr.operations, icon: <Monitor size={18} /> },
+    { id: 'tools', label: tr.tools, icon: <Wrench size={18} /> },
     { id: 'archive', label: tr.archive, icon: <Archive size={18} /> },
     { id: 'trash', label: tr.trash, icon: <Trash2 size={18} /> },
   ];
@@ -36,7 +39,7 @@ const Sidebar: React.FC<SidebarProps> = ({ activePage, onNavigate }) => {
   ];
 
   return (
-    <aside className="sidebar">
+    <aside className={`sidebar${open ? ' sidebar-open' : ''}`}>
       {/* Logo */}
       <div className="sidebar-logo-wrap">
         <img src={logoWhite} alt="TEAMWORK" className="sidebar-logo-img" />

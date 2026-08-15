@@ -1,6 +1,7 @@
 import localforage from 'localforage';
-import { AppState, OpsRow } from '../types';
-import { INITIAL_USERS, INITIAL_DEPARTMENTS, INITIAL_ORDERS } from '../data/initialData';
+import { AppState, OpsRow, User } from '../types';
+import { INITIAL_USERS, INITIAL_DEPARTMENTS, INITIAL_ORDERS, INITIAL_MATERIALS } from '../data/initialData';
+import { splitOrdersAndRequests } from './orderRequests';
 
 /** How many text fields are filled — used to prefer richer ops rows over empty ones */
 export const opsRowScore = (r: OpsRow): number =>
@@ -25,7 +26,13 @@ export const mergeOpsRow = (a: OpsRow, b: OpsRow): OpsRow => {
     date: pick(a.date, b.date),
     customer: pick(a.customer, b.customer),
     job: pick(a.job, b.job),
-    jobImage: a.jobImage || b.jobImage || '',
+    jobImage: (() => {
+      const ai = a.jobImage || '';
+      const bi = b.jobImage || '';
+      if (ai.startsWith('http')) return ai;
+      if (bi.startsWith('http')) return bi;
+      return ai || bi || '';
+    })(),
     qty: pick(a.qty, b.qty),
     target: pick(a.target, b.target),
     finishedQty: pick(a.finishedQty, b.finishedQty),
@@ -113,12 +120,18 @@ export const loadSession = (): string | null => {
     const raw = localStorage.getItem(SESSION_KEY);
     if (!raw) return null;
     const { userId, lastActivity } = JSON.parse(raw);
-    if (Date.now() - lastActivity > SESSION_DURATION) {
+    if (!userId) {
+      localStorage.removeItem(SESSION_KEY);
+      return null;
+    }
+    if (Date.now() - (lastActivity || 0) > SESSION_DURATION) {
       localStorage.removeItem(SESSION_KEY);
       return null;
     }
     return userId;
-  } catch { return null; }
+  } catch {
+    return null;
+  }
 };
 
 export const clearSession = () => {
@@ -137,7 +150,11 @@ const OPS_API_CANDIDATES = [
   '/api/ops',
 ];
 
-export type OpsServerPayload = { rows: OpsRow[]; updatedAt: string | null };
+export type OpsServerPayload = {
+  rows: OpsRow[];
+  updatedAt: string | null;
+  inProgressId?: string | null;
+};
 
 const parseOpsPayload = async (res: Response): Promise<OpsServerPayload | null> => {
   const ct = (res.headers.get('content-type') || '').toLowerCase();
@@ -148,7 +165,11 @@ const parseOpsPayload = async (res: Response): Promise<OpsServerPayload | null> 
   let data: any;
   try { data = JSON.parse(text); } catch { return null; }
   if (!data || !Array.isArray(data.rows) || data.departments || data.orders) return null;
-  return { rows: data.rows as OpsRow[], updatedAt: data.updatedAt || null };
+  return {
+    rows: data.rows as OpsRow[],
+    updatedAt: data.updatedAt || null,
+    inProgressId: data.inProgressId ?? null,
+  };
 };
 
 const opsFetchJson = async (
@@ -196,10 +217,34 @@ export const opsServerLoad = async (): Promise<OpsServerPayload | null> => {
   return result;
 };
 
-export const opsServerSave = async (rows: OpsRow[], updatedAt: string): Promise<boolean> => {
+export const opsServerSave = async (
+  rows: OpsRow[],
+  updatedAt: string,
+  inProgressId?: string | null,
+): Promise<boolean> => {
+  // Preserve shared image URLs already on the server when this device has empty jobImage
+  let remoteMap = new Map<string, OpsRow>();
+  let remoteProgress: string | null = null;
+  try {
+    const remote = await opsServerLoad();
+    (remote?.rows || []).forEach((r) => remoteMap.set(r.id, r));
+    remoteProgress = remote?.inProgressId ?? null;
+  } catch { /* ignore */ }
+
   const payload: OpsServerPayload = {
-    rows: (rows || []).map((r) => ({ ...r, jobImage: '' })),
+    rows: (rows || []).map((r) => {
+      const prev = remoteMap.get(r.id);
+      const localImg = r.jobImage || '';
+      const remoteImg = prev?.jobImage || '';
+      const jobImage =
+        localImg.startsWith('http') ? localImg :
+        remoteImg.startsWith('http') ? remoteImg :
+        '';
+      return { ...r, jobImage };
+    }),
     updatedAt,
+    // undefined → keep whatever server already has; null/'' → clear; string → set
+    inProgressId: inProgressId === undefined ? remoteProgress : (inProgressId || null),
   };
   const result = await opsFetchJson('POST', payload);
   return result === 'saved';
@@ -212,6 +257,20 @@ export const opsRowsScore = (rows: OpsRow[]): number =>
       .filter((k) => !!(r as any)[k] && String((r as any)[k]).trim()).length;
     return sum + filled;
   }, 0);
+
+/** True when payload is real app state (not a stray file-upload JSON). */
+export const isValidAppState = (data: any): data is AppState =>
+  !!(data && Array.isArray(data.departments) && data.departments.length > 0 && Array.isArray(data.orders));
+
+/** Server returned 200 JSON that is NOT app state (e.g. a file {id,name,dataUrl} wipe). */
+export const isCorruptAppStatePayload = (data: any): boolean => {
+  if (!data || typeof data !== 'object') return false;
+  if (isValidAppState(data)) return false;
+  // Classic corruption: a single attachment overwritten into app_state
+  if (typeof data.dataUrl === 'string' && !data.departments) return true;
+  if (data.id && data.name && data.type && !data.departments && !data.orders) return true;
+  return Array.isArray(data.departments) === false && data.orders === undefined;
+};
 
 export const serverLoad = async (): Promise<AppState | null> => {
   try {
@@ -226,7 +285,7 @@ export const serverLoad = async (): Promise<AppState | null> => {
       });
       if (!res.ok) return null;
       const data = await res.json();
-      if (data && data.departments?.length) return data as AppState;
+      if (isValidAppState(data)) return data as AppState;
       return null;
     } finally {
       clearTimeout(timer);
@@ -234,13 +293,35 @@ export const serverLoad = async (): Promise<AppState | null> => {
   } catch { return null; }
 };
 
-/** Strip ALL file DataURLs from server payload — files stay in local IndexedDB only.
- *  Keeping them on the server bloated the JSON to ~20MB and broke sync for everyone. */
+/** Peek raw server JSON (for corruption repair). */
+const serverLoadRaw = async (): Promise<{ ok: boolean; data: any } | null> => {
+  try {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 30000);
+    try {
+      const res = await fetch(API_URL, {
+        headers: { 'X-API-Key': API_KEY },
+        signal: controller.signal,
+        cache: 'no-store',
+      });
+      if (!res.ok) return { ok: false, data: null };
+      const data = await res.json();
+      return { ok: true, data };
+    } finally {
+      clearTimeout(timer);
+    }
+  } catch {
+    return null;
+  }
+};
+
+/** Strip ALL file DataURLs from server payload — files stay in local IndexedDB
+ *  and/or on Hostinger uploads/ via files-api.php (url field is kept). */
 const stripAllDataUrls = (state: AppState): AppState => {
   const meta = (f: any) => {
     if (!f) return f;
     const { dataUrl, ...rest } = f;
-    return rest;
+    return rest; // keep url, name, size, type, id
   };
   return {
     ...state,
@@ -254,7 +335,10 @@ const stripAllDataUrls = (state: AppState): AppState => {
       invoices: (o.invoices || []).map(meta),
       orderForms: (o.orderForms || []).map(meta),
     })),
-    opsRows: (state.opsRows || []).map((r) => ({ ...r, jobImage: '' })),
+    opsRows: (state.opsRows || []).map((r) => ({
+      ...r,
+      jobImage: (r.jobImage || '').startsWith('http') ? r.jobImage : '',
+    })),
   };
 };
 
@@ -321,6 +405,10 @@ const getDefaultState = (): AppState => ({
   users: INITIAL_USERS,
   departments: INITIAL_DEPARTMENTS,
   orders: INITIAL_ORDERS,
+  orderRequests: [],
+  materials: INITIAL_MATERIALS,
+  orderCostRows: [],
+  orderCostsUpdatedAt: undefined,
   currentUser: null,
   notifications: [],
   opsRows: [],
@@ -370,7 +458,10 @@ export const resolveOpsRowsForSave = (
 
 /** Dedicated push of ops table — retries with fresh server fetch to beat race conditions */
 export const saveOpsRowsToServer = async (opsRows: OpsRow[], opsUpdatedAt: string): Promise<boolean> => {
-  const cleanRows = (opsRows || []).map((r) => ({ ...r, jobImage: '' }));
+  const cleanRows = (opsRows || []).map((r) => ({
+    ...r,
+    jobImage: (r.jobImage || '').startsWith('http') ? r.jobImage : '',
+  }));
   for (let attempt = 0; attempt < 3; attempt++) {
     try {
       const server = await serverLoad();
@@ -435,31 +526,90 @@ const getMaxUpdatedAt = (orders: AppState['orders']): string => {
 
 // Smart merge: deletion and archive flags take priority over generic updatedAt comparisons.
 // This prevents a slower server-save from overwriting a locally applied archive/delete.
+const mergeById = <T extends { id: string; createdAt?: string }>(
+  a: T[] = [],
+  b: T[] = [],
+): T[] => {
+  const map = new Map<string, T>();
+  [...(a || []), ...(b || [])].forEach((item) => {
+    if (item?.id) map.set(item.id, item);
+  });
+  return Array.from(map.values()).sort((x, y) =>
+    (x.createdAt || '').localeCompare(y.createdAt || '')
+  );
+};
+
 const mergeOrder = (srv: AppState['orders'][0], loc: AppState['orders'][0]) => {
   // --- Deletion priority ---
   const srvDel = !!srv.deletedAt;
   const locDel = !!loc.deletedAt;
+  let base: AppState['orders'][0];
   if (srvDel && !locDel) {
-    return (loc.updatedAt || '') > (srv.deletedAt || '') ? loc : srv;
+    base = (loc.updatedAt || '') > (srv.deletedAt || '') ? loc : srv;
+  } else if (!srvDel && locDel) {
+    base = (srv.updatedAt || '') > (loc.deletedAt || '') ? srv : loc;
+  } else {
+    // --- Archive priority ---
+    const srvArc = !!srv.archivedAt;
+    const locArc = !!loc.archivedAt;
+    if (locArc && !srvArc) {
+      base = (srv.updatedAt || '') > (loc.archivedAt || '') ? srv : loc;
+    } else if (srvArc && !locArc) {
+      base = srv;
+    } else {
+      // Same state → newer wins (server wins on tie)
+      base = (srv.updatedAt || '') >= (loc.updatedAt || '') ? srv : loc;
+    }
   }
-  if (!srvDel && locDel) {
-    return (srv.updatedAt || '') > (loc.deletedAt || '') ? srv : loc;
-  }
-  // --- Archive priority ---
-  // If local has archivedAt but server hasn't saved it yet, keep local to prevent
-  // the order from reappearing on the board after the next 3-second poll.
-  const srvArc = !!srv.archivedAt;
-  const locArc = !!loc.archivedAt;
-  if (locArc && !srvArc) {
-    // Local archived — keep unless server has an explicit update after the archive
-    return (srv.updatedAt || '') > (loc.archivedAt || '') ? srv : loc;
-  }
-  if (srvArc && !locArc) {
-    // Server archived, local not updated yet — server wins
-    return srv;
-  }
-  // Same state → newer wins (server wins on tie)
-  return (srv.updatedAt || '') >= (loc.updatedAt || '') ? srv : loc;
+  const deletedIds = new Set<string>([
+    ...(base.deletedAttachmentIds || []),
+    ...(srv.deletedAttachmentIds || []),
+    ...(loc.deletedAttachmentIds || []),
+  ]);
+  const mergeFile = (...parts: any[]) => {
+    const present = parts.filter(Boolean);
+    if (!present.length) return undefined;
+    const out = { ...present[0] };
+    out.dataUrl = present.map((p) => p.dataUrl).find(Boolean);
+    out.url = present.map((p) => p.url).find(Boolean);
+    return out;
+  };
+  const unionList = (a: any[] = [], b: any[] = []) => {
+    const map = new Map<string, any>();
+    [...a, ...b].forEach((f) => {
+      if (!f?.id || deletedIds.has(f.id)) return;
+      map.set(f.id, mergeFile(map.get(f.id), f));
+    });
+    return Array.from(map.values());
+  };
+  const legacyInvoice = (() => {
+    const inv = mergeFile(base.invoice, srv.invoice, loc.invoice);
+    if (!inv) return undefined;
+    if (inv.id && deletedIds.has(inv.id)) return undefined;
+    if (!base.invoice && (base.updatedAt || '') >= (loc.updatedAt || '') && (base.updatedAt || '') >= (srv.updatedAt || '')) {
+      return undefined;
+    }
+    return inv;
+  })();
+  // Always keep the union of chat + history + attachments from both sides
+  // sortOrder is cosmetic and uses its own timestamp so sync doesn't wipe reorders
+  const sortOrderAt =
+    (loc.sortOrderAt || '') >= (srv.sortOrderAt || '') ? (loc.sortOrderAt || srv.sortOrderAt) : (srv.sortOrderAt || loc.sortOrderAt);
+  const sortOrder =
+    (loc.sortOrderAt || '') >= (srv.sortOrderAt || '')
+      ? (loc.sortOrder ?? srv.sortOrder)
+      : (srv.sortOrder ?? loc.sortOrder);
+  return {
+    ...base,
+    sortOrder,
+    sortOrderAt,
+    deletedAttachmentIds: Array.from(deletedIds),
+    invoice: legacyInvoice,
+    invoices: unionList(srv.invoices, loc.invoices),
+    orderForms: unionList(srv.orderForms, loc.orderForms),
+    comments: mergeById(srv.comments, loc.comments),
+    history: mergeById(srv.history, loc.history),
+  };
 };
 
 const mergeOrders = (server: AppState['orders'], local: AppState['orders']): AppState['orders'] => {
@@ -471,30 +621,35 @@ const mergeOrders = (server: AppState['orders'], local: AppState['orders']): App
     const loc = locMap.get(srv.id);
     return loc ? mergeOrder(srv, loc) : srv;
   });
-  // Add local-only orders ONLY if they are newer than the server's max updatedAt
-  // (i.e., they were created offline and haven't reached the server yet).
-  // Do NOT add local-only orders absent from server — server may have deleted them.
+  // Keep local-only orders that look like recent offline creates (15 min),
+  // or newer than the server's newest order. Never resurrect soft-deleted ones.
+  const recentThreshold = new Date(Date.now() - 15 * 60 * 1000).toISOString();
   const srvMaxUpdated = getMaxUpdatedAt(server);
   local.forEach((loc) => {
-    if (!srvMap.has(loc.id) && !loc.deletedAt && (loc.updatedAt || '') > srvMaxUpdated) {
+    if (srvMap.has(loc.id) || loc.deletedAt) return;
+    const stamp = loc.updatedAt || loc.createdAt || '';
+    if (stamp > srvMaxUpdated || stamp >= recentThreshold) {
       result.push(loc);
     }
   });
   return result;
 };
 
-/** Fast local-only load — opens the app within ~1–2 seconds */
+/**
+ * Load from IndexedDB. Do NOT race a short timeout that returns empty defaults —
+ * that used to wipe real local users (e.g. Hassan) when IDB was slow, then
+ * INIT_STATE persisted the empty default back over IndexedDB.
+ */
 export const loadLocalState = async (): Promise<AppState> => {
   try {
-    const localRaw = await Promise.race([
-      localforage.getItem<AppState>(DB_KEY).catch(() => null),
-      new Promise<null>((resolve) => setTimeout(() => resolve(null), 1500)),
-    ]);
-    const local = localRaw as AppState | null;
+    const local = (await localforage.getItem<AppState>(DB_KEY).catch(() => null)) as AppState | null;
     if (local && local.departments?.length) {
+      const split = splitOrdersAndRequests(local.orders || [], local.orderRequests || []);
       return {
         ...getDefaultState(),
         ...local,
+        orders: split.orders,
+        orderRequests: split.orderRequests,
         currentUser: null,
         notifications: local.notifications || [],
         opsRows: local.opsRows || [],
@@ -506,6 +661,30 @@ export const loadLocalState = async (): Promise<AppState> => {
     }
   } catch { /* fall through */ }
   return getDefaultState();
+};
+
+/** Direct IndexedDB read for login (no defaults, no timeout). */
+export const loadLocalUsers = async (): Promise<User[]> => {
+  try {
+    const local = (await localforage.getItem<AppState>(DB_KEY).catch(() => null)) as AppState | null;
+    return Array.isArray(local?.users) ? local!.users! : [];
+  } catch {
+    return [];
+  }
+};
+
+/** If server app_state was overwritten by a file upload, push local snapshot to repair it. */
+export const repairServerIfCorrupt = async (local: AppState): Promise<boolean> => {
+  const raw = await serverLoadRaw();
+  if (!(raw?.ok && isCorruptAppStatePayload(raw.data))) return false;
+  const localOk =
+    Array.isArray(local.departments) &&
+    local.departments.length > 0 &&
+    Array.isArray(local.users) &&
+    local.users.length > 0;
+  if (!localOk) return false;
+  console.warn('[sync] repairing corrupted server app_state from local device');
+  return serverSave({ ...local, currentUser: null });
 };
 
 export const loadState = async (): Promise<AppState> => {
@@ -526,6 +705,8 @@ export const loadState = async (): Promise<AppState> => {
   if (fromServer) {
     let mergedOrders = fromServer.orders || [];
     let departments = fromServer.departments || [];
+    let materials = fromServer.materials || [];
+    let orderCostRows = fromServer.orderCostRows || [];
 
     if (local) {
       // Merge orders: server is primary but respect local changes newer than server
@@ -539,16 +720,29 @@ export const loadState = async (): Promise<AppState> => {
         if (!loc) return o;
         return {
           ...o,
+          // Do NOT restore loc.invoice when server/merged cleared it — that resurrected deleted invoices
           invoice: o.invoice
-            ? { ...o.invoice, dataUrl: o.invoice.dataUrl ?? loc.invoice?.dataUrl }
-            : loc.invoice,
-          invoices: (o.invoices || []).map((inv) => {
+            ? {
+                ...o.invoice,
+                dataUrl: o.invoice.dataUrl ?? loc.invoice?.dataUrl,
+                url: o.invoice.url ?? loc.invoice?.url,
+              }
+            : undefined,
+          invoices: (o.invoices || [])
+            .filter((inv) => !(o.deletedAttachmentIds || []).includes(inv.id))
+            .map((inv) => {
             const locInv = (loc.invoices || []).find((i) => i.id === inv.id);
-            return locInv ? { ...inv, dataUrl: inv.dataUrl ?? locInv.dataUrl } : inv;
+            return locInv
+              ? { ...inv, dataUrl: inv.dataUrl ?? locInv.dataUrl, url: inv.url ?? locInv.url }
+              : inv;
           }),
-          orderForms: (o.orderForms || []).map((f) => {
+          orderForms: (o.orderForms || [])
+            .filter((f) => !(o.deletedAttachmentIds || []).includes(f.id))
+            .map((f) => {
             const locF = (loc.orderForms || []).find((lf) => lf.id === f.id);
-            return locF ? { ...f, dataUrl: f.dataUrl ?? locF.dataUrl } : f;
+            return locF
+              ? { ...f, dataUrl: f.dataUrl ?? locF.dataUrl, url: f.url ?? locF.url }
+              : f;
           }),
         };
       });
@@ -559,13 +753,51 @@ export const loadState = async (): Promise<AppState> => {
       if (local.departments?.length && localDeptMax > serverDeptMax) {
         departments = local.departments;
       }
+
+      // Materials catalog: use whichever is newer
+      const localMatMax = (local.materials || []).reduce(
+        (m, x) => ((x.updatedAt || x.createdAt || '') > m ? (x.updatedAt || x.createdAt || '') : m),
+        '',
+      );
+      const serverMatMax = (fromServer.materials || []).reduce(
+        (m: string, x: { updatedAt?: string; createdAt?: string }) =>
+          ((x.updatedAt || x.createdAt || '') > m ? (x.updatedAt || x.createdAt || '') : m),
+        '',
+      );
+      if ((local.materials || []).length && localMatMax > serverMatMax) {
+        materials = local.materials;
+      }
+
+      // Order cost rows: use whichever is newer
+      const localCostMax = (local.orderCostRows || []).reduce(
+        (m, x) => ((x.updatedAt || '') > m ? (x.updatedAt || '') : m),
+        '',
+      );
+      const serverCostMax = (fromServer.orderCostRows || []).reduce(
+        (m: string, x: { updatedAt?: string }) => ((x.updatedAt || '') > m ? (x.updatedAt || '') : m),
+        '',
+      );
+      if ((local.orderCostRows || []).length && localCostMax > serverCostMax) {
+        orderCostRows = local.orderCostRows;
+      }
     }
+
+    const split = splitOrdersAndRequests(
+      mergedOrders,
+      [
+        ...(fromServer.orderRequests || []),
+        ...(local?.orderRequests || []),
+      ],
+    );
 
     const merged: AppState = {
       ...getDefaultState(),
       ...fromServer,
       departments,
-      orders: mergedOrders,
+      materials: materials || fromServer.materials || local?.materials || [],
+      orderCostRows: orderCostRows || fromServer.orderCostRows || local?.orderCostRows || [],
+      orders: split.orders,
+      orderRequests: split.orderRequests,
       currentUser: null,
       notifications: fromServer.notifications || local?.notifications || [],
       ...resolveOpsRowsForSave(
@@ -585,10 +817,19 @@ export const loadState = async (): Promise<AppState> => {
       const serverMaxUpdated = getMaxUpdatedAt(fromServer.orders || []);
       const localDeptMax     = (local.departments || []).reduce((m, d) => (d.updatedAt || '') > m ? (d.updatedAt || '') : m, '');
       const serverDeptMax    = (fromServer.departments || []).reduce((m: string, d: { updatedAt?: string }) => (d.updatedAt || '') > m ? (d.updatedAt || '') : m, '');
+      const localMatMax = (local.materials || []).reduce(
+        (m, x) => ((x.updatedAt || x.createdAt || '') > m ? (x.updatedAt || x.createdAt || '') : m),
+        '',
+      );
+      const serverMatMax = (fromServer.materials || []).reduce(
+        (m: string, x: { updatedAt?: string; createdAt?: string }) =>
+          ((x.updatedAt || x.createdAt || '') > m ? (x.updatedAt || x.createdAt || '') : m),
+        '',
+      );
 
       // Never push file DataURLs back to server (they re-inflate the 20MB blob).
-      // Only push if local has newer order/dept metadata.
-      if (localMaxUpdated > serverMaxUpdated || localDeptMax > serverDeptMax) {
+      // Only push if local has newer order/dept/material metadata.
+      if (localMaxUpdated > serverMaxUpdated || localDeptMax > serverDeptMax || localMatMax > serverMatMax) {
         serverSave({ ...merged, currentUser: null });
       }
     }
@@ -617,25 +858,46 @@ export const loadState = async (): Promise<AppState> => {
   }
 };
 
-// Merge users: union of both sides — never drop a user that exists on either side.
-// Server is authoritative for updates; local-only users (new, not yet synced) are kept.
-const mergeUsers = (server: AppState['users'], local: AppState['users']): AppState['users'] => {
-  const locMap = new Map(local.map((u) => [u.id, u]));
-  const result: AppState['users'] = [...server]; // start with all server users
-  // Add any local-only users (created on this device, not yet on server)
-  local.forEach((u) => {
-    if (!result.find((s) => s.id === u.id)) result.push(u);
-  });
-  // For users present on both sides, prefer the local version only if it changed
-  // (e.g. password/avatar update initiated from this device)
-  return result.map((u) => {
-    const loc = locMap.get(u.id);
-    // If local has a different password/avatar it was probably updated here — keep local
-    if (loc && (loc.password !== u.password || loc.avatar !== u.avatar || loc.fullName !== u.fullName)) {
-      return loc;
+// Merge users: union by id; deletedAt tombstones win so deletions stick across devices.
+export const mergeUsers = (server: AppState['users'], local: AppState['users']): AppState['users'] => {
+  const map = new Map<string, AppState['users'][0]>();
+  const add = (u: AppState['users'][0]) => {
+    if (!u?.id) return;
+    const prev = map.get(u.id);
+    if (!prev) {
+      map.set(u.id, u);
+      return;
     }
-    return u;
-  });
+    const prevDel = !!prev.deletedAt;
+    const uDel = !!u.deletedAt;
+    if (uDel && !prevDel) {
+      map.set(u.id, u);
+      return;
+    }
+    if (prevDel && !uDel) return;
+    if (uDel && prevDel) {
+      map.set(u.id, (u.deletedAt || '') >= (prev.deletedAt || '') ? u : prev);
+      return;
+    }
+    // Both active — prefer local profile edits when they differ
+    if (
+      u.password !== prev.password ||
+      u.avatar !== prev.avatar ||
+      u.fullName !== prev.fullName ||
+      u.username !== prev.username ||
+      u.role !== prev.role ||
+      u.departmentId !== prev.departmentId ||
+      JSON.stringify(u.departmentIds || []) !== JSON.stringify(prev.departmentIds || [])
+    ) {
+      // Prefer the one that looks like a local edit: keep whichever was passed later (local is added second)
+      map.set(u.id, u);
+      return;
+    }
+    map.set(u.id, prev);
+  };
+  (server || []).forEach(add);
+  (local || []).forEach(add);
+  return Array.from(map.values());
 };
 
 export const saveState = async (state: AppState): Promise<void> => {
@@ -659,11 +921,30 @@ export const saveState = async (state: AppState): Promise<void> => {
       if (serverCurrent) break;
       await new Promise((r) => setTimeout(r, 800 * (attempt + 1)));
     }
+
+    // If server JSON was corrupted by a file upload (no departments), repair from local.
     if (!serverCurrent) {
-      // Keep local only; next successful save/poll will sync. Do NOT wipe server.
+      const raw = await serverLoadRaw();
+      const corrupt = !!(raw?.ok && isCorruptAppStatePayload(raw.data));
+      const localOk =
+        Array.isArray(snapshot.departments) &&
+        snapshot.departments.length > 0 &&
+        Array.isArray(snapshot.users) &&
+        snapshot.users.length > 0;
+      if (corrupt && localOk) {
+        console.warn('[sync] repairing corrupted server app_state from local device');
+        const ok = await serverSave(snapshot);
+        if (!ok) console.warn('[sync] repair save failed');
+        return;
+      }
+      // Network / empty — keep local only; do NOT wipe server.
       console.warn('[sync] serverLoad failed — skip server write to protect other devices');
       return;
     }
+
+    // Re-load once more right before merge to shrink TOCTOU races between devices
+    const latest = await serverLoad();
+    if (latest) serverCurrent = latest;
 
     const mergedOrders = mergeOrdersForSave(serverCurrent.orders || [], snapshot.orders || []);
     const mergedUsers = mergeUsers(serverCurrent.users || [], snapshot.users || []);
@@ -677,11 +958,62 @@ export const saveState = async (state: AppState): Promise<void> => {
     const mergedDepts: AppState['departments'] = [];
     deptMap.forEach((d) => { mergedDepts.push(d); });
 
+    // Materials / cost rows: union by id, prefer newer
+    const matMap = new Map<string, AppState['materials'][0]>();
+    [...(serverCurrent.materials || []), ...(snapshot.materials || [])].forEach((m) => {
+      if (!m?.id) return;
+      const prev = matMap.get(m.id);
+      if (!prev) matMap.set(m.id, m);
+      else {
+        const pt = prev.updatedAt || prev.createdAt || '';
+        const mt = m.updatedAt || m.createdAt || '';
+        matMap.set(m.id, mt >= pt ? m : prev);
+      }
+    });
+    const costMap = new Map<string, AppState['orderCostRows'][0]>();
+    const snapCosts = snapshot.orderCostRows || [];
+    const srvCosts = serverCurrent.orderCostRows || [];
+    const costStamp = (rows: AppState['orderCostRows'], at?: string) =>
+      at || rows.reduce((m, r) => ((r.updatedAt || '') > m ? (r.updatedAt || '') : m), '');
+    const localCostAt = costStamp(snapCosts, snapshot.orderCostsUpdatedAt);
+    const serverCostAt = costStamp(srvCosts, serverCurrent.orderCostsUpdatedAt);
+
+    let mergedCostRows: AppState['orderCostRows'];
+    let mergedCostAt = snapshot.orderCostsUpdatedAt || serverCurrent.orderCostsUpdatedAt;
+    if ((localCostAt || '') > (serverCostAt || '')) {
+      // Local sheet wins membership (deletes stick)
+      mergedCostRows = snapCosts.map((loc) => {
+        const srv = srvCosts.find((s) => s.id === loc.id);
+        if (!srv) return loc;
+        return (loc.updatedAt || '') >= (srv.updatedAt || '') ? loc : srv;
+      });
+      mergedCostAt = snapshot.orderCostsUpdatedAt || localCostAt;
+    } else {
+      [...srvCosts, ...snapCosts].forEach((r) => {
+        if (!r?.id) return;
+        const prev = costMap.get(r.id);
+        if (!prev) costMap.set(r.id, r);
+        else costMap.set(r.id, (r.updatedAt || '') >= (prev.updatedAt || '') ? r : prev);
+      });
+      mergedCostRows = Array.from(costMap.values());
+      mergedCostAt = serverCurrent.orderCostsUpdatedAt || snapshot.orderCostsUpdatedAt || serverCostAt;
+    }
+
+    // Keep Order Request fully separate; also peel any legacy mixed records out of orders
+    const splitSave = splitOrdersAndRequests(mergedOrders, [
+      ...(serverCurrent.orderRequests || []),
+      ...(snapshot.orderRequests || []),
+    ]);
+
     const ok = await serverSave({
       ...snapshot,
       users: mergedUsers,
       departments: mergedDepts,
-      orders: mergedOrders,
+      materials: Array.from(matMap.values()),
+      orderCostRows: mergedCostRows,
+      orderCostsUpdatedAt: mergedCostAt,
+      orders: splitSave.orders,
+      orderRequests: splitSave.orderRequests,
       notifications: snapshot.notifications || serverCurrent.notifications || [],
     });
     if (!ok) {

@@ -1,19 +1,46 @@
 import React, { createContext, useContext, useReducer, useEffect, useState, useRef } from 'react';
 import localforage from 'localforage';
-import { AppState, User, Department, Order, OrderComment, OrderHistoryEntry, KanbanColumn, AppNotification, OpsRow } from '../types';
-import { loadLocalState, saveState, saveSession, loadSession, touchSession, serverLoad, mergeOpsRows, resolveOpsRowsForSave } from '../utils/storage';
+import { AppState, User, Department, Order, OrderComment, OrderHistoryEntry, KanbanColumn, AppNotification, OpsRow, Material, OrderCostRow } from '../types';
+import { loadLocalState, loadLocalUsers, saveState, saveSession, loadSession, touchSession, clearSession, serverLoad, repairServerIfCorrupt, mergeOpsRows, resolveOpsRowsForSave, mergeUsers } from '../utils/storage';
+import { ensureAttachmentUrl } from '../utils/files';
 import { generateId } from '../utils/helpers';
-import { INITIAL_USERS, INITIAL_DEPARTMENTS, INITIAL_ORDERS } from '../data/initialData';
+import { INITIAL_USERS, INITIAL_DEPARTMENTS, INITIAL_ORDERS, INITIAL_MATERIALS } from '../data/initialData';
+import { splitOrdersAndRequests } from '../utils/orderRequests';
 
 const DEFAULT_STATE: AppState = {
   users: INITIAL_USERS,
   departments: INITIAL_DEPARTMENTS,
   orders: INITIAL_ORDERS,
+  orderRequests: [],
+  materials: INITIAL_MATERIALS,
+  orderCostRows: [],
+  orderCostsUpdatedAt: undefined,
   currentUser: null,
   notifications: [],
   opsRows: [],
   opsUpdatedAt: undefined,
 };
+
+/** Normalize legacy department column titles (e.g. delivery dept) after load/sync */
+const migrateDepts = (depts: Department[]) =>
+  (depts || []).map((d) => {
+    if (d.name === 'قسم التسليم') {
+      const hasDefault = (d.columns || []).some((c) => c.id === 'new' && c.title === 'جديد');
+      return {
+        ...d,
+        color: '#8b5cf6',
+        columns: hasDefault
+          ? [
+              { id: 'new', title: 'الطلبيات الجاهزة', color: '#6366f1', order: 0 },
+              { id: 'in_progress', title: 'للتوصيل', color: '#f59e0b', order: 1 },
+              { id: 'review', title: 'قيد التسليم', color: '#8b5cf6', order: 2 },
+              { id: 'done', title: 'للاستلام', color: '#10b981', order: 3 },
+            ]
+          : d.columns || [],
+      };
+    }
+    return d;
+  });
 
 const makeNotif = (
   type: AppNotification['type'],
@@ -37,12 +64,21 @@ type Action =
   | { type: 'LOGOUT' }
   | { type: 'ADD_ORDER'; payload: Order; triggerUserId?: string }
   | { type: 'UPDATE_ORDER'; payload: Order; triggerUserId?: string; prevAssignedUsers?: string[]; silent?: boolean }
+  | { type: 'SET_ORDERS_SORT'; payload: { id: string; sortOrder: number; sortOrderAt: string }[] }
   | { type: 'DELETE_ORDER'; payload: string }
+  | { type: 'ADD_ORDER_REQUEST'; payload: Order }
+  | { type: 'UPDATE_ORDER_REQUEST'; payload: Order }
+  | { type: 'DELETE_ORDER_REQUEST'; payload: string }
   | { type: 'MOVE_ORDER'; payload: { orderId: string; status: string; departmentId?: string; triggerUserId?: string } }
+  | { type: 'ACKNOWLEDGE_NEW_ORDER'; payload: { orderId: string; userId: string } }
   | { type: 'ADD_COMMENT'; payload: { orderId: string; comment: OrderComment }; triggerUserId?: string }
   | { type: 'ADD_DEPARTMENT'; payload: Department }
   | { type: 'UPDATE_DEPARTMENT'; payload: Department }
   | { type: 'DELETE_DEPARTMENT'; payload: string }
+  | { type: 'ADD_MATERIAL'; payload: Material }
+  | { type: 'UPDATE_MATERIAL'; payload: Material }
+  | { type: 'DELETE_MATERIAL'; payload: string }
+  | { type: 'SET_ORDER_COST_ROWS'; payload: OrderCostRow[] }
   | { type: 'ADD_USER'; payload: User }
   | { type: 'UPDATE_USER'; payload: User }
   | { type: 'DELETE_USER'; payload: string }
@@ -69,8 +105,14 @@ const reducer = (state: AppState, action: Action): AppState => {
         action.payload.opsUpdatedAt,
         state.opsUpdatedAt,
       );
+      const split = splitOrdersAndRequests(
+        action.payload.orders || [],
+        action.payload.orderRequests || [],
+      );
       return {
         ...action.payload,
+        orders: split.orders,
+        orderRequests: split.orderRequests,
         currentUser: null,
         notifications: action.payload.notifications || [],
         opsRows: ops.opsRows,
@@ -82,85 +124,158 @@ const reducer = (state: AppState, action: Action): AppState => {
       // a genuinely newer change (e.g. user just made an edit that hasn't saved yet).
       // archivedAt and deletedAt are treated as high-priority flags — once set locally,
       // they are preserved even if the server hasn't caught up yet.
+      const mergeById = <T extends { id: string; createdAt?: string }>(
+        a: T[] = [],
+        b: T[] = [],
+        sortKey?: 'createdAt',
+      ): T[] => {
+        const map = new Map<string, T>();
+        [...(a || []), ...(b || [])].forEach((item) => {
+          if (item?.id) map.set(item.id, item);
+        });
+        const arr = Array.from(map.values());
+        if (sortKey) {
+          arr.sort((x, y) => (x.createdAt || '').localeCompare(y.createdAt || ''));
+        }
+        return arr;
+      };
+
       const mergeOrderSync = (srv: Order, loc: Order): Order => {
         // --- Deletion priority ---
         const srvDel = !!srv.deletedAt;
         const locDel = !!loc.deletedAt;
+        let base: Order;
         if (srvDel && !locDel) {
-          return (loc.updatedAt || '') > (srv.deletedAt || '') ? loc : srv;
+          base = (loc.updatedAt || '') > (srv.deletedAt || '') ? loc : srv;
+        } else if (!srvDel && locDel) {
+          base = (srv.updatedAt || '') > (loc.deletedAt || '') ? srv : loc;
+        } else {
+          // --- Archive priority ---
+          const srvArc = !!srv.archivedAt;
+          const locArc = !!loc.archivedAt;
+          if (locArc && !srvArc) {
+            base = (srv.updatedAt || '') > (loc.archivedAt || '') ? srv : loc;
+          } else if (srvArc && !locArc) {
+            base = srv;
+          } else {
+            // Same state → newer wins (server wins on tie)
+            base = (srv.updatedAt || '') >= (loc.updatedAt || '') ? srv : loc;
+          }
         }
-        if (!srvDel && locDel) {
-          return (srv.updatedAt || '') > (loc.deletedAt || '') ? srv : loc;
-        }
-        // --- Archive priority ---
-        // If local has archivedAt but server doesn't yet (save in flight),
-        // keep the local version to prevent the order from reappearing on the board.
-        const srvArc = !!srv.archivedAt;
-        const locArc = !!loc.archivedAt;
-        if (locArc && !srvArc) {
-          // Local archived — keep it unless server has an update AFTER the archive (deliberate un-archive)
-          return (srv.updatedAt || '') > (loc.archivedAt || '') ? srv : loc;
-        }
-        if (srvArc && !locArc) {
-          // Server archived but local doesn't know yet — server wins
-          return srv;
-        }
-        // Same state → newer wins (server wins on tie)
-        return (srv.updatedAt || '') >= (loc.updatedAt || '') ? srv : loc;
+        // Always union comments/history so in-flight chat messages aren't wiped by poll
+        const sortOrderAt =
+          (loc.sortOrderAt || '') >= (srv.sortOrderAt || '')
+            ? (loc.sortOrderAt || srv.sortOrderAt)
+            : (srv.sortOrderAt || loc.sortOrderAt);
+        const sortOrder =
+          (loc.sortOrderAt || '') >= (srv.sortOrderAt || '')
+            ? (loc.sortOrder ?? srv.sortOrder)
+            : (srv.sortOrder ?? loc.sortOrder);
+        return {
+          ...base,
+          sortOrder,
+          sortOrderAt,
+          comments: mergeById(srv.comments, loc.comments, 'createdAt'),
+          history: mergeById(srv.history, loc.history, 'createdAt'),
+        };
       };
 
       const serverOrders = action.payload.orders || [];
       const localOrders  = state.orders;
-      const serverMap    = new Map(serverOrders.map((o: Order) => [o.id, o]));
-      const localMap     = new Map(localOrders.map((o: Order) => [o.id, o]));
+      const serverSplit = splitOrdersAndRequests(serverOrders, action.payload.orderRequests || []);
+      const localSplit = splitOrdersAndRequests(localOrders, state.orderRequests || []);
+      const serverMap    = new Map(serverSplit.orders.map((o: Order) => [o.id, o]));
+      const localMap     = new Map(localSplit.orders.map((o: Order) => [o.id, o]));
 
-      // Restore DataURLs from local state — the server strips large files and may
-      // have older orders saved before file-sharing was fixed. Always prefer a
-      // local DataURL over an absent server DataURL so files remain viewable.
-      const restoreDataUrls = (merged: Order, loc: Order): Order => {
-        const hasLocalFiles =
-          loc.invoice?.dataUrl ||
-          (loc.invoices || []).some((i) => i.dataUrl) ||
-          (loc.orderForms || []).some((f) => f.dataUrl);
-        if (!hasLocalFiles) return merged;
+      // Union file lists + enrich urls/dataUrls, but honor deletedAttachmentIds tombstones
+      // so deletes stay deleted and new uploads are not wiped by a slightly-newer server order.
+      const restoreDataUrls = (merged: Order, loc: Order, srv: Order): Order => {
+        const mergeFile = (...parts: any[]) => {
+          const present = parts.filter(Boolean);
+          if (!present.length) return undefined;
+          const base = { ...present[0] };
+          base.dataUrl = present.map((p) => p.dataUrl).find(Boolean);
+          base.url = present.map((p) => p.url).find(Boolean);
+          return base;
+        };
+        const deletedIds = new Set<string>([
+          ...(merged.deletedAttachmentIds || []),
+          ...(loc.deletedAttachmentIds || []),
+          ...(srv.deletedAttachmentIds || []),
+        ]);
+        const unionList = (...lists: (any[] | undefined)[]) => {
+          const byId = new Map<string, any>();
+          lists.flat().forEach((f) => {
+            if (!f?.id || deletedIds.has(f.id)) return;
+            byId.set(f.id, mergeFile(byId.get(f.id), f));
+          });
+          return Array.from(byId.values());
+        };
+        // Legacy single invoice: keep if present on winner/loc/srv and not tombstoned
+        const legacyInvoice = (() => {
+          const inv = mergeFile(merged.invoice, loc.invoice, srv.invoice);
+          if (!inv) return undefined;
+          if (inv.id && deletedIds.has(inv.id)) return undefined;
+          // Winner cleared legacy invoice without an id tombstone — respect clear
+          if (!merged.invoice && (merged.updatedAt || '') >= (loc.updatedAt || '') && (merged.updatedAt || '') >= (srv.updatedAt || '')) {
+            return undefined;
+          }
+          return inv;
+        })();
         return {
           ...merged,
-          invoice: merged.invoice
-            ? { ...merged.invoice, dataUrl: merged.invoice.dataUrl ?? loc.invoice?.dataUrl }
-            : (loc.invoice?.dataUrl ? loc.invoice : merged.invoice),
-          invoices: (merged.invoices || []).map((inv) => {
-            const locInv = (loc.invoices || []).find((i) => i.id === inv.id);
-            return locInv ? { ...inv, dataUrl: inv.dataUrl ?? locInv.dataUrl } : inv;
-          }),
-          orderForms: (merged.orderForms || []).map((f) => {
-            const locF = (loc.orderForms || []).find((lf) => lf.id === f.id);
-            return locF ? { ...f, dataUrl: f.dataUrl ?? locF.dataUrl } : f;
-          }),
+          deletedAttachmentIds: Array.from(deletedIds),
+          invoice: legacyInvoice,
+          invoices: unionList(merged.invoices, loc.invoices, srv.invoices),
+          orderForms: unionList(merged.orderForms, loc.orderForms, srv.orderForms),
         };
       };
 
-      // Start with server orders as base (server is authoritative)
-      const mergedOrders: Order[] = serverOrders.map((srv: Order) => {
+      // Start with server department orders as base (server is authoritative)
+      const mergedOrders: Order[] = serverSplit.orders.map((srv: Order) => {
         const loc = localMap.get(srv.id);
         if (!loc) return srv;
         const merged = mergeOrderSync(srv, loc);
-        return restoreDataUrls(merged, loc);
+        return restoreDataUrls(merged, loc, srv);
       });
-      // Include local-only orders only if they were created very recently (within 30s).
-      // This covers the case where the user just added an order that hasn't been pushed
-      // to the server yet. Stale local-only orders (permanently deleted on the server)
-      // are intentionally excluded to prevent them from ghosting back into the board.
-      const recentThreshold = new Date(Date.now() - 30000).toISOString();
-      localOrders.forEach((loc: Order) => {
-        if (
-          !serverMap.has(loc.id) &&
-          !loc.deletedAt &&
-          !loc.archivedAt &&
-          (loc.createdAt || loc.updatedAt || '') >= recentThreshold
-        ) {
+      // Keep local-only department orders while save/sync is in flight (15 min), or if newer
+      // than anything on the server. Tight 30s window was dropping new orders before
+      // serverSave finished — other departments never saw them.
+      const recentThreshold = new Date(Date.now() - 15 * 60 * 1000).toISOString();
+      const srvMaxUpdated = serverSplit.orders.reduce(
+        (m: string, o: Order) => ((o.updatedAt || '') > m ? o.updatedAt || '' : m),
+        '',
+      );
+      localSplit.orders.forEach((loc: Order) => {
+        if (serverMap.has(loc.id) || loc.deletedAt || loc.archivedAt) return;
+        const stamp = loc.updatedAt || loc.createdAt || '';
+        if (stamp >= recentThreshold || stamp > srvMaxUpdated) {
           mergedOrders.push(loc);
         }
       });
+
+      // Merge Order Request list separately (never mixed into Kanban orders)
+      const reqMap = new Map<string, Order>();
+      const mergeReq = (o: Order) => {
+        if (!o?.id) return;
+        const tagged = { ...o, isOrderRequest: true as const };
+        const prev = reqMap.get(o.id);
+        if (!prev) {
+          reqMap.set(o.id, tagged);
+          return;
+        }
+        const newer =
+          (tagged.updatedAt || tagged.createdAt || '') >= (prev.updatedAt || prev.createdAt || '')
+            ? tagged
+            : prev;
+        // Prefer non-deleted when timestamps tie awkwardly
+        if (prev.deletedAt && !tagged.deletedAt) reqMap.set(o.id, tagged);
+        else if (!prev.deletedAt && tagged.deletedAt) reqMap.set(o.id, prev);
+        else reqMap.set(o.id, newer);
+      };
+      serverSplit.orderRequests.forEach(mergeReq);
+      localSplit.orderRequests.forEach(mergeReq);
+      const mergedOrderRequests = Array.from(reqMap.values());
 
       // Merge departments: server is primary; local wins only if explicitly newer
       const serverDepts: Department[] = action.payload.departments || [];
@@ -177,11 +292,83 @@ const reducer = (state: AppState, action: Action): AppState => {
         if (!srvDeptMap.has(loc.id)) mergedDepts.push(loc);
       });
 
+      // Merge materials catalog (same pattern as departments)
+      const serverMats: Material[] = action.payload.materials || [];
+      const localMats = state.materials || [];
+      const srvMatMap = new Map(serverMats.map((m) => [m.id, m]));
+      const locMatMap = new Map(localMats.map((m) => [m.id, m]));
+      const mergedMats: Material[] = serverMats.map((srv) => {
+        const loc = locMatMap.get(srv.id);
+        if (!loc) return srv;
+        return (srv.updatedAt || srv.createdAt || '') >= (loc.updatedAt || loc.createdAt || '') ? srv : loc;
+      });
+      localMats.forEach((loc) => {
+        if (!srvMatMap.has(loc.id)) mergedMats.push(loc);
+      });
+
+      // Merge order cost rows — list membership follows the newer orderCostsUpdatedAt
+      // so deletes are not resurrected by a stale server union.
+      const serverCosts: OrderCostRow[] = action.payload.orderCostRows || [];
+      const localCosts = state.orderCostRows || [];
+      const srvCostMap = new Map(serverCosts.map((r) => [r.id, r]));
+      const locCostMap = new Map(localCosts.map((r) => [r.id, r]));
+      const serverCostsAt = action.payload.orderCostsUpdatedAt || '';
+      const localCostsAt = state.orderCostsUpdatedAt || '';
+      const maxStamp = (rows: OrderCostRow[]) =>
+        rows.reduce((m, r) => ((r.updatedAt || '') > m ? (r.updatedAt || '') : m), '');
+      const serverCostMax = serverCostsAt || maxStamp(serverCosts);
+      const localCostMax = localCostsAt || maxStamp(localCosts);
+
+      let mergedCosts: OrderCostRow[];
+      let mergedCostsAt = localCostsAt || serverCostsAt || undefined;
+      if ((localCostMax || '') > (serverCostMax || '')) {
+        // Local sheet is newer (includes deletes) — do not re-add server-only rows
+        mergedCosts = localCosts.map((loc) => {
+          const srv = srvCostMap.get(loc.id);
+          if (!srv) return loc;
+          return (loc.updatedAt || '') >= (srv.updatedAt || '') ? loc : srv;
+        });
+        mergedCostsAt = localCostsAt || localCostMax || mergedCostsAt;
+      } else if ((serverCostMax || '') > (localCostMax || '')) {
+        mergedCosts = serverCosts.map((srv) => {
+          const loc = locCostMap.get(srv.id);
+          if (!loc) return srv;
+          return (srv.updatedAt || '') >= (loc.updatedAt || '') ? srv : loc;
+        });
+        // Keep local-only rows that are newer than the server sheet
+        localCosts.forEach((loc) => {
+          if (!srvCostMap.has(loc.id) && (loc.updatedAt || '') > (serverCostMax || '')) {
+            mergedCosts.push(loc);
+          }
+        });
+        mergedCostsAt = serverCostsAt || serverCostMax || mergedCostsAt;
+      } else {
+        // Same stamp — union by id, newer fields win
+        mergedCosts = serverCosts.map((srv) => {
+          const loc = locCostMap.get(srv.id);
+          if (!loc) return srv;
+          return (srv.updatedAt || '') >= (loc.updatedAt || '') ? srv : loc;
+        });
+        localCosts.forEach((loc) => {
+          if (!srvCostMap.has(loc.id)) mergedCosts.push(loc);
+        });
+      }
+
+      const mergedUsers = mergeUsers(action.payload.users || [], state.users || []);
+      const refreshedUser = state.currentUser
+        ? (mergedUsers.find((u) => u.id === state.currentUser!.id && !u.deletedAt) || state.currentUser)
+        : null;
+
       return {
         ...state,
-        users: action.payload.users || state.users,
+        users: mergedUsers,
+        currentUser: refreshedUser,
         departments: mergedDepts,
+        materials: mergedMats,
+        orderCostRows: mergedCosts,
+        orderCostsUpdatedAt: mergedCostsAt,
         orders: mergedOrders,
+        orderRequests: mergedOrderRequests,
         ...(() => {
           const ops = resolveOpsRowsForSave(
             action.payload.opsRows || [],
@@ -223,17 +410,53 @@ const reducer = (state: AppState, action: Action): AppState => {
         ),
       };
     case 'ADD_ORDER': {
-      const order = action.payload;
+      // Guard: Order Request forms must never land in department Kanban
+      if (action.payload.isOrderRequest || action.payload.digitalPrinting || action.payload.largeFormat) {
+        const req = { ...action.payload, isOrderRequest: true };
+        return { ...state, orderRequests: [...(state.orderRequests || []), req] };
+      }
+      const order = { ...action.payload, isNew: action.payload.isNew !== false, isOrderRequest: false };
       const newNotifs: AppNotification[] = state.users
-        .filter((u) => u.id !== action.triggerUserId && (
+        .filter((u) => !u.deletedAt && u.id !== action.triggerUserId && (
           u.departmentId === order.departmentId ||
           order.assignedUsers?.includes(u.id)
         ))
         .map((u) => makeNotif('new_order', u.id, order, `طلبية جديدة: ${order.clientName} — رقم ${order.orderNumber}`));
       return { ...state, orders: [...state.orders, order], notifications: [...state.notifications, ...newNotifs] };
     }
+    case 'ADD_ORDER_REQUEST': {
+      const req = { ...action.payload, isOrderRequest: true };
+      return { ...state, orderRequests: [...(state.orderRequests || []), req] };
+    }
+    case 'UPDATE_ORDER_REQUEST': {
+      const updated = { ...action.payload, isOrderRequest: true };
+      return {
+        ...state,
+        orderRequests: (state.orderRequests || []).map((o) => (o.id === updated.id ? updated : o)),
+      };
+    }
+    case 'DELETE_ORDER_REQUEST': {
+      const now = new Date().toISOString();
+      return {
+        ...state,
+        orderRequests: (state.orderRequests || []).map((o) =>
+          o.id === action.payload ? { ...o, deletedAt: now, updatedAt: now } : o,
+        ),
+      };
+    }
     case 'UPDATE_ORDER': {
       const updated = action.payload;
+      if (updated.isOrderRequest || updated.digitalPrinting || updated.largeFormat) {
+        const req = { ...updated, isOrderRequest: true };
+        const exists = (state.orderRequests || []).some((o) => o.id === req.id);
+        return {
+          ...state,
+          orders: state.orders.filter((o) => o.id !== req.id),
+          orderRequests: exists
+            ? (state.orderRequests || []).map((o) => (o.id === req.id ? req : o))
+            : [...(state.orderRequests || []), req],
+        };
+      }
       if (action.silent) {
         return { ...state, orders: state.orders.map((o) => (o.id === updated.id ? updated : o)) };
       }
@@ -253,6 +476,17 @@ const reducer = (state: AppState, action: Action): AppState => {
         ...state,
         orders: state.orders.map((o) => (o.id === updated.id ? updated : o)),
         notifications: [...state.notifications, ...updateNotifs],
+      };
+    }
+    case 'SET_ORDERS_SORT': {
+      const map = new Map(action.payload.map((p) => [p.id, p]));
+      return {
+        ...state,
+        orders: state.orders.map((o) => {
+          const patch = map.get(o.id);
+          if (!patch) return o;
+          return { ...o, sortOrder: patch.sortOrder, sortOrderAt: patch.sortOrderAt };
+        }),
       };
     }
     case 'DELETE_ORDER': {
@@ -345,9 +579,25 @@ const reducer = (state: AppState, action: Action): AppState => {
             departmentId: newDeptId,
             departmentIds: newDeptIds,
             updatedAt: new Date().toISOString(),
+            // Highlight as NEW when transferred to another dept or placed in "جديد"
+            isNew: (action.payload.departmentId && action.payload.departmentId !== o.departmentId)
+              || action.payload.status === 'new'
+              ? true
+              : o.isNew,
           };
         }),
         notifications: [...state.notifications, ...moveNotifs],
+      };
+    }
+    case 'ACKNOWLEDGE_NEW_ORDER': {
+      const now = new Date().toISOString();
+      return {
+        ...state,
+        orders: state.orders.map((o) => {
+          if (o.id !== action.payload.orderId) return o;
+          if (o.isNew === false) return o;
+          return { ...o, isNew: false, updatedAt: now };
+        }),
       };
     }
     case 'ADD_COMMENT': {
@@ -363,11 +613,16 @@ const reducer = (state: AppState, action: Action): AppState => {
           commentText: action.payload.comment.text,
         }));
       })() : [];
+      const now = new Date().toISOString();
       return {
         ...state,
         orders: state.orders.map((o) => {
           if (o.id !== action.payload.orderId) return o;
-          return { ...o, comments: [...o.comments, action.payload.comment] };
+          return {
+            ...o,
+            comments: [...(o.comments || []), action.payload.comment],
+            updatedAt: now,
+          };
         }),
         notifications: [...state.notifications, ...chatNotifs],
       };
@@ -386,6 +641,26 @@ const reducer = (state: AppState, action: Action): AppState => {
         ...state,
         departments: state.departments.filter((d) => d.id !== action.payload),
       };
+    case 'ADD_MATERIAL':
+      return { ...state, materials: [...(state.materials || []), action.payload] };
+    case 'UPDATE_MATERIAL':
+      return {
+        ...state,
+        materials: (state.materials || []).map((m) =>
+          m.id === action.payload.id ? { ...action.payload, updatedAt: new Date().toISOString() } : m
+        ),
+      };
+    case 'DELETE_MATERIAL':
+      return {
+        ...state,
+        materials: (state.materials || []).filter((m) => m.id !== action.payload),
+      };
+    case 'SET_ORDER_COST_ROWS':
+      return {
+        ...state,
+        orderCostRows: action.payload,
+        orderCostsUpdatedAt: new Date().toISOString(),
+      };
     case 'ADD_USER':
       return { ...state, users: [...state.users, action.payload] };
     case 'UPDATE_USER':
@@ -395,7 +670,15 @@ const reducer = (state: AppState, action: Action): AppState => {
         currentUser: state.currentUser?.id === action.payload.id ? action.payload : state.currentUser,
       };
     case 'DELETE_USER':
-      return { ...state, users: state.users.filter((u) => u.id !== action.payload) };
+      return {
+        ...state,
+        users: state.users.map((u) =>
+          u.id === action.payload
+            ? { ...u, deletedAt: new Date().toISOString() }
+            : u
+        ),
+        currentUser: state.currentUser?.id === action.payload ? null : state.currentUser,
+      };
     case 'ADD_HISTORY':
       return {
         ...state,
@@ -445,7 +728,7 @@ const reducer = (state: AppState, action: Action): AppState => {
 interface AppContextType {
   state: AppState;
   dispatch: React.Dispatch<Action>;
-  login: (username: string, password: string) => boolean;
+  login: (username: string, password: string) => boolean | Promise<boolean>;
   logout: () => void;
   addHistoryEntry: (orderId: string, action: string, from?: string, to?: string) => void;
   loaded: boolean;
@@ -477,23 +760,16 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const finish = () => { if (!cancelled) setLoaded(true); };
     const safetyTimer = setTimeout(finish, 2000); // hard cap: 2 seconds
 
-    const migrateDepts = (depts: Department[]) =>
-      (depts || []).map((d) => {
-        if (d.name === 'قسم التسليم') {
-          const hasDefault = (d.columns || []).some((c) => c.id === 'new' && c.title === 'جديد');
-          return {
-            ...d,
-            color: '#8b5cf6',
-            columns: hasDefault ? [
-              { id: 'new',         title: 'الطلبيات الجاهزة', color: '#6366f1', order: 0 },
-              { id: 'in_progress', title: 'للتوصيل',           color: '#f59e0b', order: 1 },
-              { id: 'review',      title: 'قيد التسليم',       color: '#8b5cf6', order: 2 },
-              { id: 'done',        title: 'للاستلام',          color: '#10b981', order: 3 },
-            ] : (d.columns || []),
-          };
-        }
-        return d;
-      });
+    const tryRestoreSession = (users: User[]) => {
+      if (stateRef.current.currentUser) return;
+      const sessionUserId = loadSession();
+      if (!sessionUserId) return;
+      const sessionUser = (users || []).find((u) => u.id === sessionUserId && !u.deletedAt);
+      if (sessionUser) {
+        trackedDispatch({ type: 'LOGIN', payload: sessionUser });
+        touchSession();
+      }
+    };
 
     // 1) Local first — show UI immediately
     loadLocalState()
@@ -505,11 +781,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             payload: { ...saved, departments: migrateDepts(saved.departments || []), opsRows: saved.opsRows || [] },
           });
           trackedDispatch({ type: 'PURGE_OLD_TRASH' });
-          const sessionUserId = loadSession();
-          if (sessionUserId) {
-            const sessionUser = (saved.users || []).find((u) => u.id === sessionUserId);
-            if (sessionUser) trackedDispatch({ type: 'LOGIN', payload: sessionUser });
-          }
+          tryRestoreSession(saved.users || []);
         } catch { /* ignore */ }
         clearTimeout(safetyTimer);
         finish();
@@ -525,6 +797,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
               opsRows: serverData.opsRows || [],
             },
           });
+          // Local cache may have been empty — restore session once users arrive from server
+          tryRestoreSession(serverData.users || []);
         }).catch(() => {});
       })
       .catch(() => {
@@ -538,6 +812,93 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     };
   }, []);
 
+  // After load: upload any local-only files (dataUrl without url) to shared storage
+  useEffect(() => {
+    if (!loaded || !state.currentUser) return;
+    let cancelled = false;
+    (async () => {
+      const snapshot = stateRef.current.orders;
+      for (const o of snapshot) {
+        if (cancelled) return;
+        if (o.deletedAt || o.archivedAt) continue;
+        const needs =
+          (o.invoice?.dataUrl && !o.invoice?.url) ||
+          (o.invoices || []).some((i) => i.dataUrl && !i.url) ||
+          (o.orderForms || []).some((f) => f.dataUrl && !f.url);
+        if (!needs) continue;
+
+        let order = { ...o };
+        let changed = false;
+        if (order.invoice?.dataUrl && !order.invoice.url) {
+          const inv = await ensureAttachmentUrl(order.invoice);
+          if (inv.url) {
+            order = { ...order, invoice: inv };
+            changed = true;
+          }
+        }
+        if (order.invoices?.length) {
+          const invs = await Promise.all(order.invoices.map((i) => ensureAttachmentUrl(i)));
+          if (invs.some((i, idx) => i.url && i.url !== order.invoices![idx].url)) {
+            order = { ...order, invoices: invs };
+            changed = true;
+          }
+        }
+        if (order.orderForms?.length) {
+          const forms = await Promise.all(order.orderForms.map((f) => ensureAttachmentUrl(f)));
+          if (forms.some((f, idx) => f.url && f.url !== order.orderForms![idx].url)) {
+            order = { ...order, orderForms: forms };
+            changed = true;
+          }
+        }
+        if (!changed) continue;
+
+        // Never clobber a newer local edit (e.g. user uploaded a file while migrating)
+        const live = stateRef.current.orders.find((p) => p.id === o.id);
+        if (!live) continue;
+        if ((live.updatedAt || '') > (o.updatedAt || '')) {
+          // Patch urls onto the live order's matching attachments only
+          const patchUrl = (liveF?: any, migF?: any) => {
+            if (!liveF) return liveF;
+            if (liveF.url || !migF?.url || liveF.id !== migF.id) return liveF;
+            return { ...liveF, url: migF.url };
+          };
+          const patched = {
+            ...live,
+            invoice: patchUrl(live.invoice, order.invoice) || live.invoice,
+            invoices: (live.invoices || []).map((f) => {
+              const m = (order.invoices || []).find((x) => x.id === f.id);
+              return patchUrl(f, m) || f;
+            }),
+            orderForms: (live.orderForms || []).map((f) => {
+              const m = (order.orderForms || []).find((x) => x.id === f.id);
+              return patchUrl(f, m) || f;
+            }),
+          };
+          const urlsAdded =
+            patched.invoice?.url !== live.invoice?.url ||
+            (patched.invoices || []).some((f, i) => f.url !== live.invoices?.[i]?.url) ||
+            (patched.orderForms || []).some((f, i) => f.url !== live.orderForms?.[i]?.url);
+          if (urlsAdded) {
+            trackedDispatch({
+              type: 'UPDATE_ORDER',
+              payload: { ...patched, updatedAt: new Date().toISOString() },
+              silent: true,
+            } as any);
+          }
+          continue;
+        }
+
+        trackedDispatch({
+          type: 'UPDATE_ORDER',
+          payload: { ...order, updatedAt: new Date().toISOString() },
+          silent: true,
+        } as any);
+      }
+    })();
+    return () => { cancelled = true; };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [loaded, state.currentUser?.id]);
+
   // Save whenever state changes (after initial load)
   // — save to IndexedDB always (for offline use)
   // — save to server only for user-initiated actions (not server-driven syncs)
@@ -545,8 +906,15 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     if (!loaded) return;
     const action = lastActionRef.current;
     if (SERVER_DRIVEN_ACTIONS.has(action)) {
-      // Only update local cache; don't push back to server what we just received from it
-      localforage.setItem('teamwork_app_data_v5', { ...state, currentUser: null }).catch(() => {});
+      // Never persist a bare default INIT over a richer IndexedDB (timeout race used to wipe users)
+      const isBareDefault =
+        action === 'INIT_STATE' &&
+        (state.users || []).length <= 1 &&
+        (state.users?.[0]?.username || '') === 'admin' &&
+        (state.orders || []).length <= 1;
+      if (!isBareDefault) {
+        localforage.setItem('teamwork_app_data_v5', { ...state, currentUser: null }).catch(() => {});
+      }
     } else {
       saveState(state);
     }
@@ -558,13 +926,25 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     const getSignature = (s: AppState) => {
       const orders = s.orders || [];
+      const reqs = s.orderRequests || [];
       const depts  = s.departments || [];
+      const mats   = s.materials || [];
+      const costs  = s.orderCostRows || [];
       const maxOrderUpdated = orders.length
         ? orders.reduce((m, o) => (o.updatedAt > m ? o.updatedAt : m), '')
+        : '';
+      const maxReqUpdated = reqs.length
+        ? reqs.reduce((m, o) => ((o.updatedAt || '') > m ? (o.updatedAt || '') : m), '')
         : '';
       const maxDeptUpdated = depts.length
         ? depts.reduce((m, d) => ((d.updatedAt || '') > m ? (d.updatedAt || '') : m), '')
         : '';
+      const maxMatUpdated = mats.length
+        ? mats.reduce((m, x) => ((x.updatedAt || x.createdAt || '') > m ? (x.updatedAt || x.createdAt || '') : m), '')
+        : '';
+      const maxCostUpdated = s.orderCostsUpdatedAt || (costs.length
+        ? costs.reduce((m, x) => ((x.updatedAt || '') > m ? (x.updatedAt || '') : m), '')
+        : '');
       const sortSum      = orders.reduce((s, o) => s + (o.sortOrder ?? 0), 0);
       const deletedCount = orders.filter((o) => !!o.deletedAt).length;
       const archivedCount = orders.filter((o) => !!o.archivedAt).length;
@@ -575,11 +955,16 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         for (let i = 0; i < Math.min(o.id.length, 8); i++) v += o.id.charCodeAt(i);
         return (h + v) % 999983;
       }, 0);
+      const reqHash = reqs.reduce((h, o) => {
+        let v = 0;
+        for (let i = 0; i < Math.min(o.id.length, 8); i++) v += o.id.charCodeAt(i);
+        return (h + v) % 999983;
+      }, 0);
       const opsRows = s.opsRows || [];
       const opsHash = opsRows.map((r) =>
         [r.id, r.customer, r.job, r.qty, r.target, r.finishedQty, r.finish, r.date, r.updatedAt || ''].join(',')
       ).join('|');
-      return `${orders.length}:${maxOrderUpdated}:${sortSum}:${deletedCount}:${archivedCount}:${idHash}|${depts.length}:${maxDeptUpdated}|ops:${s.opsUpdatedAt || ''}:${opsRows.length}:${opsHash.length}:${opsHash.slice(0, 120)}`;
+      return `${orders.length}:${maxOrderUpdated}:${sortSum}:${deletedCount}:${archivedCount}:${idHash}|req:${reqs.length}:${maxReqUpdated}:${reqHash}|${depts.length}:${maxDeptUpdated}|mat:${mats.length}:${maxMatUpdated}|cost:${costs.length}:${maxCostUpdated}|ops:${s.opsUpdatedAt || ''}:${opsRows.length}:${opsHash.length}:${opsHash.slice(0, 120)}`;
     };
 
     const poll = async () => {
@@ -619,33 +1004,108 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     };
   }, [loaded, state.currentUser]);
 
+  // If session exists but user wasn't available at first paint, restore after users sync in
+  useEffect(() => {
+    if (!loaded || state.currentUser) return;
+    const sessionUserId = loadSession();
+    if (!sessionUserId) return;
+    const sessionUser = state.users.find((u) => u.id === sessionUserId && !u.deletedAt);
+    if (sessionUser) {
+      trackedDispatch({ type: 'LOGIN', payload: sessionUser });
+      touchSession();
+    }
+  }, [loaded, state.users, state.currentUser]);
+
   // تسجيل خروج تلقائي بعد ٤ ساعات من عدم النشاط
   useEffect(() => {
     if (!loaded) return;
     const interval = setInterval(() => {
-      if (state.currentUser) {
+      if (stateRef.current.currentUser) {
         const stillValid = loadSession();
         if (!stillValid) {
+          clearSession();
           trackedDispatch({ type: 'LOGOUT' });
         }
       }
-    }, 60 * 1000); // يفحص كل دقيقة
+    }, 60 * 1000);
     return () => clearInterval(interval);
-  }, [loaded, state.currentUser]);
+  }, [loaded]);
 
-  const login = (username: string, password: string): boolean => {
-    const user = state.users.find(
-      (u: User) => u.username === username && u.password === password
-    );
+  const login = async (username: string, password: string): Promise<boolean> => {
+    const userName = username.trim().toLowerCase().replace(/\s+/g, '');
+    const pass = password.trim();
+    const match = (users: User[]) =>
+      users.find(
+        (u) =>
+          !u.deletedAt &&
+          (u.username || '').trim().toLowerCase().replace(/\s+/g, '') === userName &&
+          (u.password || '') === pass,
+      );
+
+    let user = match(stateRef.current.users);
+
+    // IndexedDB may still hold the real users list even if memory was reset to defaults
+    if (!user) {
+      try {
+        const localUsers = await loadLocalUsers();
+        user = match(localUsers);
+        if (user && localUsers.length > (stateRef.current.users || []).length) {
+          const localFull = await loadLocalState();
+          if (localFull.departments?.length) {
+            trackedDispatch({
+              type: 'INIT_STATE',
+              payload: {
+                ...localFull,
+                departments: migrateDepts(localFull.departments || []),
+              },
+            });
+          }
+        }
+      } catch {
+        /* ignore */
+      }
+    }
+
+    // Server sync (skipped automatically when app_state is corrupt)
+    if (!user) {
+      try {
+        const serverData = await serverLoad();
+        if (serverData) {
+          trackedDispatch({
+            type: 'SYNC_STATE',
+            payload: {
+              ...serverData,
+              departments: migrateDepts(serverData.departments || []),
+              opsRows: serverData.opsRows || [],
+            },
+          });
+          const merged = mergeUsers(serverData.users || [], stateRef.current.users || []);
+          user = match(merged) || match(stateRef.current.users);
+        }
+      } catch {
+        /* ignore */
+      }
+    }
+
     if (user) {
       trackedDispatch({ type: 'LOGIN', payload: user });
       saveSession(user.id);
+      // Restore wiped server from this device's local data when possible
+      (async () => {
+        const local = await loadLocalState();
+        await repairServerIfCorrupt({
+          ...local,
+          users: mergeUsers(local.users || [], stateRef.current.users || []),
+          currentUser: null,
+        });
+      })().catch(() => {});
       return true;
     }
     return false;
   };
 
   const logout = () => {
+    clearSession();
     trackedDispatch({ type: 'LOGOUT' });
   };
 

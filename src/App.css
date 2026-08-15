@@ -888,16 +888,18 @@ textarea.form-input { padding: 10px 12px; resize: vertical; color: #111827; min-
    TOOLS / ORDER REQUEST PAGES
    ======================================== */
 .tools-cards-grid {
-  display: flex;
-  flex-wrap: wrap;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 280px));
   gap: 16px;
-  justify-content: flex-end;
+  justify-content: end;
 }
 .tools-card {
   display: flex;
   flex-direction: column;
   gap: 14px;
-  width: min(280px, 100%);
+  width: 100%;
+  min-height: 180px;
+  box-sizing: border-box;
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: 16px;
@@ -914,10 +916,13 @@ textarea.form-input { padding: 10px 12px; resize: vertical; color: #111827; min-
 }
 .tools-card-btn {
   width: 100%;
+  max-width: none;
   text-align: inherit;
   font: inherit;
   cursor: pointer;
   background: var(--surface);
+  appearance: none;
+  -webkit-appearance: none;
 }
 .tools-card-icon {
   width: 56px;
@@ -927,6 +932,12 @@ textarea.form-input { padding: 10px 12px; resize: vertical; color: #111827; min-
   align-items: center;
   justify-content: center;
   box-shadow: 0 6px 16px rgba(0,0,0,.12);
+  flex-shrink: 0;
+}
+.tools-card-body {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
 }
 .tools-card-body h3 {
   margin: 0 0 6px;
@@ -935,10 +946,11 @@ textarea.form-input { padding: 10px 12px; resize: vertical; color: #111827; min-
   color: #1D1C39;
 }
 .tools-card-body p {
-  margin: 0 0 12px;
+  margin: 0;
   font-size: 13px;
   color: var(--text-muted);
   line-height: 1.45;
+  flex: 1;
 }
 .tools-card-open {
   display: inline-flex;
@@ -947,6 +959,10 @@ textarea.form-input { padding: 10px 12px; resize: vertical; color: #111827; min-
   font-size: 13px;
   font-weight: 700;
   color: #6438E0;
+}
+html[data-view="phone"] .tools-cards-grid {
+  grid-template-columns: 1fr;
+  justify-content: stretch;
 }
 
 .order-type-cards {
@@ -3210,4 +3226,486 @@ html[data-view="phone"] .page-content {
 html[data-view="phone"] .orders-table-wrap {
   overflow-x: auto;
   -webkit-overflow-scrolling: touch;
+}
+
+/* ========================================
+   PHONE — iOS official app polish (overrides)
+   SF system fonts · 22pt icons · 44pt hit targets
+   ======================================== */
+html[data-view="phone"] {
+  --topbar-h: 52px;
+  --ios-bg: #f2f2f7;
+  --ios-card: #ffffff;
+  --ios-label: #1c1c1e;
+  --ios-secondary: #8e8e93;
+  --ios-blue: #007aff;
+  --ios-fill: #f2f2f7;
+  --ios-separator: rgba(60, 60, 67, 0.12);
+  --ios-radius-lg: 16px;
+  --font: -apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display",
+    "Segoe UI", "Helvetica Neue", "Cairo", system-ui, sans-serif;
+  --bg: var(--ios-bg);
+  --surface: var(--ios-card);
+  --text: var(--ios-label);
+  --text-muted: var(--ios-secondary);
+  font-family: var(--font);
+  font-size: 16px;
+  line-height: 1.35;
+  letter-spacing: -0.01em;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  background: var(--ios-bg);
+  color: var(--ios-label);
+}
+html[data-view="phone"] body,
+html[data-view="phone"] #root,
+html[data-view="phone"] button,
+html[data-view="phone"] input,
+html[data-view="phone"] select,
+html[data-view="phone"] textarea {
+  font-family: var(--font) !important;
+}
+html[data-view="phone"] .app-shell,
+html[data-view="phone"] .main-area,
+html[data-view="phone"] .page,
+html[data-view="phone"] .projects-page,
+html[data-view="phone"] .page-content,
+html[data-view="phone"] .board-page {
+  background: var(--ios-bg);
+}
+
+html[data-view="phone"] .topbar-global {
+  height: var(--topbar-h);
+  padding: 0 6px;
+  gap: 0;
+  background: rgba(255, 255, 255, 0.82);
+  backdrop-filter: saturate(180%) blur(20px);
+  -webkit-backdrop-filter: saturate(180%) blur(20px);
+  border-bottom: 0.5px solid var(--ios-separator);
+}
+html[data-view="phone"] .topbar-right { gap: 0; }
+html[data-view="phone"] .topbar-icon-btn {
+  width: 44px;
+  height: 44px;
+  min-width: 44px;
+  padding: 0 !important;
+  margin: 0;
+  border-radius: 10px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--ios-blue);
+  border: none !important;
+  background: transparent !important;
+  gap: 0;
+}
+html[data-view="phone"] .topbar-icon-btn:hover,
+html[data-view="phone"] .topbar-icon-btn:active {
+  background: rgba(0, 122, 255, 0.1) !important;
+  color: var(--ios-blue);
+}
+html[data-view="phone"] .topbar-icon-btn span { display: none !important; }
+html[data-view="phone"] .topbar-menu-btn {
+  width: auto !important;
+  min-width: 44px;
+  padding: 0 10px !important;
+  gap: 4px !important;
+}
+html[data-view="phone"] .topbar-menu-btn span {
+  display: inline !important;
+  font-size: 17px !important;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  color: var(--ios-blue);
+}
+html[data-view="phone"] .lang-toggle-btn {
+  border: none !important;
+  color: var(--ios-blue) !important;
+}
+html[data-view="phone"] .topbar-search { display: none !important; }
+html[data-view="phone"] .notif-dot {
+  top: 6px;
+  left: 8px;
+  width: 17px;
+  height: 17px;
+  font-size: 10px;
+  border: 2px solid #fff;
+}
+
+html[data-view="phone"] .main-header {
+  padding: 8px 16px 10px;
+  gap: 10px;
+  background: transparent;
+  border-bottom: none;
+}
+html[data-view="phone"] .header-page-icon {
+  width: 36px;
+  height: 36px;
+  border-radius: 9px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 122, 255, 0.12);
+  color: var(--ios-blue);
+  flex-shrink: 0;
+}
+html[data-view="phone"] .header-title {
+  font-size: 22px !important;
+  font-weight: 700;
+  letter-spacing: -0.03em;
+  line-height: 1.15;
+  color: var(--ios-label);
+}
+html[data-view="phone"] .header-subtitle {
+  font-size: 13px;
+  font-weight: 400;
+  color: var(--ios-secondary);
+}
+html[data-view="phone"] .header-add-btn {
+  min-height: 36px;
+  padding: 0 14px;
+  border-radius: 980px;
+  font-size: 15px;
+  font-weight: 600;
+}
+html[data-view="phone"] .header-add-btn span { display: inline !important; }
+html[data-view="phone"] .header-menu-btn {
+  width: 44px;
+  height: 44px;
+  border-radius: 10px;
+  color: var(--ios-blue);
+  background: transparent;
+}
+
+html[data-view="phone"] .projects-page--phone .page-actions {
+  padding: 0 16px 12px !important;
+}
+html[data-view="phone"] .projects-page--phone .btn-primary,
+html[data-view="phone"] .page-actions .btn-primary {
+  min-height: 44px;
+  padding: 0 18px;
+  border-radius: 12px;
+  font-size: 16px;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  background: #5856d6;
+  box-shadow: none;
+  gap: 6px;
+}
+
+html[data-view="phone"] .dept-cards-container {
+  padding: 4px 16px 28px !important;
+  gap: 12px !important;
+}
+html[data-view="phone"] .dept-cards-grid {
+  padding: 8px 16px 24px !important;
+  gap: 12px !important;
+}
+html[data-view="phone"] .dept-project-card--phone {
+  border-radius: var(--ios-radius-lg) !important;
+  border: none !important;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06), 0 4px 16px rgba(0, 0, 0, 0.04) !important;
+  overflow: hidden;
+  background: var(--ios-card);
+  -webkit-tap-highlight-color: transparent;
+}
+html[data-view="phone"] .dept-project-card--phone:active {
+  transform: scale(0.97);
+  opacity: 0.96;
+}
+html[data-view="phone"] .dept-project-card--phone .dpc-header {
+  height: 76px !important;
+  padding: 14px !important;
+}
+html[data-view="phone"] .dept-project-card--phone .dpc-header-icon {
+  width: 44px !important;
+  height: 44px !important;
+  border-radius: 11px !important;
+  background: rgba(255, 255, 255, 0.28);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+}
+html[data-view="phone"] .dept-project-card--phone .dpc-header-icon svg {
+  width: 26px !important;
+  height: 26px !important;
+  stroke-width: 1.75;
+}
+html[data-view="phone"] .dept-project-card--phone .dpc-body {
+  padding: 12px 12px 14px !important;
+}
+html[data-view="phone"] .dept-project-card--phone .dpc-name {
+  font-size: 15px !important;
+  font-weight: 600 !important;
+  letter-spacing: -0.02em;
+  line-height: 1.25 !important;
+  margin-bottom: 3px !important;
+  color: var(--ios-label);
+}
+html[data-view="phone"] .dept-project-card--phone .dpc-desc {
+  font-size: 12px !important;
+  font-weight: 400;
+  color: var(--ios-secondary) !important;
+  letter-spacing: -0.01em;
+  line-height: 1.3 !important;
+}
+html[data-view="phone"] .dept-project-card--phone .dpc-actions { opacity: 1; }
+html[data-view="phone"] .dept-project-card--phone .dpc-action-btn {
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.28);
+}
+
+html[data-view="phone"] .phone-col-tab {
+  border: none !important;
+  background: var(--ios-card) !important;
+  border-radius: 980px !important;
+  min-height: 36px;
+  font-size: 14px !important;
+  font-weight: 600 !important;
+  letter-spacing: -0.02em;
+  color: var(--ios-label) !important;
+  box-shadow: 0 0 0 0.5px var(--ios-separator);
+  padding: 10px 14px !important;
+}
+html[data-view="phone"] .phone-col-tab--active {
+  box-shadow: 0 0 0 1.5px var(--ios-blue) !important;
+  color: var(--ios-blue) !important;
+}
+html[data-view="phone"] .kanban-col--phone {
+  border-radius: var(--ios-radius-lg) !important;
+  border: none !important;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06) !important;
+  background: var(--ios-card);
+}
+html[data-view="phone"] .kanban-col--phone .col-title {
+  font-size: 17px !important;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+}
+html[data-view="phone"] .order-card {
+  border-radius: 12px !important;
+  border: none !important;
+  box-shadow: 0 0 0 0.5px var(--ios-separator);
+}
+html[data-view="phone"] .card-move-btn {
+  border: none !important;
+  border-radius: 12px !important;
+  background: var(--ios-fill) !important;
+  color: var(--ios-blue) !important;
+  font-size: 16px !important;
+  font-weight: 600 !important;
+  letter-spacing: -0.02em;
+  min-height: 44px;
+}
+html[data-view="phone"] .phone-fab {
+  border-radius: 980px !important;
+  min-height: 52px;
+  padding: 14px 22px !important;
+  font-size: 16px !important;
+  font-weight: 600 !important;
+  letter-spacing: -0.02em;
+  background: #34c759 !important;
+  box-shadow: 0 8px 24px rgba(52, 199, 89, 0.35) !important;
+}
+html[data-view="phone"] .phone-sheet {
+  background: var(--ios-bg) !important;
+  border-radius: 14px 14px 0 0 !important;
+}
+html[data-view="phone"] .phone-sheet-handle {
+  width: 36px;
+  background: rgba(60, 60, 67, 0.3) !important;
+}
+html[data-view="phone"] .phone-sheet-header h3 {
+  font-size: 20px !important;
+  font-weight: 700;
+  letter-spacing: -0.03em;
+}
+html[data-view="phone"] .phone-sheet-item {
+  border: none !important;
+  border-radius: 12px !important;
+  background: var(--ios-card) !important;
+  box-shadow: 0 0 0 0.5px var(--ios-separator);
+  font-size: 17px !important;
+  font-weight: 500 !important;
+  letter-spacing: -0.02em;
+  min-height: 52px;
+}
+html[data-view="phone"] .add-order-modal--phone .modal-heading {
+  font-size: 20px !important;
+  font-weight: 700;
+  letter-spacing: -0.03em;
+}
+html[data-view="phone"] .add-order-modal--phone .form-label {
+  font-size: 13px !important;
+  font-weight: 600;
+  color: var(--ios-secondary) !important;
+}
+html[data-view="phone"] .add-order-modal--phone .form-input,
+html[data-view="phone"] .add-order-modal--phone textarea.form-input {
+  min-height: 44px;
+  font-size: 17px !important;
+  border-radius: 10px !important;
+  border: none !important;
+  background: var(--ios-fill) !important;
+  letter-spacing: -0.02em;
+}
+html[data-view="phone"] .add-order-footer--phone .btn-primary,
+html[data-view="phone"] .add-order-footer--phone .btn-secondary {
+  min-height: 50px !important;
+  border-radius: 12px !important;
+  font-size: 17px !important;
+  font-weight: 600 !important;
+}
+html[data-view="phone"] .page-content {
+  padding: 12px 16px calc(24px + env(safe-area-inset-bottom, 0px)) !important;
+}
+html[data-view="phone"] .sidebar-backdrop {
+  background: rgba(0, 0, 0, 0.28) !important;
+}
+html[data-view="phone"] .sidebar {
+  width: min(300px, 82vw);
+  transition: transform .28s cubic-bezier(0.32, 0.72, 0, 1);
+  box-shadow: -4px 0 24px rgba(0, 0, 0, .12);
+}
+
+/* ========================================
+   REVENUE SPLIT CALCULATOR
+   ======================================== */
+.revenue-split-content { padding-bottom: 32px; }
+.revenue-split-layout {
+  display: grid;
+  grid-template-columns: minmax(280px, 380px) 1fr;
+  gap: 18px;
+  align-items: start;
+}
+.revenue-split-inputs {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.revenue-split-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 18px 18px 16px;
+  box-shadow: 0 4px 14px rgba(29, 28, 57, .04);
+}
+.revenue-split-card h3 {
+  margin: 0 0 14px;
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--text);
+}
+.revenue-split-card .form-label {
+  display: block;
+  margin-bottom: 6px;
+}
+.revenue-split-summary {
+  margin-top: 16px;
+  padding-top: 14px;
+  border-top: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.revenue-split-summary-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  font-size: 13px;
+  color: var(--text-muted);
+}
+.revenue-split-summary-row strong {
+  color: var(--text);
+  font-variant-numeric: tabular-nums;
+}
+.revenue-split-summary-net {
+  margin-top: 4px;
+  padding-top: 10px;
+  border-top: 1px dashed var(--border);
+  font-size: 14px;
+  color: var(--text);
+}
+.revenue-split-summary-net strong {
+  color: #007aff;
+  font-size: 16px;
+}
+.revenue-split-hint {
+  margin: 14px 0 0;
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--text-muted);
+}
+.revenue-split-table {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.revenue-split-table-row,
+.revenue-split-legend-row {
+  display: grid;
+  grid-template-columns: 12px 1fr auto;
+  gap: 10px;
+  align-items: center;
+  font-size: 13px;
+}
+.revenue-split-legend-row {
+  grid-template-columns: 12px 1.2fr 1fr auto;
+}
+.revenue-split-table-name {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  font-weight: 600;
+  color: var(--text);
+}
+.revenue-split-table-name small {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-muted);
+}
+.revenue-split-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+.revenue-split-chart-card { min-height: 360px; }
+.revenue-split-legend-detail {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 8px;
+  padding-top: 12px;
+  border-top: 1px solid var(--border);
+}
+.revenue-split-legend-detail .muted {
+  color: var(--text-muted);
+  font-size: 11px;
+}
+.revenue-split-empty {
+  min-height: 260px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-muted);
+  font-size: 14px;
+  text-align: center;
+  padding: 24px;
+}
+.revenue-split-back {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 36px;
+  padding: 0 12px;
+}
+html[data-view="phone"] .revenue-split-layout {
+  grid-template-columns: 1fr;
+}
+html[dir="rtl"] .revenue-split-back svg,
+:root:not([lang="en"]) .revenue-split-back svg {
+  transform: scaleX(-1);
 }

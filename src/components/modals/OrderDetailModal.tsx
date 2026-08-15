@@ -8,6 +8,7 @@ import { Order, Department, OrderPriority, OrderStatus } from '../../types';
 import { useApp } from '../../contexts/AppContext';
 import { useLang } from '../../contexts/LanguageContext';
 import { getPriorityConfig, getColumnStatus, formatDate, generateId } from '../../utils/helpers';
+import { getFileSource, uploadRawFileWithLocalFallback } from '../../utils/files';
 
 const COL_NAME_MAP: Record<string, string> = {
   'الطلبيات الجديدة': 'New Orders',
@@ -41,7 +42,10 @@ const OrderDetailModal: React.FC<OrderDetailModalProps> = ({ order, onClose, dep
   const { state, dispatch, addHistoryEntry } = useApp();
   const { lang, tr } = useLang();
   const translateCol = (name: string) => lang === 'en' ? (COL_NAME_MAP[name] || name) : name;
-  const { users, departments, currentUser } = state;
+  const { users, departments, currentUser: sessionUser } = state;
+  // Always prefer live user from users[] so permissions stay correct after sync
+  const currentUser =
+    (sessionUser && users.find((u) => u.id === sessionUser.id && !u.deletedAt)) || sessionUser;
   const priorityConfig = getPriorityConfig(lang);
   const [activeTab, setActiveTab] = useState<'details' | 'files' | 'chat' | 'history'>('details');
   const [comment, setComment] = useState('');
@@ -52,9 +56,12 @@ const OrderDetailModal: React.FC<OrderDetailModalProps> = ({ order, onClose, dep
   const [qtyInput, setQtyInput] = useState({ quantity: '', completed: '' });
   const [editDupWarning, setEditDupWarning] = useState<{ deptName: string; clientName: string } | null>(null);
   const [editing, setEditing] = useState(false);
-  const [inlineExtensions, setInlineExtensions] = useState<string | null>(null);
-  const [inlineNotes, setInlineNotes] = useState<string | null>(null);
+  const [inlineEdit, setInlineEdit] = useState<{
+    key: 'clientName' | 'orderNumber' | 'description' | 'dueDate' | 'orderDate' | 'fileExtensions' | 'notes';
+    value: string;
+  } | null>(null);
   const [archiveClicked, setArchiveClicked] = useState(false);
+  const [uploadingFiles, setUploadingFiles] = useState(false);
 
   const rawOrder = state.orders.find((o) => o.id === order.id) || order;
   const currentOrder = {
@@ -105,18 +112,118 @@ const OrderDetailModal: React.FC<OrderDetailModalProps> = ({ order, onClose, dep
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentOrder.updatedAt]);
 
-  const handleSaveInlineExtensions = () => {
-    if (inlineExtensions === null) return;
-    const updated = { ...currentOrder, fileExtensions: inlineExtensions, updatedAt: new Date().toISOString() };
+  const startInline = (
+    key: NonNullable<typeof inlineEdit>['key'],
+    value: string,
+  ) => setInlineEdit({ key, value });
+
+  const cancelInline = () => setInlineEdit(null);
+
+  const handleSaveInline = () => {
+    if (!inlineEdit) return;
+    const { key, value } = inlineEdit;
+    const now = new Date().toISOString();
+    let updated: Order = { ...currentOrder, updatedAt: now };
+
+    if (key === 'clientName') {
+      const name = value.trim();
+      if (!name) { cancelInline(); return; }
+      updated = { ...updated, clientName: name, title: `#${currentOrder.orderNumber} - ${name}` };
+    } else if (key === 'orderNumber') {
+      const num = value.trim();
+      if (!num) { cancelInline(); return; }
+      const dup = state.orders.find(
+        (o) => !o.deletedAt &&
+          o.id !== currentOrder.id &&
+          o.departmentId === currentOrder.departmentId &&
+          o.orderNumber.trim() === num
+      );
+      if (dup) {
+        setEditDupWarning({
+          deptName: departments.find((d) => d.id === currentOrder.departmentId)?.name || '',
+          clientName: dup.clientName,
+        });
+        return;
+      }
+      updated = { ...updated, orderNumber: num, title: `#${num} - ${currentOrder.clientName}` };
+    } else if (key === 'description') {
+      updated = { ...updated, description: value };
+    } else if (key === 'dueDate') {
+      updated = { ...updated, dueDate: value ? new Date(value).toISOString() : undefined };
+    } else if (key === 'orderDate') {
+      updated = { ...updated, orderDate: value ? new Date(value).toISOString() : currentOrder.orderDate };
+    } else if (key === 'fileExtensions') {
+      updated = { ...updated, fileExtensions: value };
+    } else if (key === 'notes') {
+      updated = { ...updated, notes: value };
+    }
+
     dispatch({ type: 'UPDATE_ORDER', payload: updated, silent: true } as any);
-    setInlineExtensions(null);
+    setInlineEdit(null);
   };
 
-  const handleSaveInlineNotes = () => {
-    if (inlineNotes === null) return;
-    const updated = { ...currentOrder, notes: inlineNotes, updatedAt: new Date().toISOString() };
-    dispatch({ type: 'UPDATE_ORDER', payload: updated, silent: true } as any);
-    setInlineNotes(null);
+  const inlineOriginal = (key: NonNullable<typeof inlineEdit>['key']): string => {
+    if (key === 'clientName') return currentOrder.clientName || '';
+    if (key === 'orderNumber') return currentOrder.orderNumber || '';
+    if (key === 'description') return currentOrder.description || '';
+    if (key === 'dueDate') return currentOrder.dueDate ? currentOrder.dueDate.slice(0, 10) : '';
+    if (key === 'orderDate') return currentOrder.orderDate ? currentOrder.orderDate.slice(0, 10) : '';
+    if (key === 'fileExtensions') return currentOrder.fileExtensions || '';
+    return currentOrder.notes || '';
+  };
+
+  const renderInlineField = (
+    key: NonNullable<typeof inlineEdit>['key'],
+    opts?: { multiline?: boolean; rows?: number; type?: string; placeholder?: string; display: React.ReactNode },
+  ) => {
+    const active = inlineEdit?.key === key;
+    if (active) {
+      const dirty = inlineEdit.value !== inlineOriginal(key);
+      return (
+        <div className="textarea-save-wrap">
+          {opts?.multiline ? (
+            <textarea
+              className="od-edit-input od-edit-textarea"
+              rows={opts.rows || 3}
+              value={inlineEdit.value}
+              autoFocus
+              placeholder={opts.placeholder}
+              onChange={(e) => setInlineEdit({ key, value: e.target.value })}
+              onBlur={handleSaveInline}
+              onKeyDown={(e) => { if (e.key === 'Escape') cancelInline(); }}
+            />
+          ) : (
+            <input
+              type={opts?.type || 'text'}
+              className="od-edit-input"
+              value={inlineEdit.value}
+              autoFocus
+              placeholder={opts?.placeholder}
+              onChange={(e) => setInlineEdit({ key, value: e.target.value })}
+              onBlur={handleSaveInline}
+              onKeyDown={(e) => {
+                if (e.key === 'Escape') cancelInline();
+                if (e.key === 'Enter') { e.preventDefault(); handleSaveInline(); }
+              }}
+            />
+          )}
+          {dirty && (
+            <button
+              className="textarea-save-btn"
+              onMouseDown={(e) => { e.preventDefault(); handleSaveInline(); }}
+              title="حفظ"
+            ><CheckCheck size={14} /></button>
+          )}
+        </div>
+      );
+    }
+    return (
+      <span
+        className="od-value od-inline-editable"
+        title="اضغط للتعديل"
+        onClick={() => startInline(key, inlineOriginal(key))}
+      >{opts?.display}</span>
+    );
   };
 
   const doSaveEdit = () => {
@@ -216,47 +323,107 @@ const OrderDetailModal: React.FC<OrderDetailModalProps> = ({ order, onClose, dep
 
   const handleDeleteOrderForm = (fileId: string) => {
     if (!window.confirm('هل تريد حذف هذا الملف؟')) return;
-    const updated = { ...currentOrder, orderForms: currentOrder.orderForms.filter((f) => f.id !== fileId), updatedAt: new Date().toISOString() };
+    const deletedAttachmentIds = [
+      ...(currentOrder.deletedAttachmentIds || []),
+      fileId,
+    ].filter((id, i, arr) => arr.indexOf(id) === i);
+    const updated = {
+      ...currentOrder,
+      orderForms: currentOrder.orderForms.filter((f) => f.id !== fileId),
+      deletedAttachmentIds,
+      updatedAt: new Date().toISOString(),
+    };
     dispatch({ type: 'UPDATE_ORDER', payload: updated, silent: true } as any);
   };
 
-  const handleUploadOrderForm = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = e.target.files;
-    if (!files || files.length === 0) return;
-    Array.from(files).forEach((file) => {
-      const reader = new FileReader();
-      reader.onload = () => {
-        const newFile = { id: generateId(), name: file.name, size: file.size, type: file.type, dataUrl: reader.result as string };
-        const updated = { ...currentOrder, orderForms: [...(currentOrder.orderForms || []), newFile], updatedAt: new Date().toISOString() };
-        dispatch({ type: 'UPDATE_ORDER', payload: updated, silent: true } as any);
-      };
-      reader.readAsDataURL(file);
-    });
+  const handleUploadOrderForm = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files || []);
     e.target.value = '';
+    if (!files.length) return;
+    setUploadingFiles(true);
+    let latest = state.orders.find((o) => o.id === order.id) || currentOrder;
+    let localOnly = 0;
+    for (const file of files) {
+      try {
+        const id = generateId();
+        const newFile = await uploadRawFileWithLocalFallback(id, file);
+        if (!newFile.url) localOnly += 1;
+        latest = state.orders.find((o) => o.id === order.id) || latest;
+        latest = {
+          ...latest,
+          orderForms: [...(latest.orderForms || []), newFile],
+          deletedAttachmentIds: (latest.deletedAttachmentIds || []).filter((x) => x !== id),
+          updatedAt: new Date().toISOString(),
+        };
+        dispatch({ type: 'UPDATE_ORDER', payload: latest, silent: true } as any);
+      } catch {
+        alert(`تعذر رفع الملف: ${file.name}`);
+      }
+    }
+    setUploadingFiles(false);
+    if (localOnly > 0) {
+      alert(
+        `تم حفظ ${localOnly} ملف محلياً لأن رفع الخادم فشل.\n` +
+        'سيظهر على هذا الجهاز. ارفع ملفات API على Hostinger للمزامنة.'
+      );
+    }
   };
 
-  const handleUploadInvoice = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = e.target.files;
-    if (!files || files.length === 0) return;
-    Array.from(files).forEach((file) => {
-      const reader = new FileReader();
-      reader.onload = () => {
-        const newInv = { id: generateId(), name: file.name, size: file.size, type: file.type, dataUrl: reader.result as string };
-        const updated = { ...currentOrder, invoices: [...(currentOrder.invoices || []), newInv], updatedAt: new Date().toISOString() };
-        dispatch({ type: 'UPDATE_ORDER', payload: updated, silent: true } as any);
-      };
-      reader.readAsDataURL(file);
-    });
+  const handleUploadInvoice = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files || []);
     e.target.value = '';
+    if (!files.length) return;
+    setUploadingFiles(true);
+    let latest = state.orders.find((o) => o.id === order.id) || currentOrder;
+    let localOnly = 0;
+    for (const file of files) {
+      try {
+        const id = generateId();
+        const newInv = await uploadRawFileWithLocalFallback(id, file);
+        if (!newInv.url) localOnly += 1;
+        latest = state.orders.find((o) => o.id === order.id) || latest;
+        latest = {
+          ...latest,
+          invoices: [...(latest.invoices || []), newInv],
+          deletedAttachmentIds: (latest.deletedAttachmentIds || []).filter((x) => x !== id),
+          updatedAt: new Date().toISOString(),
+        };
+        dispatch({ type: 'UPDATE_ORDER', payload: latest, silent: true } as any);
+      } catch {
+        alert(`تعذر رفع الملف: ${file.name}`);
+      }
+    }
+    setUploadingFiles(false);
+    if (localOnly > 0) {
+      alert(
+        `تم حفظ ${localOnly} فاتورة محلياً لأن رفع الخادم فشل.\n` +
+        'سيظهر على هذا الجهاز. ارفع ملفات API على Hostinger للمزامنة.'
+      );
+    }
   };
 
   const handleDeleteInvoice = (invoiceId?: string) => {
     if (!window.confirm('هل تريد حذف هذه الفاتورة؟')) return;
+    const tombstoneId = invoiceId || currentOrder.invoice?.id;
+    const deletedAttachmentIds = [
+      ...(currentOrder.deletedAttachmentIds || []),
+      ...(tombstoneId ? [tombstoneId] : []),
+    ].filter((id, i, arr) => arr.indexOf(id) === i);
     let updated: typeof currentOrder;
     if (!invoiceId) {
-      updated = { ...currentOrder, invoice: undefined, updatedAt: new Date().toISOString() };
+      updated = {
+        ...currentOrder,
+        invoice: undefined,
+        deletedAttachmentIds,
+        updatedAt: new Date().toISOString(),
+      };
     } else {
-      updated = { ...currentOrder, invoices: (currentOrder.invoices || []).filter((i) => i.id !== invoiceId), updatedAt: new Date().toISOString() };
+      updated = {
+        ...currentOrder,
+        invoices: (currentOrder.invoices || []).filter((i) => i.id !== invoiceId),
+        deletedAttachmentIds,
+        updatedAt: new Date().toISOString(),
+      };
     }
     dispatch({ type: 'UPDATE_ORDER', payload: updated, silent: true } as any);
   };
@@ -278,7 +445,19 @@ const OrderDetailModal: React.FC<OrderDetailModalProps> = ({ order, onClose, dep
       const isDelivery = toDept?.name === 'قسم التسليم';
       dispatch({ type: 'MOVE_ORDER', payload: { orderId: order.id, status: 'new', departmentId: transferDepts[0], triggerUserId: currentUser?.id } });
       if (!isDelivery && currentOrder.completedAt) {
-        dispatch({ type: 'UPDATE_ORDER', payload: { ...currentOrder, completedAt: undefined, updatedAt: now }, silent: true } as any);
+        dispatch({
+          type: 'UPDATE_ORDER',
+          payload: {
+            ...currentOrder,
+            departmentId: transferDepts[0],
+            departmentIds: [transferDepts[0]],
+            status: 'new' as any,
+            completedAt: undefined,
+            isNew: true,
+            updatedAt: now,
+          },
+          silent: true,
+        } as any);
       }
       addHistoryEntry(order.id, 'نقل إلى قسم آخر', from, toDept?.name || '');
     } else {
@@ -299,6 +478,7 @@ const OrderDetailModal: React.FC<OrderDetailModalProps> = ({ order, onClose, dep
           updatedAt: now,
           comments: [],
           history: [],
+          isNew: true,
         };
         dispatch({ type: 'ADD_ORDER', payload: newOrder, triggerUserId: currentUser?.id } as any);
         addHistoryEntry(newOrder.id, `نُقلت من ${from}`, from, toDept?.name || '');
@@ -323,10 +503,21 @@ const OrderDetailModal: React.FC<OrderDetailModalProps> = ({ order, onClose, dep
     return new Blob([bytes], { type: mime });
   };
 
-  const handleOpenFile = (dataUrl: string | undefined, name: string) => {
-    if (!dataUrl) { alert('الملف غير متاح — يرجى رفع الملف مجدداً'); return; }
+  const handleOpenFile = (src: string | undefined, name: string) => {
+    if (!src) { alert('الملف غير متاح — يرجى رفع الملف مجدداً'); return; }
+    if (src.startsWith('http')) {
+      const link = document.createElement('a');
+      link.href = src;
+      link.download = name;
+      link.target = '_blank';
+      link.rel = 'noopener';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      return;
+    }
     try {
-      const blob = dataUrlToBlob(dataUrl);
+      const blob = dataUrlToBlob(src);
       const url = URL.createObjectURL(blob);
       const link = document.createElement('a');
       link.href = url;
@@ -337,9 +528,8 @@ const OrderDetailModal: React.FC<OrderDetailModalProps> = ({ order, onClose, dep
       document.body.removeChild(link);
       setTimeout(() => URL.revokeObjectURL(url), 2000);
     } catch {
-      // Fallback: use data URL directly
       const link = document.createElement('a');
-      link.href = dataUrl;
+      link.href = src;
       link.download = name;
       link.style.display = 'none';
       document.body.appendChild(link);
@@ -348,25 +538,29 @@ const OrderDetailModal: React.FC<OrderDetailModalProps> = ({ order, onClose, dep
     }
   };
 
-  const handlePreviewFile = (dataUrl: string | undefined, name: string) => {
-    if (!dataUrl) { alert('الملف غير متاح — يرجى رفع الملف مجدداً'); return; }
+  const handlePreviewFile = (src: string | undefined, name: string) => {
+    if (!src) { alert('الملف غير متاح — يرجى رفع الملف مجدداً'); return; }
+    if (src.startsWith('http')) {
+      const newTab = window.open(src, '_blank');
+      if (!newTab) handleOpenFile(src, name);
+      return;
+    }
     try {
-      const blob = dataUrlToBlob(dataUrl);
+      const blob = dataUrlToBlob(src);
       const url = URL.createObjectURL(blob);
       const newTab = window.open(url, '_blank');
       if (!newTab) {
-        // Popup blocked — fallback to download
-        handleOpenFile(dataUrl, name);
+        handleOpenFile(src, name);
       }
       setTimeout(() => URL.revokeObjectURL(url), 10000);
     } catch {
-      window.open(dataUrl, '_blank');
+      window.open(src, '_blank');
     }
   };
 
-  const userDeptIds = currentUser?.departmentIds?.length ? currentUser.departmentIds : (currentUser?.departmentId ? [currentUser.departmentId] : []);
-  const canTransfer = currentUser?.role === 'admin' ||
-    (currentUser?.role === 'manager' && userDeptIds.includes(currentOrder.departmentId));
+  // All logged-in users get full order actions (edit, delete, transfer, archive, files)
+  const canManageOrder = !!currentUser;
+  const canTransfer = canManageOrder;
 
   const tabs = [
     { id: 'details',  label: tr.tabs.details },
@@ -453,10 +647,10 @@ const OrderDetailModal: React.FC<OrderDetailModalProps> = ({ order, onClose, dep
                 setEditing(true);
               }}><Pencil size={15} /></button>
             )}
-            {currentUser?.role === 'admin' && (
+            {canManageOrder && (
               <button className="modal-icon-btn modal-icon-btn--danger" onClick={handleDelete} title={tr.delete}><Trash2 size={15} /></button>
             )}
-            {(currentUser?.role === 'admin' || currentUser?.role === 'manager') && !editing && department.name === 'قسم التسليم' && (
+            {canManageOrder && !editing && department.name === 'قسم التسليم' && (
               <button
                 className="modal-icon-btn modal-icon-btn--purple"
                 title={tr.archiveOrder}
@@ -526,7 +720,7 @@ const OrderDetailModal: React.FC<OrderDetailModalProps> = ({ order, onClose, dep
             )}
             <div style={{ position: 'relative' }}>
               <button
-                className={`modal-icon-btn ${showProgressPopover ? 'modal-icon-btn--active' : ''}`}
+                className={`modal-icon-btn modal-icon-btn--wide ${showProgressPopover ? 'modal-icon-btn--active' : ''}`}
                 title={`${tr.progress}: ${currentOrder.progress || 0}%`}
                 onClick={() => {
                   setShowProgressPopover((v) => !v);
@@ -697,36 +891,52 @@ const OrderDetailModal: React.FC<OrderDetailModalProps> = ({ order, onClose, dep
 
           {/* ── DETAILS TAB ─────────────────────────── */}
           {activeTab === 'details' && (
+            <>
             <div className="od-details-grid">
               <div className="od-detail-item">
                 <span className="od-label"><User size={13} /> {tr.clientName}</span>
                 {editing ? (
                   <input className="od-edit-input" value={editData.clientName} onChange={(e) => setEditData(p => ({ ...p, clientName: e.target.value }))} />
-                ) : <span className="od-value">{currentOrder.clientName}</span>}
+                ) : renderInlineField('clientName', { display: currentOrder.clientName || '—' })}
               </div>
               <div className="od-detail-item">
                 <span className="od-label"><Hash size={13} /> {tr.orderNumber}</span>
                 {editing ? (
                   <input className="od-edit-input" value={editData.orderNumber} onChange={(e) => setEditData(p => ({ ...p, orderNumber: e.target.value }))} />
-                ) : <span className="od-value">{currentOrder.orderNumber}</span>}
+                ) : renderInlineField('orderNumber', { display: currentOrder.orderNumber || '—' })}
               </div>
               <div className="od-detail-item">
                 <span className="od-label"><FileText size={13} /> {tr.description}</span>
                 {editing ? (
-                  <textarea className="od-edit-input od-edit-textarea" rows={3} value={editData.description} onChange={(e) => setEditData(p => ({ ...p, description: e.target.value }))} />
-                ) : <span className="od-value od-desc">{currentOrder.description || '—'}</span>}
+                  <div className="textarea-save-wrap">
+                    <textarea className="od-edit-input od-edit-textarea" rows={3} value={editData.description} onChange={(e) => setEditData(p => ({ ...p, description: e.target.value }))} />
+                    {editData.description !== (currentOrder.description || '') && (
+                      <button className="textarea-save-btn" onClick={handleSaveEdit} title="حفظ"><CheckCheck size={14} /></button>
+                    )}
+                  </div>
+                ) : renderInlineField('description', {
+                  multiline: true,
+                  rows: 3,
+                  display: <span className="od-desc">{currentOrder.description || '—'}</span>,
+                })}
               </div>
               <div className="od-detail-item">
                 <span className="od-label"><Calendar size={13} /> {tr.dueDate}</span>
                 {editing ? (
                   <input type="date" className="od-edit-input" value={editData.dueDate} onChange={(e) => setEditData(p => ({ ...p, dueDate: e.target.value }))} />
-                ) : <span className="od-value">{currentOrder.dueDate ? formatDate(currentOrder.dueDate) : tr.notSet}</span>}
+                ) : renderInlineField('dueDate', {
+                  type: 'date',
+                  display: currentOrder.dueDate ? formatDate(currentOrder.dueDate) : tr.notSet,
+                })}
               </div>
               <div className="od-detail-item">
                 <span className="od-label"><Calendar size={13} /> {tr.orderDate}</span>
                 {editing ? (
                   <input type="date" className="od-edit-input" value={editData.orderDate} onChange={(e) => setEditData(p => ({ ...p, orderDate: e.target.value }))} />
-                ) : <span className="od-value">{currentOrder.orderDate ? formatDate(currentOrder.orderDate) : '—'}</span>}
+                ) : renderInlineField('orderDate', {
+                  type: 'date',
+                  display: currentOrder.orderDate ? formatDate(currentOrder.orderDate) : '—',
+                })}
               </div>
               <div className="od-detail-item od-full">
                 <span className="od-label"><Building2 size={13} /> {tr.assignedDept}</span>
@@ -761,29 +971,12 @@ const OrderDetailModal: React.FC<OrderDetailModalProps> = ({ order, onClose, dep
                       <button className="textarea-save-btn" onClick={handleSaveEdit} title="حفظ"><CheckCheck size={14} /></button>
                     )}
                   </div>
-                ) : inlineExtensions !== null ? (
-                  <div className="textarea-save-wrap">
-                    <textarea
-                      className="od-edit-input od-edit-textarea"
-                      rows={4}
-                      value={inlineExtensions}
-                      autoFocus
-                      onChange={(e) => setInlineExtensions(e.target.value)}
-                      onBlur={handleSaveInlineExtensions}
-                      onKeyDown={(e) => { if (e.key === 'Escape') setInlineExtensions(null); }}
-                      placeholder="PDF, AI, CDR, PNG..."
-                    />
-                    {inlineExtensions !== (currentOrder.fileExtensions || '') && (
-                      <button className="textarea-save-btn" onMouseDown={(e) => { e.preventDefault(); handleSaveInlineExtensions(); }} title="حفظ"><CheckCheck size={14} /></button>
-                    )}
-                  </div>
-                ) : (
-                  <span
-                    className="od-value od-extensions od-inline-editable"
-                    title="اضغط للتعديل"
-                    onClick={() => setInlineExtensions(currentOrder.fileExtensions || '')}
-                  >{currentOrder.fileExtensions || '—'}</span>
-                )}
+                ) : renderInlineField('fileExtensions', {
+                  multiline: true,
+                  rows: 4,
+                  placeholder: 'PDF, AI, CDR, PNG...',
+                  display: <span className="od-extensions">{currentOrder.fileExtensions || '—'}</span>,
+                })}
               </div>
               <div className="od-detail-item od-spacer" />
               <div className="od-detail-item">
@@ -824,36 +1017,18 @@ const OrderDetailModal: React.FC<OrderDetailModalProps> = ({ order, onClose, dep
                       <button className="textarea-save-btn" onClick={handleSaveEdit} title="حفظ"><CheckCheck size={14} /></button>
                     )}
                   </div>
-                ) : inlineNotes !== null ? (
-                  <div className="textarea-save-wrap">
-                    <textarea
-                      className="od-edit-input od-edit-textarea"
-                      rows={4}
-                      value={inlineNotes}
-                      autoFocus
-                      style={{ resize: 'vertical' }}
-                      onChange={(e) => setInlineNotes(e.target.value)}
-                      onBlur={handleSaveInlineNotes}
-                      onKeyDown={(e) => { if (e.key === 'Escape') setInlineNotes(null); }}
-                      placeholder="أضف ملاحظات..."
-                    />
-                    {inlineNotes !== (currentOrder.notes || '') && (
-                      <button className="textarea-save-btn" onMouseDown={(e) => { e.preventDefault(); handleSaveInlineNotes(); }} title="حفظ"><CheckCheck size={14} /></button>
-                    )}
-                  </div>
-                ) : (
-                  <span
-                    className="od-value od-extensions od-inline-editable"
-                    title="اضغط للتعديل"
-                    onClick={() => setInlineNotes(currentOrder.notes || '')}
-                  >{currentOrder.notes || '—'}</span>
-                )}
+                ) : renderInlineField('notes', {
+                  multiline: true,
+                  rows: 4,
+                  placeholder: 'أضف ملاحظات...',
+                  display: currentOrder.notes || '—',
+                })}
               </div>
               <div className="od-detail-item od-full">
                 <span className="od-label"><Users size={13} /> {tr.assignedUsers}</span>
                 {editing ? (
                   <div className="od-users-picker">
-                    {users.map((u) => {
+                    {users.filter((u) => !u.deletedAt).map((u) => {
                       const dept = departments.find((d) => d.id === u.departmentId);
                       const sel = editData.assignedUsers.includes(u.id);
                       return (
@@ -888,6 +1063,7 @@ const OrderDetailModal: React.FC<OrderDetailModalProps> = ({ order, onClose, dep
                 )}
               </div>
             </div>
+            </>
           )}
 
           {/* ── FILES TAB ───────────────────────────── */}
@@ -897,10 +1073,10 @@ const OrderDetailModal: React.FC<OrderDetailModalProps> = ({ order, onClose, dep
               <div className="od-files-group">
                 <div className="od-files-title-row">
                   <h4 className="od-files-title"><Image size={15} /> {tr.orderForms}</h4>
-                  {(currentUser?.role === 'admin' || currentUser?.role === 'manager') && (
-                    <label className="od-upload-btn" title={tr.upload}>
-                      <Upload size={13} /> {tr.upload}
-                      <input type="file" multiple accept=".pdf,.jpg,.jpeg,.png,.gif,.webp,.ai,.cdr,.psd,.svg" style={{ display: 'none' }} onChange={handleUploadOrderForm} />
+                  {(canManageOrder) && (
+                    <label className={`od-upload-btn${uploadingFiles ? ' od-upload-btn--busy' : ''}`} title={tr.upload}>
+                      <Upload size={13} /> {uploadingFiles ? 'جاري الرفع...' : tr.upload}
+                      <input type="file" multiple accept=".pdf,.jpg,.jpeg,.png,.gif,.webp,.ai,.cdr,.psd,.svg" style={{ display: 'none' }} onChange={handleUploadOrderForm} disabled={uploadingFiles} />
                     </label>
                   )}
                 </div>
@@ -909,8 +1085,8 @@ const OrderDetailModal: React.FC<OrderDetailModalProps> = ({ order, onClose, dep
                     {currentOrder.orderForms.map((f) => (
                       <div key={f.id} className="od-file-row">
                         <div className="od-file-row-icon">
-                          {f.dataUrl && f.type?.startsWith('image/') ? (
-                            <img src={f.dataUrl} alt={f.name} className="od-file-thumb-sm" />
+                          {getFileSource(f) && f.type?.startsWith('image/') ? (
+                            <img src={getFileSource(f)} alt={f.name} className="od-file-thumb-sm" />
                           ) : (
                             <FileText size={22} color="#6366f1" />
                           )}
@@ -920,13 +1096,13 @@ const OrderDetailModal: React.FC<OrderDetailModalProps> = ({ order, onClose, dep
                           <span className="od-file-size">{formatFileSize(f.size)}</span>
                         </div>
                         <div className="od-file-row-actions">
-                          <button className="od-action-btn" onClick={() => handlePreviewFile(f.dataUrl, f.name)} title={tr.view}>
+                          <button className="od-action-btn" onClick={() => handlePreviewFile(getFileSource(f), f.name)} title={tr.view}>
                             <Image size={15} /> {tr.view}
                           </button>
-                          <button className="od-action-btn" onClick={() => handleOpenFile(f.dataUrl, f.name)} title={tr.download}>
+                          <button className="od-action-btn" onClick={() => handleOpenFile(getFileSource(f), f.name)} title={tr.download}>
                             <Download size={15} /> {tr.download}
                           </button>
-                          {(currentUser?.role === 'admin' || currentUser?.role === 'manager') && (
+                          {(canManageOrder) && (
                             <button className="od-action-btn od-action-btn--danger" onClick={() => handleDeleteOrderForm(f.id)} title={tr.deleteFile}>
                               <Trash2 size={15} /> {tr.deleteFile}
                             </button>
@@ -944,10 +1120,10 @@ const OrderDetailModal: React.FC<OrderDetailModalProps> = ({ order, onClose, dep
               <div className="od-files-group">
                 <div className="od-files-title-row">
                   <h4 className="od-files-title"><FileText size={15} /> {tr.invoices}</h4>
-                  {(currentUser?.role === 'admin' || currentUser?.role === 'manager') && (
-                    <label className="od-upload-btn" title={tr.upload}>
-                      <Upload size={13} /> {tr.upload}
-                      <input type="file" multiple accept=".pdf,.jpg,.jpeg,.png,.gif,.webp" style={{ display: 'none' }} onChange={handleUploadInvoice} />
+                  {(canManageOrder) && (
+                    <label className={`od-upload-btn${uploadingFiles ? ' od-upload-btn--busy' : ''}`} title={tr.upload}>
+                      <Upload size={13} /> {uploadingFiles ? 'جاري الرفع...' : tr.upload}
+                      <input type="file" multiple accept=".pdf,.jpg,.jpeg,.png,.gif,.webp" style={{ display: 'none' }} onChange={handleUploadInvoice} disabled={uploadingFiles} />
                     </label>
                   )}
                 </div>
@@ -961,9 +1137,9 @@ const OrderDetailModal: React.FC<OrderDetailModalProps> = ({ order, onClose, dep
                         <span className="od-file-size">{formatFileSize(currentOrder.invoice.size)}</span>
                       </div>
                       <div className="od-file-row-actions">
-                        <button className="od-action-btn" onClick={() => handlePreviewFile(currentOrder.invoice?.dataUrl, currentOrder.invoice?.name || tr.invoices)} title={tr.view}><Image size={15} /> {tr.view}</button>
-                        <button className="od-action-btn" onClick={() => handleOpenFile(currentOrder.invoice?.dataUrl, currentOrder.invoice?.name || tr.invoices)} title={tr.download}><Download size={15} /> {tr.download}</button>
-                        {(currentUser?.role === 'admin' || currentUser?.role === 'manager') && (
+                        <button className="od-action-btn" onClick={() => handlePreviewFile(getFileSource(currentOrder.invoice), currentOrder.invoice?.name || tr.invoices)} title={tr.view}><Image size={15} /> {tr.view}</button>
+                        <button className="od-action-btn" onClick={() => handleOpenFile(getFileSource(currentOrder.invoice), currentOrder.invoice?.name || tr.invoices)} title={tr.download}><Download size={15} /> {tr.download}</button>
+                        {(canManageOrder) && (
                           <button className="od-action-btn od-action-btn--danger" onClick={() => handleDeleteInvoice()} title={tr.deleteFile}><Trash2 size={15} /> {tr.deleteFile}</button>
                         )}
                       </div>
@@ -978,9 +1154,9 @@ const OrderDetailModal: React.FC<OrderDetailModalProps> = ({ order, onClose, dep
                         <span className="od-file-size">{formatFileSize(inv.size)}</span>
                       </div>
                       <div className="od-file-row-actions">
-                        <button className="od-action-btn" onClick={() => handlePreviewFile(inv.dataUrl, inv.name)} title={tr.view}><Image size={15} /> {tr.view}</button>
-                        <button className="od-action-btn" onClick={() => handleOpenFile(inv.dataUrl, inv.name)} title={tr.download}><Download size={15} /> {tr.download}</button>
-                        {(currentUser?.role === 'admin' || currentUser?.role === 'manager') && (
+                        <button className="od-action-btn" onClick={() => handlePreviewFile(getFileSource(inv), inv.name)} title={tr.view}><Image size={15} /> {tr.view}</button>
+                        <button className="od-action-btn" onClick={() => handleOpenFile(getFileSource(inv), inv.name)} title={tr.download}><Download size={15} /> {tr.download}</button>
+                        {(canManageOrder) && (
                           <button className="od-action-btn od-action-btn--danger" onClick={() => handleDeleteInvoice(inv.id)} title={tr.deleteFile}><Trash2 size={15} /> {tr.deleteFile}</button>
                         )}
                       </div>

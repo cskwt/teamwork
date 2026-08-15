@@ -10,7 +10,8 @@ const ICONS = ['ShoppingCart', 'Headphones', 'Truck', 'Building2'];
 
 const DepartmentsPage: React.FC = () => {
   const { state, dispatch } = useApp();
-  const { departments, users, orders } = state;
+  const { departments, users: allUsers, orders } = state;
+  const users = allUsers.filter((u) => !u.deletedAt);
   const [showModal, setShowModal] = useState(false);
   const [editDept, setEditDept] = useState<Department | null>(null);
   const [name, setName] = useState('');
@@ -86,7 +87,7 @@ const DepartmentsPage: React.FC = () => {
         <div className="dept-cards-grid">
           {departments.map((dept) => {
             const manager = users.find((u) => u.id === dept.managerId);
-            const deptOrders = orders.filter((o) => o.departmentId === dept.id);
+            const deptOrders = orders.filter((o) => o.departmentId === dept.id && !o.isOrderRequest && !o.digitalPrinting && !o.largeFormat);
             const deptMembers = users.filter((u) => u.departmentId === dept.id);
             return (
               <div key={dept.id} className="dept-card" style={{ '--dept-color': dept.color } as any}>

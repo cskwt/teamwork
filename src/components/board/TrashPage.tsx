@@ -9,12 +9,16 @@ const TrashPage: React.FC = () => {
   const { state, dispatch } = useApp();
   const { lang } = useLang();
   const priorityConfig = getPriorityConfig(lang);
-  const { orders, departments, currentUser } = state;
+  const { orders, departments, currentUser: sessionUser, users } = state;
+  const currentUser =
+    (sessionUser && users.find((u) => u.id === sessionUser.id && !u.deletedAt)) || sessionUser;
   const [confirmId, setConfirmId] = useState<string | null>(null);
 
-  const isAdmin = currentUser?.role === 'admin';
+  // Every logged-in user can restore / permanently delete from trash
+  const canManageTrashOrder = (_departmentId: string) => !!currentUser;
+
   const deletedOrders = orders
-    .filter((o) => !!o.deletedAt && !o.archivedAt) // exclude archived orders (they have both flags)
+    .filter((o) => !!o.deletedAt && !o.archivedAt && !o.isOrderRequest && !o.digitalPrinting && !o.largeFormat)
     .sort((a, b) => new Date(b.deletedAt!).getTime() - new Date(a.deletedAt!).getTime());
 
   const getDaysLeft = (deletedAt: string) => {
@@ -55,7 +59,7 @@ const TrashPage: React.FC = () => {
                 <AlertTriangle size={15} color="#f59e0b" />
                 <span>تُحذف الطلبيات نهائياً بعد <b>30 يوماً</b> من تاريخ الحذف</span>
               </div>
-              {isAdmin && (
+              {currentUser && deletedOrders.length > 0 && (
                 <button className="btn-danger btn-sm" onClick={handleEmptyTrash}>
                   <Trash2 size={14} /> تفريغ سلة المهملات
                 </button>
@@ -69,6 +73,7 @@ const TrashPage: React.FC = () => {
                 const st = getColumnStatus(order, departments);
                 const daysLeft = getDaysLeft(order.deletedAt!);
                 const deletedDate = new Date(order.deletedAt!).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
+                const canManage = canManageTrashOrder(order.departmentId);
 
                 return (
                   <div key={order.id} className={`trash-item ${daysLeft <= 3 ? 'trash-item-urgent' : ''}`}>
@@ -95,11 +100,13 @@ const TrashPage: React.FC = () => {
                       </div>
                     </div>
                     <div className="trash-item-actions">
-                      <button className="btn-restore" onClick={() => handleRestore(order.id)} title="استعادة">
-                        <RotateCcw size={15} />
-                        <span>استعادة</span>
-                      </button>
-                      {isAdmin && (
+                      {canManage && (
+                        <button className="btn-restore" onClick={() => handleRestore(order.id)} title="استعادة">
+                          <RotateCcw size={15} />
+                          <span>استعادة</span>
+                        </button>
+                      )}
+                      {canManage && (
                         confirmId === order.id ? (
                           <div className="trash-confirm">
                             <span>تأكيد الحذف النهائي؟</span>

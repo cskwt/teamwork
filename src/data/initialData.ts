@@ -1,4 +1,6 @@
-import { User, Department, Order } from '../types';
+import { User, Department, Order, Material } from '../types';
+
+export const INITIAL_MATERIALS: Material[] = [];
 
 export const DEFAULT_COLUMNS = [
   { id: 'new', title: 'جديد', color: '#6366f1', order: 0 },
@@ -16,24 +18,6 @@ export const INITIAL_USERS: User[] = [
     role: 'admin',
     createdAt: new Date().toISOString(),
   },
-  {
-    id: 'user-1',
-    username: 'ahmed',
-    password: 'ahmed123',
-    fullName: 'أحمد محمد',
-    role: 'manager',
-    departmentId: 'dept-1',
-    createdAt: new Date().toISOString(),
-  },
-  {
-    id: 'user-2',
-    username: 'sara',
-    password: 'sara123',
-    fullName: 'سارة علي',
-    role: 'member',
-    departmentId: 'dept-1',
-    createdAt: new Date().toISOString(),
-  },
 ];
 
 export const INITIAL_DEPARTMENTS: Department[] = [
@@ -41,7 +25,7 @@ export const INITIAL_DEPARTMENTS: Department[] = [
     id: 'dept-1',
     name: 'قسم المبيعات',
     description: 'Sales Section',
-    managerId: 'user-1',
+    managerId: undefined,
     color: '#22c55e',
     icon: 'ShoppingCart',
     createdAt: new Date().toISOString(),

@@ -10,6 +10,8 @@ export interface User {
   departmentIds?: string[]; // new multi-department support
   avatar?: string;
   createdAt: string;
+  /** Soft-delete — keeps tombstone so sync won't resurrect the user */
+  deletedAt?: string;
 }
 
 export type OrderStatus = 'new' | 'in_progress' | 'review' | 'done' | 'cancelled' | 'archived';
@@ -20,7 +22,10 @@ export interface FileAttachment {
   name: string;
   type: string;
   size: number;
+  /** Local-only preview (IndexedDB) — stripped from server JSON */
   dataUrl?: string;
+  /** Shared public URL on Hostinger uploads/ — synced to all devices */
+  url?: string;
 }
 
 export interface OrderComment {
@@ -29,6 +34,37 @@ export interface OrderComment {
   userId: string;
   text: string;
   createdAt: string;
+}
+
+/** Digital printing order-request form fields */
+export interface DigitalPrintingDetails {
+  filePrintLocation?: string;
+  productType?: string;
+  quantity?: string;
+  paperType?: string;
+  paperWeight?: string;
+  paperSize?: string;
+  paperSource?: string;
+  sidesPrinting?: string;
+  colorMode?: string;
+  outputDelivery?: string;
+  lamination?: string;
+  cutting?: string[];
+  fileCutLocation?: string;
+}
+
+/** Mimaki / large-format job ticket from أمر طلبية */
+export interface LargeFormatDetails {
+  filePrintLocation?: string;
+  productType?: string;
+  quantity?: string;
+  /** Roll type */
+  material?: string;
+  rollWidth?: string;
+  resolution?: string;
+  lamination?: string;
+  cutting?: string;
+  fileCutLocation?: string;
 }
 
 export interface Order {
@@ -52,18 +88,33 @@ export interface Order {
   orderForms: FileAttachment[];
   invoice?: FileAttachment;
   invoices?: FileAttachment[];
+  /** Soft-deleted attachment ids — prevents sync from resurrecting deleted files */
+  deletedAttachmentIds?: string[];
   fileExtensions: string;
   tags: string[];
   comments: OrderComment[];
   history: OrderHistoryEntry[];
   notes?: string;
+  /** Structured digital-printing job ticket from أمر طلبية */
+  digitalPrinting?: DigitalPrintingDetails;
+  /** Structured Mimaki / large-format job ticket from أمر طلبية */
+  largeFormat?: LargeFormatDetails;
   progress?: number;
   progressQuantity?: number;
   progressCompleted?: number;
   sortOrder?: number;
+  /** When sortOrder was last changed — merged independently so sync won't wipe column order */
+  sortOrderAt?: string;
   deletedAt?: string;
   completedAt?: string;
   archivedAt?: string;
+  /** Show NEW badge in "جديد" column until a dept manager/admin opens the card */
+  isNew?: boolean;
+  /**
+   * Order Request records live in AppState.orderRequests only.
+   * Never shown on department Kanban / department order lists.
+   */
+  isOrderRequest?: boolean;
 }
 
 export interface OrderHistoryEntry {
@@ -125,10 +176,60 @@ export interface OpsRow {
   updatedAt?: string;
 }
 
+export type MaterialKind = 'digital' | 'large-format';
+
+/** Shared print material catalog (Order Request) */
+export interface Material {
+  id: string;
+  kind?: MaterialKind;
+  /** Digital */
+  paperType?: string;
+  paperWeight?: string;
+  /** Large Format */
+  rollType?: string;
+  rollWidth?: string;
+  /** Legacy single-name materials */
+  name?: string;
+  createdAt: string;
+  updatedAt?: string;
+}
+
+export type ManufacturingType = 'في المطبعة' | 'خارجي' | 'In House' | 'Out Source' | '';
+
+/** Order Costs spreadsheet row (تكاليف الطلبيات) */
+export interface OrderCostRow {
+  id: string;
+  client: string;
+  invoiceNumber: string;
+  /** قيمة الفاتورة */
+  invoiceValue: string;
+  /** مقدم الطلب (كان يُعرض كمبلغ مدفوع) */
+  amount: string;
+  manufacturing: ManufacturingType;
+  costs: string;
+  notes: string;
+  /** تم الدفع */
+  paid?: boolean;
+  updatedAt?: string;
+}
+
 export interface AppState {
   users: User[];
   departments: Department[];
+  /** Department Kanban / workflow orders only */
   orders: Order[];
+  /**
+   * Order Request (digital / large-format forms) — fully separate from department orders.
+   * Notes and details here must never mix into Kanban order cards.
+   */
+  orderRequests: Order[];
+  materials: Material[];
+  orderCostRows: OrderCostRow[];
+  /**
+   * When the cost sheet was last replaced locally (add/edit/delete).
+   * Used so deletes are not resurrected by server union-merge.
+   */
+  orderCostsUpdatedAt?: string;
   currentUser: User | null;
   notifications: AppNotification[];
   opsRows: OpsRow[];
