@@ -185,6 +185,11 @@ export interface Material {
   /** Digital */
   paperType?: string;
   paperWeight?: string;
+  /**
+   * تكلفة ورقة المصنع 100×70 سم (Digital فقط).
+   * تكلفة القطعة = sheetCost ÷ عدد الحبات لكل قياس.
+   */
+  sheetCost?: string;
   /** Large Format */
   rollType?: string;
   rollWidth?: string;

@@ -4,7 +4,15 @@ import { useApp } from '../../contexts/AppContext';
 import { useLang } from '../../contexts/LanguageContext';
 import { Material, MaterialKind } from '../../types';
 import { generateId } from '../../utils/helpers';
-import { materialLabel, materialsOfKind } from '../../utils/materials';
+import {
+  DIGITAL_FACTORY_SHEET,
+  DIGITAL_PRINT_SIZES,
+  digitalPieceCosts,
+  formatMaterialCost,
+  materialLabel,
+  materialsOfKind,
+  parseMaterialCost,
+} from '../../utils/materials';
 
 interface MaterialsModalProps {
   onClose: () => void;
@@ -18,6 +26,7 @@ const MaterialsModal: React.FC<MaterialsModalProps> = ({ onClose }) => {
 
   const [paperType, setPaperType] = useState('');
   const [paperWeight, setPaperWeight] = useState('');
+  const [sheetCost, setSheetCost] = useState('');
   const [rollType, setRollType] = useState('');
   const [rollWidth, setRollWidth] = useState('');
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -26,6 +35,7 @@ const MaterialsModal: React.FC<MaterialsModalProps> = ({ onClose }) => {
   const clearDigitalForm = () => {
     setPaperType('');
     setPaperWeight('');
+    setSheetCost('');
   };
 
   const clearLargeForm = () => {
@@ -40,6 +50,7 @@ const MaterialsModal: React.FC<MaterialsModalProps> = ({ onClose }) => {
     if (kind === 'digital') {
       setPaperType(m.paperType || m.name || '');
       setPaperWeight(m.paperWeight || '');
+      setSheetCost(m.sheetCost || '');
       clearLargeForm();
     } else {
       setRollType(m.rollType || m.name || '');
@@ -60,8 +71,13 @@ const MaterialsModal: React.FC<MaterialsModalProps> = ({ onClose }) => {
     if (kind === 'digital') {
       const pt = paperType.trim();
       const pw = paperWeight.trim();
+      const cost = sheetCost.trim();
       if (!pt || !pw) {
         alert('Enter paper type and paper weight');
+        return;
+      }
+      if (cost && parseMaterialCost(cost) < 0) {
+        alert(tr.sheetCostInvalid);
         return;
       }
       const exists = digitalMaterials.some(
@@ -83,6 +99,7 @@ const MaterialsModal: React.FC<MaterialsModalProps> = ({ onClose }) => {
             kind: 'digital',
             paperType: pt,
             paperWeight: pw,
+            sheetCost: cost,
             createdAt: prev?.createdAt || now,
             updatedAt: now,
           },
@@ -97,6 +114,7 @@ const MaterialsModal: React.FC<MaterialsModalProps> = ({ onClose }) => {
           kind: 'digital',
           paperType: pt,
           paperWeight: pw,
+          sheetCost: cost,
           createdAt: now,
           updatedAt: now,
         },
@@ -178,8 +196,29 @@ const MaterialsModal: React.FC<MaterialsModalProps> = ({ onClose }) => {
     </div>
   );
 
+  const renderPieceCosts = (costValue: string | undefined, compact = false) => {
+    const costs = digitalPieceCosts(costValue);
+    if (parseMaterialCost(costValue) <= 0) return null;
+    return (
+      <div className={`mat-piece-costs${compact ? ' compact' : ''}`}>
+        {costs.map((c) => (
+          <div key={c.id} className="mat-piece-cost">
+            <span className="mat-piece-size">{c.label}</span>
+            <span className="mat-piece-meta">
+              {tr.piecesPerSheet.replace('{n}', String(c.piecesPerSheet))}
+            </span>
+            <strong className="mat-piece-price">
+              {formatMaterialCost(c.pieceCost)} {tr.currencyShort}
+            </strong>
+          </div>
+        ))}
+      </div>
+    );
+  };
+
   const editingLarge = editingKind === 'large-format' && !!editingId;
   const editingDigital = editingKind === 'digital' && !!editingId;
+  const livePieceCosts = digitalPieceCosts(sheetCost);
 
   return (
     <div className="modal-overlay" onClick={onClose}>
@@ -256,8 +295,13 @@ const MaterialsModal: React.FC<MaterialsModalProps> = ({ onClose }) => {
 
           <section className="mat-section" style={{ ['--mat-color' as string]: '#16a34a' }}>
             <h3>Digital</h3>
+            <p className="mat-sheet-note">
+              {tr.factorySheetNote
+                .replace('{w}', String(DIGITAL_FACTORY_SHEET.widthCm))
+                .replace('{h}', String(DIGITAL_FACTORY_SHEET.heightCm))}
+            </p>
             <form
-              className="mat-add-grid"
+              className="mat-add-grid mat-add-grid-digital"
               onSubmit={(e) => {
                 e.preventDefault();
                 saveMaterial('digital');
@@ -279,6 +323,33 @@ const MaterialsModal: React.FC<MaterialsModalProps> = ({ onClose }) => {
                   placeholder="100 GSM"
                 />
               </label>
+              <label>
+                <span>{tr.sheetCostLabel}</span>
+                <input
+                  value={sheetCost}
+                  onChange={(e) => setSheetCost(e.target.value)}
+                  inputMode="decimal"
+                  placeholder="0.000"
+                />
+              </label>
+              {parseMaterialCost(sheetCost) > 0 && (
+                <div className="mat-live-costs">
+                  <div className="mat-live-costs-title">{tr.autoPieceCosts}</div>
+                  <div className="mat-piece-costs">
+                    {livePieceCosts.map((c) => (
+                      <div key={c.id} className="mat-piece-cost">
+                        <span className="mat-piece-size">{c.label}</span>
+                        <span className="mat-piece-meta">
+                          {tr.piecesPerSheet.replace('{n}', String(c.piecesPerSheet))}
+                        </span>
+                        <strong className="mat-piece-price">
+                          {formatMaterialCost(c.pieceCost)} {tr.currencyShort}
+                        </strong>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
               <div className="mat-form-actions">
                 {editingDigital && (
                   <button type="button" className="mat-cancel-btn" onClick={cancelEdit}>
@@ -290,19 +361,35 @@ const MaterialsModal: React.FC<MaterialsModalProps> = ({ onClose }) => {
                 </button>
               </div>
             </form>
+            <div className="mat-size-legend">
+              {DIGITAL_PRINT_SIZES.map((s) => (
+                <span key={s.id}>
+                  {s.label}: {tr.piecesPerSheet.replace('{n}', String(s.piecesPerSheet))}
+                </span>
+              ))}
+            </div>
             <div className="mat-list">
               {digitalMaterials.length === 0 ? (
                 <p className="mat-empty">No materials yet</p>
               ) : (
                 digitalMaterials.map((m) => {
                   const label = materialLabel(m);
+                  const hasCost = parseMaterialCost(m.sheetCost) > 0;
                   return (
-                    <div key={m.id} className={`mat-item${editingId === m.id ? ' editing' : ''}`}>
-                      <div className="mat-item-meta">
-                        <strong>{m.paperType || m.name}</strong>
-                        <small>{m.paperWeight}</small>
+                    <div key={m.id} className={`mat-item mat-item-digital${editingId === m.id ? ' editing' : ''}`}>
+                      <div className="mat-item-top">
+                        <div className="mat-item-meta">
+                          <strong>{m.paperType || m.name}</strong>
+                          <small>
+                            {m.paperWeight}
+                            {hasCost
+                              ? ` · ${tr.sheetCostShort}: ${formatMaterialCost(parseMaterialCost(m.sheetCost))} ${tr.currencyShort}`
+                              : ''}
+                          </small>
+                        </div>
+                        {renderActions(m, label)}
                       </div>
-                      {renderActions(m, label)}
+                      {renderPieceCosts(m.sheetCost, true)}
                     </div>
                   );
                 })
