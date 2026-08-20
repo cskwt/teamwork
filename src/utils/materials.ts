@@ -42,14 +42,32 @@ export const formatMaterialCostFils = (kd: number): string => {
 /** @deprecated use formatMaterialCostFils */
 export const formatMaterialCost = formatMaterialCostFils;
 
+/** سعر الصفحة من قيمة الرزمة ÷ عدد الصفحات (بالدينار) */
+export const sheetCostFromPack = (
+  packCost: string | undefined,
+  sheetsPerPack: string | undefined,
+): number => {
+  const pack = parseMaterialCost(packCost);
+  const pages = parseMaterialCost(sheetsPerPack);
+  if (pack <= 0 || pages <= 0) return 0;
+  return pack / pages;
+};
+
+/** سعر الصفحة الفعلي للمادة (من الرزمة إن وُجدت، وإلا sheetCost المخزّن) */
+export const effectiveSheetCostKd = (m: Pick<Material, 'packCost' | 'sheetsPerPack' | 'sheetCost'>): number => {
+  const fromPack = sheetCostFromPack(m.packCost, m.sheetsPerPack);
+  if (fromPack > 0) return fromPack;
+  return parseMaterialCost(m.sheetCost);
+};
+
 /** تكلفة القطعة لقياس معيّن من تكلفة ورقة المصنع */
-export const pieceCostForSize = (sheetCost: string | undefined, piecesPerSheet: number): number => {
-  const sheet = parseMaterialCost(sheetCost);
+export const pieceCostForSize = (sheetCost: string | number | undefined, piecesPerSheet: number): number => {
+  const sheet = typeof sheetCost === 'number' ? sheetCost : parseMaterialCost(sheetCost);
   if (sheet <= 0 || piecesPerSheet <= 0) return 0;
   return sheet / piecesPerSheet;
 };
 
-export const digitalPieceCosts = (sheetCost: string | undefined) =>
+export const digitalPieceCosts = (sheetCost: string | number | undefined) =>
   DIGITAL_PRINT_SIZES.map((size) => ({
     ...size,
     pieceCost: pieceCostForSize(sheetCost, size.piecesPerSheet),

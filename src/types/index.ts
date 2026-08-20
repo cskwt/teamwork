@@ -186,7 +186,14 @@ export interface Material {
   paperType?: string;
   paperWeight?: string;
   /**
-   * تكلفة ورقة المصنع 100×70 سم (Digital فقط).
+   * قيمة الرزمة بالدينار (Digital).
+   * سعر الصفحة = packCost ÷ sheetsPerPack، ثم تكلفة القطعة = سعر الصفحة ÷ الحبات.
+   */
+  packCost?: string;
+  /** عدد الصفحات / الأوراق في الرزمة */
+  sheetsPerPack?: string;
+  /**
+   * تكلفة ورقة المصنع 100×70 سم (محسوبة تلقائياً أو قديمة).
    * تكلفة القطعة = sheetCost ÷ عدد الحبات لكل قياس.
    */
   sheetCost?: string;

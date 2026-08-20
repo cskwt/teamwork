@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import { X, Plus, Trash2, Package, Pencil, Check, ChevronDown } from 'lucide-react';
 import { useApp } from '../../contexts/AppContext';
 import { useLang } from '../../contexts/LanguageContext';
@@ -7,12 +7,14 @@ import { generateId } from '../../utils/helpers';
 import {
   DIGITAL_FACTORY_SHEET,
   digitalPieceCosts,
+  effectiveSheetCostKd,
   filsToKd,
   formatMaterialCostFils,
   kdToFils,
   materialLabel,
   materialsOfKind,
   parseMaterialCost,
+  sheetCostFromPack,
 } from '../../utils/materials';
 
 interface MaterialsModalProps {
@@ -27,8 +29,10 @@ const MaterialsModal: React.FC<MaterialsModalProps> = ({ onClose }) => {
 
   const [paperType, setPaperType] = useState('');
   const [paperWeight, setPaperWeight] = useState('');
-  /** Form value in fils (display/input); stored on material as KD */
-  const [sheetCostFils, setSheetCostFils] = useState('');
+  /** قيمة الرزمة بالفلس */
+  const [packCostFils, setPackCostFils] = useState('');
+  /** عدد الصفحات في الرزمة */
+  const [sheetsPerPack, setSheetsPerPack] = useState('');
   const [rollType, setRollType] = useState('');
   const [rollWidth, setRollWidth] = useState('');
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -38,7 +42,8 @@ const MaterialsModal: React.FC<MaterialsModalProps> = ({ onClose }) => {
   const clearDigitalForm = () => {
     setPaperType('');
     setPaperWeight('');
-    setSheetCostFils('');
+    setPackCostFils('');
+    setSheetsPerPack('');
   };
 
   const clearLargeForm = () => {
@@ -53,8 +58,10 @@ const MaterialsModal: React.FC<MaterialsModalProps> = ({ onClose }) => {
     if (kind === 'digital') {
       setPaperType(m.paperType || m.name || '');
       setPaperWeight(m.paperWeight || '');
-      const fils = kdToFils(parseMaterialCost(m.sheetCost));
-      setSheetCostFils(fils > 0 ? String(fils) : '');
+      const packFils = kdToFils(parseMaterialCost(m.packCost));
+      setPackCostFils(packFils > 0 ? String(packFils) : '');
+      const pages = parseMaterialCost(m.sheetsPerPack);
+      setSheetsPerPack(pages > 0 ? String(Math.round(pages)) : '');
       clearLargeForm();
     } else {
       setRollType(m.rollType || m.name || '');
@@ -74,21 +81,33 @@ const MaterialsModal: React.FC<MaterialsModalProps> = ({ onClose }) => {
     setExpandedIds((prev) => ({ ...prev, [id]: !prev[id] }));
   };
 
+  const livePackKd = filsToKd(parseMaterialCost(packCostFils));
+  const livePages = parseMaterialCost(sheetsPerPack);
+  const liveSheetCostKd = useMemo(
+    () => sheetCostFromPack(livePackKd > 0 ? String(livePackKd) : '', livePages > 0 ? String(livePages) : ''),
+    [livePackKd, livePages],
+  );
+  const livePieceCosts = digitalPieceCosts(liveSheetCostKd > 0 ? liveSheetCostKd : 0);
+
   const saveMaterial = (kind: MaterialKind) => {
     const now = new Date().toISOString();
     if (kind === 'digital') {
       const pt = paperType.trim();
       const pw = paperWeight.trim();
-      const fils = parseMaterialCost(sheetCostFils);
+      const packFils = parseMaterialCost(packCostFils);
+      const pages = parseMaterialCost(sheetsPerPack);
       if (!pt || !pw) {
         alert('Enter paper type and paper weight');
         return;
       }
-      if (sheetCostFils.trim() && fils < 0) {
+      if ((packCostFils.trim() || sheetsPerPack.trim()) && (packFils <= 0 || pages <= 0)) {
         alert(tr.sheetCostInvalid);
         return;
       }
-      const costKd = fils > 0 ? String(filsToKd(fils)) : '';
+      const packKd = packFils > 0 ? String(filsToKd(packFils)) : '';
+      const pagesStr = pages > 0 ? String(Math.round(pages)) : '';
+      const derivedSheet = sheetCostFromPack(packKd, pagesStr);
+      const sheetCost = derivedSheet > 0 ? String(derivedSheet) : '';
       const exists = digitalMaterials.some(
         (m) =>
           m.id !== editingId &&
@@ -108,7 +127,9 @@ const MaterialsModal: React.FC<MaterialsModalProps> = ({ onClose }) => {
             kind: 'digital',
             paperType: pt,
             paperWeight: pw,
-            sheetCost: costKd,
+            packCost: packKd,
+            sheetsPerPack: pagesStr,
+            sheetCost: sheetCost || prev?.sheetCost || '',
             createdAt: prev?.createdAt || now,
             updatedAt: now,
           },
@@ -123,7 +144,9 @@ const MaterialsModal: React.FC<MaterialsModalProps> = ({ onClose }) => {
           kind: 'digital',
           paperType: pt,
           paperWeight: pw,
-          sheetCost: costKd,
+          packCost: packKd,
+          sheetsPerPack: pagesStr,
+          sheetCost,
           createdAt: now,
           updatedAt: now,
         },
@@ -205,9 +228,9 @@ const MaterialsModal: React.FC<MaterialsModalProps> = ({ onClose }) => {
     </div>
   );
 
-  const renderPieceCosts = (costValueKd: string | undefined) => {
-    const costs = digitalPieceCosts(costValueKd);
-    if (parseMaterialCost(costValueKd) <= 0) return null;
+  const renderPieceCosts = (sheetKd: number) => {
+    const costs = digitalPieceCosts(sheetKd);
+    if (sheetKd <= 0) return null;
     return (
       <div className="mat-piece-costs compact">
         {costs.map((c) => (
@@ -227,8 +250,6 @@ const MaterialsModal: React.FC<MaterialsModalProps> = ({ onClose }) => {
 
   const editingLarge = editingKind === 'large-format' && !!editingId;
   const editingDigital = editingKind === 'digital' && !!editingId;
-  const liveSheetCostKd = filsToKd(parseMaterialCost(sheetCostFils));
-  const livePieceCosts = digitalPieceCosts(liveSheetCostKd > 0 ? String(liveSheetCostKd) : '');
 
   return (
     <div className="modal-overlay" onClick={onClose}>
@@ -311,7 +332,7 @@ const MaterialsModal: React.FC<MaterialsModalProps> = ({ onClose }) => {
                 .replace('{h}', String(DIGITAL_FACTORY_SHEET.heightCm))}
             </p>
             <form
-              className="mat-add-grid mat-add-grid-digital"
+              className="mat-add-grid mat-add-grid-digital mat-add-grid-pack"
               onSubmit={(e) => {
                 e.preventDefault();
                 saveMaterial('digital');
@@ -334,14 +355,31 @@ const MaterialsModal: React.FC<MaterialsModalProps> = ({ onClose }) => {
                 />
               </label>
               <label>
-                <span>{tr.sheetCostLabel}</span>
+                <span>{tr.packCostLabel}</span>
                 <input
-                  value={sheetCostFils}
-                  onChange={(e) => setSheetCostFils(e.target.value)}
+                  value={packCostFils}
+                  onChange={(e) => setPackCostFils(e.target.value)}
                   inputMode="numeric"
-                  placeholder="120"
+                  placeholder="6000"
                 />
               </label>
+              <label>
+                <span>{tr.sheetsPerPackLabel}</span>
+                <input
+                  value={sheetsPerPack}
+                  onChange={(e) => setSheetsPerPack(e.target.value)}
+                  inputMode="numeric"
+                  placeholder="500"
+                />
+              </label>
+              <div className="mat-auto-sheet">
+                <span>{tr.sheetCostLabel}</span>
+                <strong>
+                  {liveSheetCostKd > 0
+                    ? `${formatMaterialCostFils(liveSheetCostKd)} ${tr.currencyShort}`
+                    : '—'}
+                </strong>
+              </div>
               {liveSheetCostKd > 0 && (
                 <div className="mat-live-costs">
                   <div className="mat-live-costs-title">{tr.autoPieceCosts}</div>
@@ -377,8 +415,11 @@ const MaterialsModal: React.FC<MaterialsModalProps> = ({ onClose }) => {
               ) : (
                 digitalMaterials.map((m) => {
                   const label = materialLabel(m);
-                  const hasCost = parseMaterialCost(m.sheetCost) > 0;
+                  const sheetKd = effectiveSheetCostKd(m);
+                  const hasCost = sheetKd > 0;
                   const expanded = !!expandedIds[m.id];
+                  const packFils = kdToFils(parseMaterialCost(m.packCost));
+                  const pages = Math.round(parseMaterialCost(m.sheetsPerPack));
                   return (
                     <div
                       key={m.id}
@@ -399,8 +440,13 @@ const MaterialsModal: React.FC<MaterialsModalProps> = ({ onClose }) => {
                           <strong>{m.paperType || m.name}</strong>
                           <small>
                             {m.paperWeight}
+                            {packFils > 0 && pages > 0
+                              ? ` · ${tr.packSummary
+                                  .replace('{pack}', `${packFils} ${tr.currencyShort}`)
+                                  .replace('{pages}', String(pages))}`
+                              : ''}
                             {hasCost
-                              ? ` · ${tr.sheetCostShort}: ${formatMaterialCostFils(parseMaterialCost(m.sheetCost))} ${tr.currencyShort}`
+                              ? ` · ${tr.sheetCostShort}: ${formatMaterialCostFils(sheetKd)} ${tr.currencyShort}`
                               : ''}
                           </small>
                           {hasCost && (
@@ -419,7 +465,7 @@ const MaterialsModal: React.FC<MaterialsModalProps> = ({ onClose }) => {
                           {renderActions(m, label)}
                         </div>
                       </div>
-                      {hasCost && expanded && renderPieceCosts(m.sheetCost)}
+                      {hasCost && expanded && renderPieceCosts(sheetKd)}
                     </div>
                   );
                 })
