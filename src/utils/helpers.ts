@@ -87,6 +87,30 @@ export const isOverdue = (dueDate?: string): boolean => {
   return new Date(dueDate) < new Date();
 };
 
+/** Convert Arabic-Indic / Persian digits to Western digits (0-9). */
+export const toWesternDigits = (value: string): string =>
+  String(value)
+    .replace(/[٠-٩]/g, (d) => String(d.charCodeAt(0) - 0x0660))
+    .replace(/[۰-۹]/g, (d) => String(d.charCodeAt(0) - 0x06f0))
+    .replace(/[٫،]/g, '.')
+    .replace(/,/g, '');
+
+/** Keep a numeric amount field in Western digits while typing. */
+export const normalizeAmountInput = (value: string): string => {
+  const western = toWesternDigits(value);
+  let out = '';
+  let sawDot = false;
+  for (const ch of western) {
+    if (ch >= '0' && ch <= '9') {
+      out += ch;
+    } else if (ch === '.' && !sawDot) {
+      out += '.';
+      sawDot = true;
+    }
+  }
+  return out;
+};
+
 // يعيد اسم ولون العمود الذي تنتمي إليه الطلبية
 export const getColumnStatus = (
   order: Order,

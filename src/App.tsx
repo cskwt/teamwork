@@ -16,6 +16,8 @@ import SettingsPage from './components/board/SettingsPage';
 import OperationsScreen from './components/board/OperationsScreen';
 import ToolsPage from './components/board/ToolsPage';
 import RevenueSplitPage from './components/board/RevenueSplitPage';
+import OrderRequestPage from './components/board/OrderRequestPage';
+import OrderCostsPage from './components/board/OrderCostsPage';
 import NotificationPopup from './components/layout/NotificationPopup';
 import './App.css';
 
@@ -104,6 +106,14 @@ const AppInner: React.FC = () => {
         return <ToolsPage onNavigate={handleNavigate} />;
       case 'revenue-split':
         return <RevenueSplitPage onBack={() => handleNavigate('tools')} />;
+      case 'order-request':
+        return currentUser?.role === 'admin'
+          ? <OrderRequestPage />
+          : <ProjectsPage onOpenBoard={handleOpenBoard} />;
+      case 'order-costs':
+        return currentUser?.role === 'admin'
+          ? <OrderCostsPage />
+          : <ProjectsPage onOpenBoard={handleOpenBoard} />;
       default:
         return <ProjectsPage onOpenBoard={handleOpenBoard} />;
     }

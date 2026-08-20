@@ -1,7 +1,8 @@
 import React from 'react';
 import {
   BarChart2, Settings, LogOut,
-  Archive, Trash2, UserCog, LayoutGrid, Monitor, Wrench
+  Archive, Trash2, UserCog, LayoutGrid, Monitor, Wrench,
+  ClipboardList, Calculator
 } from 'lucide-react';
 import { useApp } from '../../contexts/AppContext';
 import { useLang } from '../../contexts/LanguageContext';
@@ -29,6 +30,12 @@ const Sidebar: React.FC<SidebarProps> = ({ activePage, onNavigate, open }) => {
     { id: 'projects', label: tr.departments, icon: <LayoutGrid size={18} /> },
     { id: 'operations', label: tr.operations, icon: <Monitor size={18} /> },
     { id: 'tools', label: tr.tools, icon: <Wrench size={18} /> },
+    ...(isAdmin
+      ? [
+          { id: 'order-request', label: tr.orderRequest, icon: <ClipboardList size={18} /> },
+          { id: 'order-costs', label: tr.orderCosts, icon: <Calculator size={18} /> },
+        ]
+      : []),
     { id: 'archive', label: tr.archive, icon: <Archive size={18} /> },
     { id: 'trash', label: tr.trash, icon: <Trash2 size={18} /> },
   ];

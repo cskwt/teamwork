@@ -3573,16 +3573,130 @@ html[data-view="phone"] .sidebar {
    REVENUE SPLIT CALCULATOR
    ======================================== */
 .revenue-split-content { padding-bottom: 32px; }
+.revenue-split-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.revenue-split-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 14px;
+  flex-wrap: wrap;
+}
+.revenue-split-hint-inline {
+  margin: 0;
+  flex: 1;
+  min-width: 220px;
+}
+.revenue-split-orders-card {
+  margin-bottom: 16px;
+  padding: 0;
+  overflow: hidden;
+}
+.revenue-split-orders-scroll {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+.rs-orders-table {
+  width: 100%;
+  min-width: 880px;
+  border-collapse: collapse;
+  font-size: 13px;
+  direction: rtl;
+}
+html[dir="ltr"] .rs-orders-table,
+html[lang="en"] .rs-orders-table {
+  direction: ltr;
+}
+.rs-orders-table th {
+  background: #f8fafc;
+  color: #64748b;
+  font-weight: 700;
+  font-size: 12px;
+  padding: 12px 10px;
+  border-bottom: 1px solid #e5e7eb;
+  white-space: nowrap;
+  text-align: center;
+}
+.rs-orders-table td {
+  padding: 8px 6px;
+  border-bottom: 1px solid #f1f5f9;
+  vertical-align: middle;
+  background: #fff;
+}
+.rs-orders-table tbody tr:nth-child(even) td { background: #fafbfc; }
+.rs-col-idx { width: 40px; text-align: center; color: #94a3b8; font-weight: 600; }
+.rs-col-client { min-width: 140px; text-align: start !important; }
+.rs-col-inv { min-width: 100px; }
+.rs-col-num { min-width: 88px; }
+.rs-col-actions { width: 48px; }
+.rs-input {
+  width: 100%;
+  box-sizing: border-box;
+  border: 1px solid #e5e7eb;
+  background: #fff;
+  border-radius: 8px;
+  padding: 8px 10px;
+  font: inherit;
+  font-size: 13px;
+  color: #111827;
+}
+.rs-input:focus {
+  outline: none;
+  border-color: #93c5fd;
+  background: #eff6ff;
+}
+.rs-num {
+  direction: ltr;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+.rs-calc {
+  text-align: center;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  direction: ltr;
+  white-space: nowrap;
+  padding: 8px 10px !important;
+}
+.rs-net { color: #007aff; font-weight: 800; }
+.rs-del-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  color: #94a3b8;
+  cursor: pointer;
+}
+.rs-del-btn:hover:not(:disabled) {
+  background: #fee2e2;
+  color: #dc2626;
+}
+.rs-del-btn:disabled { opacity: .35; cursor: default; }
+.rs-total-row td {
+  background: #f1f5f9 !important;
+  font-weight: 800;
+  padding: 12px 10px !important;
+  border-top: 2px solid #e2e8f0;
+  border-bottom: none;
+  color: #0f172a;
+}
 .revenue-split-layout {
   display: grid;
   grid-template-columns: minmax(280px, 380px) 1fr;
-  gap: 18px;
+  gap: 16px;
   align-items: start;
 }
-.revenue-split-inputs {
-  display: flex;
-  flex-direction: column;
-  gap: 14px;
+.revenue-split-layout-bottom {
+  grid-template-columns: minmax(280px, 380px) 1fr;
 }
 .revenue-split-card {
   background: var(--surface);
@@ -3596,10 +3710,6 @@ html[data-view="phone"] .sidebar {
   font-size: 15px;
   font-weight: 700;
   color: var(--text);
-}
-.revenue-split-card .form-label {
-  display: block;
-  margin-bottom: 6px;
 }
 .revenue-split-summary {
   margin-top: 16px;
@@ -3620,6 +3730,7 @@ html[data-view="phone"] .sidebar {
 .revenue-split-summary-row strong {
   color: var(--text);
   font-variant-numeric: tabular-nums;
+  direction: ltr;
 }
 .revenue-split-summary-net {
   margin-top: 4px;
@@ -3672,7 +3783,7 @@ html[data-view="phone"] .sidebar {
   border-radius: 50%;
   flex-shrink: 0;
 }
-.revenue-split-chart-card { min-height: 360px; }
+.revenue-split-chart-card { min-height: 320px; }
 .revenue-split-legend-detail {
   display: flex;
   flex-direction: column;
@@ -3686,7 +3797,7 @@ html[data-view="phone"] .sidebar {
   font-size: 11px;
 }
 .revenue-split-empty {
-  min-height: 260px;
+  min-height: 220px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -3695,6 +3806,11 @@ html[data-view="phone"] .sidebar {
   text-align: center;
   padding: 24px;
 }
+.revenue-split-download {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
 .revenue-split-back {
   display: inline-flex;
   align-items: center;
@@ -3702,8 +3818,17 @@ html[data-view="phone"] .sidebar {
   min-height: 36px;
   padding: 0 12px;
 }
-html[data-view="phone"] .revenue-split-layout {
+html[data-view="phone"] .revenue-split-layout,
+html[data-view="phone"] .revenue-split-layout-bottom {
   grid-template-columns: 1fr;
+}
+html[data-view="phone"] .revenue-split-toolbar {
+  flex-direction: column;
+  align-items: stretch;
+}
+html[data-view="phone"] .rs-orders-table {
+  min-width: 860px;
+  font-size: 12px;
 }
 html[dir="rtl"] .revenue-split-back svg,
 :root:not([lang="en"]) .revenue-split-back svg {
