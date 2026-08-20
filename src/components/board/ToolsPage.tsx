@@ -1,7 +1,8 @@
-import React from 'react';
-import { Calculator, PieChart, Scissors, Wrench } from 'lucide-react';
+import React, { useState } from 'react';
+import { Calculator, Package, PieChart, Scissors, Wrench } from 'lucide-react';
 import { useLang } from '../../contexts/LanguageContext';
 import Header from '../layout/Header';
+import MaterialsModal from '../modals/MaterialsModal';
 import {
   COST_CALCULATOR_URL,
   TEMPLATE_MAKER_URL,
@@ -13,6 +14,7 @@ interface ToolsPageProps {
 
 const ToolsPage: React.FC<ToolsPageProps> = ({ onNavigate }) => {
   const { tr } = useLang();
+  const [showInventory, setShowInventory] = useState(false);
 
   const tools: {
     id: string;
@@ -20,9 +22,18 @@ const ToolsPage: React.FC<ToolsPageProps> = ({ onNavigate }) => {
     desc: string;
     href?: string;
     page?: string;
+    action?: 'inventory';
     icon: React.ReactNode;
     color: string;
   }[] = [
+    {
+      id: 'inventory',
+      title: tr.toolInventory,
+      desc: tr.toolInventoryDesc,
+      action: 'inventory',
+      icon: <Package size={28} color="#fff" />,
+      color: '#8b5cf6',
+    },
     {
       id: 'cost',
       title: tr.toolCostCalculator,
@@ -55,7 +66,22 @@ const ToolsPage: React.FC<ToolsPageProps> = ({ onNavigate }) => {
       <div className="page-content">
         <div className="tools-cards-grid">
           {tools.map((tool) =>
-            tool.page ? (
+            tool.action === 'inventory' ? (
+              <button
+                key={tool.id}
+                type="button"
+                className="tools-card tools-card-btn"
+                onClick={() => setShowInventory(true)}
+              >
+                <div className="tools-card-icon" style={{ background: tool.color }}>
+                  {tool.icon}
+                </div>
+                <div className="tools-card-body">
+                  <h3>{tool.title}</h3>
+                  <p>{tool.desc}</p>
+                </div>
+              </button>
+            ) : tool.page ? (
               <button
                 key={tool.id}
                 type="button"
@@ -90,6 +116,7 @@ const ToolsPage: React.FC<ToolsPageProps> = ({ onNavigate }) => {
           )}
         </div>
       </div>
+      {showInventory && <MaterialsModal onClose={() => setShowInventory(false)} />}
     </div>
   );
 };

@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { X, Plus, Trash2, Package, Pencil, Check } from 'lucide-react';
 import { useApp } from '../../contexts/AppContext';
+import { useLang } from '../../contexts/LanguageContext';
 import { Material, MaterialKind } from '../../types';
 import { generateId } from '../../utils/helpers';
 import { materialLabel, materialsOfKind } from '../../utils/materials';
@@ -11,6 +12,7 @@ interface MaterialsModalProps {
 
 const MaterialsModal: React.FC<MaterialsModalProps> = ({ onClose }) => {
   const { state, dispatch } = useApp();
+  const { tr } = useLang();
   const digitalMaterials = materialsOfKind(state.materials, 'digital');
   const largeMaterials = materialsOfKind(state.materials, 'large-format');
 
@@ -186,8 +188,8 @@ const MaterialsModal: React.FC<MaterialsModalProps> = ({ onClose }) => {
           <div className="mat-header-title">
             <span className="mat-header-icon"><Package size={18} /></span>
             <div>
-              <h2>Materials</h2>
-              <p>Add Digital and Large Format materials for order forms</p>
+              <h2>{tr.toolInventory}</h2>
+              <p>{tr.materialsHint}</p>
             </div>
           </div>
           <button type="button" className="mat-close" onClick={onClose} aria-label="Close">

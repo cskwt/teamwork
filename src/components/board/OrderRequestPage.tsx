@@ -1,11 +1,10 @@
 import React, { useMemo, useState } from 'react';
-import { Eye, Package, Pencil, Plus, Trash2 } from 'lucide-react';
+import { Eye, Pencil, Plus, Trash2 } from 'lucide-react';
 import { useApp } from '../../contexts/AppContext';
 import { Order } from '../../types';
 import Header from '../layout/Header';
 import DigitalPrintingOrderModal from '../modals/DigitalPrintingOrderModal';
 import LargeFormatOrderModal from '../modals/LargeFormatOrderModal';
-import MaterialsModal from '../modals/MaterialsModal';
 import OrderRequestViewModal from '../modals/OrderRequestViewModal';
 import digitalPrintingImg from '../../assets/digital-printing.png';
 import largeFormatImg from '../../assets/large-format-printing.png';
@@ -22,7 +21,6 @@ const OrderRequestPage: React.FC = () => {
   const { state, dispatch } = useApp();
   const orderRequests = useMemo(() => state.orderRequests || [], [state.orderRequests]);
   const [printType, setPrintType] = useState<PrintType | null>(null);
-  const [showMaterials, setShowMaterials] = useState(false);
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
   const [editingOrder, setEditingOrder] = useState<Order | null>(null);
 
@@ -154,11 +152,6 @@ const OrderRequestPage: React.FC = () => {
       <Header
         title="Order Request"
         subtitle="Digital & Large Format print tickets — separate from department boards"
-        actions={
-          <button type="button" className="btn-primary" onClick={() => setShowMaterials(true)}>
-            <Package size={16} /> Materials
-          </button>
-        }
       />
 
       <div className="orq-header-actions" style={{ marginBottom: 16 }}>
@@ -208,7 +201,6 @@ const OrderRequestPage: React.FC = () => {
       {selectedOrder && (
         <OrderRequestViewModal order={selectedOrder} onClose={() => setSelectedOrder(null)} />
       )}
-      {showMaterials && <MaterialsModal onClose={() => setShowMaterials(false)} />}
     </div>
   );
 };

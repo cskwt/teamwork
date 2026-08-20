@@ -254,7 +254,7 @@ const DigitalPrintingOrderModal: React.FC<DigitalPrintingOrderModalProps> = ({
                 ))}
               </select>
               {materialOptions.length === 0 && (
-                <small className="dp2-field-hint">No materials yet — add them via the Material button</small>
+                <small className="dp2-field-hint">No materials yet — add them from Tools → Inventory</small>
               )}
             </label>
             <div className="dp2-grid-3">
