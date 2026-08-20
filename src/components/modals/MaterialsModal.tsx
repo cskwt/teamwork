@@ -6,7 +6,6 @@ import { Material, MaterialKind } from '../../types';
 import { generateId } from '../../utils/helpers';
 import {
   DIGITAL_FACTORY_SHEET,
-  DIGITAL_PRINT_SIZES,
   digitalPieceCosts,
   filsToKd,
   formatMaterialCostFils,
@@ -372,13 +371,6 @@ const MaterialsModal: React.FC<MaterialsModalProps> = ({ onClose }) => {
                 </button>
               </div>
             </form>
-            <div className="mat-size-legend">
-              {DIGITAL_PRINT_SIZES.map((s) => (
-                <span key={s.id}>
-                  {s.label}: {tr.piecesPerSheet.replace('{n}', String(s.piecesPerSheet))}
-                </span>
-              ))}
-            </div>
             <div className="mat-list">
               {digitalMaterials.length === 0 ? (
                 <p className="mat-empty">No materials yet</p>
