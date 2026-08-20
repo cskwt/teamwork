@@ -120,6 +120,12 @@ const OrderCostsPage: React.FC = () => {
   };
 
   const removeRow = (id: string) => {
+    const row = rows.find((r) => r.id === id);
+    const label = row?.client?.trim() || row?.invoiceNumber?.trim() || '';
+    const msg = label
+      ? tr.confirmDeleteOrderCostNamed.replace('{name}', label)
+      : tr.confirmDeleteOrderCost;
+    if (!window.confirm(msg)) return;
     persist(rows.filter((r) => r.id !== id));
   };
 

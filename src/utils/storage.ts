@@ -707,6 +707,7 @@ export const loadState = async (): Promise<AppState> => {
     let departments = fromServer.departments || [];
     let materials = fromServer.materials || [];
     let orderCostRows = fromServer.orderCostRows || [];
+    let orderCostsUpdatedAt = fromServer.orderCostsUpdatedAt;
 
     if (local) {
       // Merge orders: server is primary but respect local changes newer than server
@@ -768,17 +769,18 @@ export const loadState = async (): Promise<AppState> => {
         materials = local.materials;
       }
 
-      // Order cost rows: use whichever is newer
-      const localCostMax = (local.orderCostRows || []).reduce(
-        (m, x) => ((x.updatedAt || '') > m ? (x.updatedAt || '') : m),
-        '',
-      );
-      const serverCostMax = (fromServer.orderCostRows || []).reduce(
-        (m: string, x: { updatedAt?: string }) => ((x.updatedAt || '') > m ? (x.updatedAt || '') : m),
-        '',
-      );
-      if ((local.orderCostRows || []).length && localCostMax > serverCostMax) {
+      // Order cost rows: sheet membership follows newer orderCostsUpdatedAt (local wins ties)
+      const rowCostMax = (rows: { updatedAt?: string }[]) =>
+        rows.reduce((m, x) => ((x.updatedAt || '') > m ? (x.updatedAt || '') : m), '');
+      const localCostMax = local.orderCostsUpdatedAt || rowCostMax(local.orderCostRows || []);
+      const serverCostMax =
+        fromServer.orderCostsUpdatedAt || rowCostMax(fromServer.orderCostRows || []);
+      if (
+        Array.isArray(local.orderCostRows) &&
+        (localCostMax || '') >= (serverCostMax || '')
+      ) {
         orderCostRows = local.orderCostRows;
+        orderCostsUpdatedAt = local.orderCostsUpdatedAt || localCostMax || orderCostsUpdatedAt;
       }
     }
 
@@ -796,6 +798,8 @@ export const loadState = async (): Promise<AppState> => {
       departments,
       materials: materials || fromServer.materials || local?.materials || [],
       orderCostRows: orderCostRows || fromServer.orderCostRows || local?.orderCostRows || [],
+      orderCostsUpdatedAt:
+        orderCostsUpdatedAt || fromServer.orderCostsUpdatedAt || local?.orderCostsUpdatedAt,
       orders: split.orders,
       orderRequests: split.orderRequests,
       currentUser: null,
@@ -970,7 +974,6 @@ export const saveState = async (state: AppState): Promise<void> => {
         matMap.set(m.id, mt >= pt ? m : prev);
       }
     });
-    const costMap = new Map<string, AppState['orderCostRows'][0]>();
     const snapCosts = snapshot.orderCostRows || [];
     const srvCosts = serverCurrent.orderCostRows || [];
     const costStamp = (rows: AppState['orderCostRows'], at?: string) =>
@@ -980,8 +983,8 @@ export const saveState = async (state: AppState): Promise<void> => {
 
     let mergedCostRows: AppState['orderCostRows'];
     let mergedCostAt = snapshot.orderCostsUpdatedAt || serverCurrent.orderCostsUpdatedAt;
-    if ((localCostAt || '') > (serverCostAt || '')) {
-      // Local sheet wins membership (deletes stick)
+    if ((localCostAt || '') >= (serverCostAt || '')) {
+      // Local sheet wins membership (deletes stick; empty sheet is valid)
       mergedCostRows = snapCosts.map((loc) => {
         const srv = srvCosts.find((s) => s.id === loc.id);
         if (!srv) return loc;
@@ -989,14 +992,13 @@ export const saveState = async (state: AppState): Promise<void> => {
       });
       mergedCostAt = snapshot.orderCostsUpdatedAt || localCostAt;
     } else {
-      [...srvCosts, ...snapCosts].forEach((r) => {
-        if (!r?.id) return;
-        const prev = costMap.get(r.id);
-        if (!prev) costMap.set(r.id, r);
-        else costMap.set(r.id, (r.updatedAt || '') >= (prev.updatedAt || '') ? r : prev);
+      // Server sheet is strictly newer — take its membership only (no union)
+      mergedCostRows = srvCosts.map((srv) => {
+        const loc = snapCosts.find((s) => s.id === srv.id);
+        if (!loc) return srv;
+        return (srv.updatedAt || '') >= (loc.updatedAt || '') ? srv : loc;
       });
-      mergedCostRows = Array.from(costMap.values());
-      mergedCostAt = serverCurrent.orderCostsUpdatedAt || snapshot.orderCostsUpdatedAt || serverCostAt;
+      mergedCostAt = serverCurrent.orderCostsUpdatedAt || serverCostAt;
     }
 
     // Keep Order Request fully separate; also peel any legacy mixed records out of orders

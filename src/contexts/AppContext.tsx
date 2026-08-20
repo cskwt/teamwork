@@ -321,37 +321,22 @@ const reducer = (state: AppState, action: Action): AppState => {
 
       let mergedCosts: OrderCostRow[];
       let mergedCostsAt = localCostsAt || serverCostsAt || undefined;
-      if ((localCostMax || '') > (serverCostMax || '')) {
-        // Local sheet is newer (includes deletes) — do not re-add server-only rows
+      // Sheet membership follows newer orderCostsUpdatedAt (local wins ties)
+      // so deletes are never resurrected by a stale server union.
+      if ((localCostMax || '') >= (serverCostMax || '')) {
         mergedCosts = localCosts.map((loc) => {
           const srv = srvCostMap.get(loc.id);
           if (!srv) return loc;
           return (loc.updatedAt || '') >= (srv.updatedAt || '') ? loc : srv;
         });
         mergedCostsAt = localCostsAt || localCostMax || mergedCostsAt;
-      } else if ((serverCostMax || '') > (localCostMax || '')) {
+      } else {
         mergedCosts = serverCosts.map((srv) => {
           const loc = locCostMap.get(srv.id);
           if (!loc) return srv;
           return (srv.updatedAt || '') >= (loc.updatedAt || '') ? srv : loc;
-        });
-        // Keep local-only rows that are newer than the server sheet
-        localCosts.forEach((loc) => {
-          if (!srvCostMap.has(loc.id) && (loc.updatedAt || '') > (serverCostMax || '')) {
-            mergedCosts.push(loc);
-          }
         });
         mergedCostsAt = serverCostsAt || serverCostMax || mergedCostsAt;
-      } else {
-        // Same stamp — union by id, newer fields win
-        mergedCosts = serverCosts.map((srv) => {
-          const loc = locCostMap.get(srv.id);
-          if (!loc) return srv;
-          return (srv.updatedAt || '') >= (loc.updatedAt || '') ? srv : loc;
-        });
-        localCosts.forEach((loc) => {
-          if (!srvCostMap.has(loc.id)) mergedCosts.push(loc);
-        });
       }
 
       const mergedUsers = mergeUsers(action.payload.users || [], state.users || []);

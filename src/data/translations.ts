@@ -51,6 +51,8 @@ const t = {
     editOrderCost: 'تعديل تكاليف طلبية',
     saveOrderCost: 'حفظ',
     cancelOrderCost: 'إلغاء',
+    confirmDeleteOrderCost: 'هل أنت متأكد من حذف هذه التكاليف؟',
+    confirmDeleteOrderCostNamed: 'هل أنت متأكد من حذف تكاليف «{name}»؟',
 
     // Order request page
     orderRequestIntro: 'اختر نوع الطباعة لإنشاء أمر طلبية جديد',
@@ -334,6 +336,8 @@ const t = {
     editOrderCost: 'Edit order costs',
     saveOrderCost: 'Save',
     cancelOrderCost: 'Cancel',
+    confirmDeleteOrderCost: 'Are you sure you want to delete these order costs?',
+    confirmDeleteOrderCostNamed: 'Are you sure you want to delete costs for “{name}”?',
 
     // Order request page
     orderRequestIntro: 'Choose a print type to create a new order request',
