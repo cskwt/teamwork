@@ -21,11 +21,26 @@ export const parseMaterialCost = (v: string | undefined | null): number => {
   return Number.isFinite(n) ? n : 0;
 };
 
-export const formatMaterialCost = (n: number): string => {
-  if (!Number.isFinite(n) || n <= 0) return '—';
-  const rounded = Math.round(n * 1000) / 1000;
-  return Number.isInteger(rounded) ? String(rounded) : String(rounded);
+/** 1 د.ك = 1000 فلس */
+export const kdToFils = (kd: number): number => {
+  if (!Number.isFinite(kd) || kd <= 0) return 0;
+  return Math.round(kd * 1000);
 };
+
+export const filsToKd = (fils: number): number => {
+  if (!Number.isFinite(fils) || fils <= 0) return 0;
+  return Math.round(fils) / 1000;
+};
+
+/** عرض التكلفة بالفلس (من قيمة مخزّنة بالدينار) */
+export const formatMaterialCostFils = (kd: number): string => {
+  const fils = kdToFils(kd);
+  if (fils <= 0) return '—';
+  return String(fils);
+};
+
+/** @deprecated use formatMaterialCostFils */
+export const formatMaterialCost = formatMaterialCostFils;
 
 /** تكلفة القطعة لقياس معيّن من تكلفة ورقة المصنع */
 export const pieceCostForSize = (sheetCost: string | undefined, piecesPerSheet: number): number => {

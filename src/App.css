@@ -1294,12 +1294,41 @@ html[data-view="phone"] .tools-cards-grid {
   flex-direction: column;
   align-items: stretch;
 }
+.mat-item-digital.expandable {
+  cursor: pointer;
+  user-select: none;
+}
+.mat-item-digital.expandable:hover {
+  border-color: #86efac;
+}
 .mat-item-top {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 8px;
   width: 100%;
+}
+.mat-item-top-end {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+.mat-expand-chevron {
+  color: #94a3b8;
+  transition: transform .18s ease;
+  flex-shrink: 0;
+}
+.mat-expand-chevron.open {
+  transform: rotate(180deg);
+  color: #16a34a;
+}
+.mat-expand-hint {
+  display: block;
+  margin-top: 2px;
+  font-size: 10px;
+  font-weight: 600;
+  color: #94a3b8;
 }
 @media (max-width: 720px) {
   .mat-add-grid-digital { grid-template-columns: 1fr; }

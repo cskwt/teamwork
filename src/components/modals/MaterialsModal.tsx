@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { X, Plus, Trash2, Package, Pencil, Check } from 'lucide-react';
+import { X, Plus, Trash2, Package, Pencil, Check, ChevronDown } from 'lucide-react';
 import { useApp } from '../../contexts/AppContext';
 import { useLang } from '../../contexts/LanguageContext';
 import { Material, MaterialKind } from '../../types';
@@ -8,7 +8,9 @@ import {
   DIGITAL_FACTORY_SHEET,
   DIGITAL_PRINT_SIZES,
   digitalPieceCosts,
-  formatMaterialCost,
+  filsToKd,
+  formatMaterialCostFils,
+  kdToFils,
   materialLabel,
   materialsOfKind,
   parseMaterialCost,
@@ -26,16 +28,18 @@ const MaterialsModal: React.FC<MaterialsModalProps> = ({ onClose }) => {
 
   const [paperType, setPaperType] = useState('');
   const [paperWeight, setPaperWeight] = useState('');
-  const [sheetCost, setSheetCost] = useState('');
+  /** Form value in fils (display/input); stored on material as KD */
+  const [sheetCostFils, setSheetCostFils] = useState('');
   const [rollType, setRollType] = useState('');
   const [rollWidth, setRollWidth] = useState('');
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editingKind, setEditingKind] = useState<MaterialKind | null>(null);
+  const [expandedIds, setExpandedIds] = useState<Record<string, boolean>>({});
 
   const clearDigitalForm = () => {
     setPaperType('');
     setPaperWeight('');
-    setSheetCost('');
+    setSheetCostFils('');
   };
 
   const clearLargeForm = () => {
@@ -50,7 +54,8 @@ const MaterialsModal: React.FC<MaterialsModalProps> = ({ onClose }) => {
     if (kind === 'digital') {
       setPaperType(m.paperType || m.name || '');
       setPaperWeight(m.paperWeight || '');
-      setSheetCost(m.sheetCost || '');
+      const fils = kdToFils(parseMaterialCost(m.sheetCost));
+      setSheetCostFils(fils > 0 ? String(fils) : '');
       clearLargeForm();
     } else {
       setRollType(m.rollType || m.name || '');
@@ -66,20 +71,25 @@ const MaterialsModal: React.FC<MaterialsModalProps> = ({ onClose }) => {
     clearLargeForm();
   };
 
+  const toggleExpand = (id: string) => {
+    setExpandedIds((prev) => ({ ...prev, [id]: !prev[id] }));
+  };
+
   const saveMaterial = (kind: MaterialKind) => {
     const now = new Date().toISOString();
     if (kind === 'digital') {
       const pt = paperType.trim();
       const pw = paperWeight.trim();
-      const cost = sheetCost.trim();
+      const fils = parseMaterialCost(sheetCostFils);
       if (!pt || !pw) {
         alert('Enter paper type and paper weight');
         return;
       }
-      if (cost && parseMaterialCost(cost) < 0) {
+      if (sheetCostFils.trim() && fils < 0) {
         alert(tr.sheetCostInvalid);
         return;
       }
+      const costKd = fils > 0 ? String(filsToKd(fils)) : '';
       const exists = digitalMaterials.some(
         (m) =>
           m.id !== editingId &&
@@ -99,7 +109,7 @@ const MaterialsModal: React.FC<MaterialsModalProps> = ({ onClose }) => {
             kind: 'digital',
             paperType: pt,
             paperWeight: pw,
-            sheetCost: cost,
+            sheetCost: costKd,
             createdAt: prev?.createdAt || now,
             updatedAt: now,
           },
@@ -114,7 +124,7 @@ const MaterialsModal: React.FC<MaterialsModalProps> = ({ onClose }) => {
           kind: 'digital',
           paperType: pt,
           paperWeight: pw,
-          sheetCost: cost,
+          sheetCost: costKd,
           createdAt: now,
           updatedAt: now,
         },
@@ -176,7 +186,7 @@ const MaterialsModal: React.FC<MaterialsModalProps> = ({ onClose }) => {
   };
 
   const renderActions = (m: Material, label: string) => (
-    <div className="mat-item-actions">
+    <div className="mat-item-actions" onClick={(e) => e.stopPropagation()}>
       <button
         type="button"
         className="mat-edit-btn"
@@ -196,11 +206,11 @@ const MaterialsModal: React.FC<MaterialsModalProps> = ({ onClose }) => {
     </div>
   );
 
-  const renderPieceCosts = (costValue: string | undefined, compact = false) => {
-    const costs = digitalPieceCosts(costValue);
-    if (parseMaterialCost(costValue) <= 0) return null;
+  const renderPieceCosts = (costValueKd: string | undefined) => {
+    const costs = digitalPieceCosts(costValueKd);
+    if (parseMaterialCost(costValueKd) <= 0) return null;
     return (
-      <div className={`mat-piece-costs${compact ? ' compact' : ''}`}>
+      <div className="mat-piece-costs compact">
         {costs.map((c) => (
           <div key={c.id} className="mat-piece-cost">
             <span className="mat-piece-size">{c.label}</span>
@@ -208,7 +218,7 @@ const MaterialsModal: React.FC<MaterialsModalProps> = ({ onClose }) => {
               {tr.piecesPerSheet.replace('{n}', String(c.piecesPerSheet))}
             </span>
             <strong className="mat-piece-price">
-              {formatMaterialCost(c.pieceCost)} {tr.currencyShort}
+              {formatMaterialCostFils(c.pieceCost)} {tr.currencyShort}
             </strong>
           </div>
         ))}
@@ -218,7 +228,8 @@ const MaterialsModal: React.FC<MaterialsModalProps> = ({ onClose }) => {
 
   const editingLarge = editingKind === 'large-format' && !!editingId;
   const editingDigital = editingKind === 'digital' && !!editingId;
-  const livePieceCosts = digitalPieceCosts(sheetCost);
+  const liveSheetCostKd = filsToKd(parseMaterialCost(sheetCostFils));
+  const livePieceCosts = digitalPieceCosts(liveSheetCostKd > 0 ? String(liveSheetCostKd) : '');
 
   return (
     <div className="modal-overlay" onClick={onClose}>
@@ -326,13 +337,13 @@ const MaterialsModal: React.FC<MaterialsModalProps> = ({ onClose }) => {
               <label>
                 <span>{tr.sheetCostLabel}</span>
                 <input
-                  value={sheetCost}
-                  onChange={(e) => setSheetCost(e.target.value)}
-                  inputMode="decimal"
-                  placeholder="0.000"
+                  value={sheetCostFils}
+                  onChange={(e) => setSheetCostFils(e.target.value)}
+                  inputMode="numeric"
+                  placeholder="120"
                 />
               </label>
-              {parseMaterialCost(sheetCost) > 0 && (
+              {liveSheetCostKd > 0 && (
                 <div className="mat-live-costs">
                   <div className="mat-live-costs-title">{tr.autoPieceCosts}</div>
                   <div className="mat-piece-costs">
@@ -343,7 +354,7 @@ const MaterialsModal: React.FC<MaterialsModalProps> = ({ onClose }) => {
                           {tr.piecesPerSheet.replace('{n}', String(c.piecesPerSheet))}
                         </span>
                         <strong className="mat-piece-price">
-                          {formatMaterialCost(c.pieceCost)} {tr.currencyShort}
+                          {formatMaterialCostFils(c.pieceCost)} {tr.currencyShort}
                         </strong>
                       </div>
                     ))}
@@ -375,21 +386,48 @@ const MaterialsModal: React.FC<MaterialsModalProps> = ({ onClose }) => {
                 digitalMaterials.map((m) => {
                   const label = materialLabel(m);
                   const hasCost = parseMaterialCost(m.sheetCost) > 0;
+                  const expanded = !!expandedIds[m.id];
                   return (
-                    <div key={m.id} className={`mat-item mat-item-digital${editingId === m.id ? ' editing' : ''}`}>
+                    <div
+                      key={m.id}
+                      className={`mat-item mat-item-digital${editingId === m.id ? ' editing' : ''}${expanded ? ' expanded' : ''}${hasCost ? ' expandable' : ''}`}
+                      role={hasCost ? 'button' : undefined}
+                      tabIndex={hasCost ? 0 : undefined}
+                      onClick={() => hasCost && toggleExpand(m.id)}
+                      onKeyDown={(e) => {
+                        if (!hasCost) return;
+                        if (e.key === 'Enter' || e.key === ' ') {
+                          e.preventDefault();
+                          toggleExpand(m.id);
+                        }
+                      }}
+                    >
                       <div className="mat-item-top">
                         <div className="mat-item-meta">
                           <strong>{m.paperType || m.name}</strong>
                           <small>
                             {m.paperWeight}
                             {hasCost
-                              ? ` · ${tr.sheetCostShort}: ${formatMaterialCost(parseMaterialCost(m.sheetCost))} ${tr.currencyShort}`
+                              ? ` · ${tr.sheetCostShort}: ${formatMaterialCostFils(parseMaterialCost(m.sheetCost))} ${tr.currencyShort}`
                               : ''}
                           </small>
+                          {hasCost && (
+                            <span className="mat-expand-hint">
+                              {expanded ? tr.clickToCollapseCosts : tr.clickToExpandCosts}
+                            </span>
+                          )}
                         </div>
-                        {renderActions(m, label)}
+                        <div className="mat-item-top-end">
+                          {hasCost && (
+                            <ChevronDown
+                              size={16}
+                              className={`mat-expand-chevron${expanded ? ' open' : ''}`}
+                            />
+                          )}
+                          {renderActions(m, label)}
+                        </div>
                       </div>
-                      {renderPieceCosts(m.sheetCost, true)}
+                      {hasCost && expanded && renderPieceCosts(m.sheetCost)}
                     </div>
                   );
                 })
