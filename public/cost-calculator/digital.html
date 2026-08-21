@@ -616,7 +616,7 @@ try{
 
 /* —— حساب عدد القطع على قياس الورق المختار من المخزون —— */
 var SVG_NS='http://www.w3.org/2000/svg';
-var NEST={GAP:0.3,MARGIN:0.4,total:1,sheetIdx:0,draw:null};
+var NEST={GAP:0.5,MARGIN:0.5,total:1,sheetIdx:0,draw:null};
 function nestSvgEl(tag,attrs){var e=document.createElementNS(SVG_NS,tag);for(var k in attrs)e.setAttribute(k,attrs[k]);return e;}
 function clearNestSvg(s){while(s.firstChild)s.removeChild(s.firstChild);}
 function drawGraphtecMarks(sv, vbW, vbH){
@@ -663,18 +663,36 @@ function setNestStats(arr){
   el.innerHTML=h;
 }
 function nestFillSheet(SW,SH,pw,ph,allowRot){
-  var g=NEST.GAP,m=NEST.MARGIN;
-  var availW=SW-2*m+g, availH=SH-2*m+g;
+  var g=NEST.GAP;
   function pack(w,h){
-    var cols=Math.floor((availW+1e-9)/(w+g));
-    var rows=Math.floor((availH+1e-9)/(h+g));
+    var cols=Math.floor((SW+g+1e-9)/(w+g));
+    var rows=Math.floor((SH+g+1e-9)/(h+g));
     if(cols<1||rows<1) return [];
+    var usedW=cols*w+(cols-1)*g;
+    var usedH=rows*h+(rows-1)*g;
+    var ox=(SW-usedW)/2, oy=(SH-usedH)/2;
     var out=[],i,j;
-    for(j=0;j<rows;j++) for(i=0;i<cols;i++) out.push({x:i*(w+g),y:j*(h+g),w:w,h:h,rot:Math.abs(w-pw)>1e-6});
+    for(j=0;j<rows;j++) for(i=0;i<cols;i++){
+      out.push({x:ox+i*(w+g),y:oy+j*(h+g),w:w,h:h,rot:Math.abs(w-pw)>1e-6});
+    }
     return out;
   }
   var a=pack(pw,ph), b=(allowRot && Math.abs(pw-ph)>1e-9) ? pack(ph,pw) : [];
   return b.length>a.length ? b : a;
+}
+function nestCenterSlots(slots, SW, SH){
+  if(!slots || !slots.length) return slots;
+  var minX=Infinity, minY=Infinity, maxX=-Infinity, maxY=-Infinity, i, sl;
+  for(i=0;i<slots.length;i++){
+    sl=slots[i];
+    if(sl.x<minX) minX=sl.x;
+    if(sl.y<minY) minY=sl.y;
+    if(sl.x+sl.w>maxX) maxX=sl.x+sl.w;
+    if(sl.y+sl.h>maxY) maxY=sl.y+sl.h;
+  }
+  var dx=(SW-(maxX-minX))/2-minX;
+  var dy=(SH-(maxY-minY))/2-minY;
+  return slots.map(function(s){return {x:s.x+dx,y:s.y+dy,w:s.w,h:s.h,rot:s.rot};});
 }
 function nestFmt(v){return (Math.round(v*100)/100).toString();}
 function updateNestNav(){
@@ -727,13 +745,13 @@ function renderNest(){
     return;
   }
   var pages=Math.ceil(n/per);
-  var mMM=NEST.MARGIN*10;
   NEST.draw=function(idx){
     var sv=byId('dgNestSheet'); clearNestSvg(sv);
     nestPageBg(sv, vbW, vbH, graphtec);
     var startI=idx*per, count=Math.min(per,n-startI);
+    var pageSlots=nestCenterSlots(slots.slice(0,count), SW, SH);
     for(var i=0;i<count;i++){
-      var sl=slots[i], x=mMM+sl.x*10, y=mMM+sl.y*10, wMM=sl.w*10, hMM=sl.h*10;
+      var sl=pageSlots[i], x=sl.x*10, y=sl.y*10, wMM=sl.w*10, hMM=sl.h*10;
       if(circle){
         sv.appendChild(nestSvgEl('circle',{cx:x+wMM/2,cy:y+hMM/2,r:wMM/2,fill:'#9ec5fe',stroke:'#1e3a5f','stroke-width':2}));
       }else{
