@@ -13423,9 +13423,7 @@ a.cc-device-btn{text-decoration:none;color:inherit}
 .cc-device-btn[aria-pressed="true"]{border-color:var(--primary);box-shadow:0 8px 22px rgba(79,70,229,.18);background:var(--primary-light)}
 .cc-device-icon{width:64px;height:64px;border-radius:12px;display:grid;place-items:center;flex:0 0 64px;background:linear-gradient(135deg,var(--primary),var(--purple))}
 .cc-device-icon svg{width:44px;height:44px;fill:#fff}
-.cc-device-icon img{width:44px;height:44px;object-fit:contain;filter:brightness(0) invert(1)}
-.cc-device-icon--photo{background:transparent;padding:0;overflow:hidden;box-shadow:none}
-.cc-device-icon--photo img{width:64px;height:64px;object-fit:contain;filter:none;border-radius:12px}
+.cc-device-icon img{width:44px;height:44px;object-fit:contain;object-position:center;filter:brightness(0) invert(1);display:block}
 .cc-device-meta{display:flex;flex-direction:column;gap:2px;min-width:0}
 .cc-device-title{font-weight:900;color:var(--primary);font-size:15px;line-height:1.2;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;text-decoration:none}
 .cc-device-sub{font-size:12px;color:var(--text-muted);line-height:1.2;font-weight:700}
@@ -14502,7 +14500,7 @@ def _cost_calculator_hub_page_html():
       </span>
     </a>
     <a class="cc-device-btn" href="/cost-calculator/digital">
-      <span class="cc-device-icon cc-device-icon--photo" aria-hidden="true"><img src="/cost-calculator/digital-printing-icon.png" alt=""></span>
+      <span class="cc-device-icon" aria-hidden="true"><img src="/cost-calculator/digital-printing-icon.png" alt=""></span>
       <span class="cc-device-meta">
         <span class="cc-device-title">طباعة الديجيتال</span>
         <span class="cc-device-sub">Digital Printing</span>
