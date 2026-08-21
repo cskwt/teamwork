@@ -13472,6 +13472,10 @@ a.cc-device-btn{text-decoration:none;color:inherit}
 .lw-view{background:#fff;border:1px solid #e3e8ef;border-radius:10px;padding:10px}
 .lw-view-title{text-align:center;font-size:13px;font-weight:700;color:#1e3a5f;margin-bottom:8px}
 .lw-view svg{width:100%;height:auto;display:block}
+.dg-nest-preview{display:flex;align-items:center;justify-content:center;padding:10px 8px;min-height:160px;max-height:280px;background:#f8fafc;border:1px dashed #d0d7e2;border-radius:10px}
+#dgNestSheet{width:auto!important;height:auto!important;max-width:min(100%,220px);max-height:240px;margin:0 auto;display:block;filter:drop-shadow(0 2px 6px rgba(30,58,95,.12))}
+#dgNestSection .lw-view{background:transparent;border:none;padding:0}
+#dgNestSection .lw-view-title{margin-bottom:10px}
 .lw-stats{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px;margin-top:14px}
 .lw-stat{background:#fff;border:1px solid #e3e8ef;border-right:4px solid #2d5a87;border-radius:8px;padding:10px 12px}
 .lw-stat .lw-stat-l{font-size:11.5px;color:#667085;font-weight:600}
@@ -14491,7 +14495,9 @@ def _cost_calculator_digital_page_html():
   </div>
   <div class="lw-view">
     <div class="lw-view-title" id="dgNestSheetTitle">اختر قياس الورق من المخزون</div>
-    <svg id="dgNestSheet" viewBox="0 0 1000 700" preserveAspectRatio="xMidYMid meet"></svg>
+    <div class="dg-nest-preview">
+      <svg id="dgNestSheet" viewBox="0 0 1000 700" preserveAspectRatio="xMidYMid meet"></svg>
+    </div>
     <div class="lw-sheet-nav" id="dgNestSheetNav" style="display:none">
       <button type="button" id="dgNestSheetPrev">&rsaquo; السابق</button>
       <span id="dgNestSheetInfo">الصفحة 1 / 1</span>
