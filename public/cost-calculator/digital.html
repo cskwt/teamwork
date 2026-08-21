@@ -620,9 +620,9 @@ var NEST={GAP:0.3,MARGIN:0.4,total:1,sheetIdx:0,draw:null};
 function nestSvgEl(tag,attrs){var e=document.createElementNS(SVG_NS,tag);for(var k in attrs)e.setAttribute(k,attrs[k]);return e;}
 function clearNestSvg(s){while(s.firstChild)s.removeChild(s.firstChild);}
 function drawGraphtecMarks(sv, vbW, vbH){
-  var m=Math.max(6, Math.min(vbW, vbH)*0.035);
-  var arm=Math.max(10, Math.min(vbW, vbH)*0.055);
-  var sw=Math.max(1.6, Math.min(vbW, vbH)*0.008);
+  var m=Math.max(12, Math.min(vbW, vbH)*0.07);
+  var arm=Math.max(20, Math.min(vbW, vbH)*0.11);
+  var sw=Math.max(3.2, Math.min(vbW, vbH)*0.016);
   function mark(x1,y1,x2,y2,x3,y3){
     sv.appendChild(nestSvgEl('path',{
       d:'M '+x1+' '+y1+' L '+x2+' '+y2+' L '+x3+' '+y3,
