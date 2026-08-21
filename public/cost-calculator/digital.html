@@ -100,9 +100,10 @@ a.cc-device-btn{text-decoration:none;color:inherit}
 .lw-view svg{width:100%;height:auto;display:block}
 .dg-nest-preview{position:relative;display:flex;align-items:center;justify-content:center;padding:10px 8px;min-height:160px;max-height:420px;overflow:auto;background:#f8fafc;border:1px dashed #d0d7e2;border-radius:var(--radius)}
 #dgNestSheet{flex:0 0 auto;width:140px!important;min-width:80px;min-height:120px;height:auto!important;max-height:none;margin:0 auto;display:block;overflow:visible;filter:drop-shadow(0 2px 6px rgba(79,70,229,.12));transform-origin:center center}
-.dg-nest-rot-chip{position:absolute;top:8px;inset-inline-start:8px;z-index:2;display:inline-flex;align-items:center;gap:6px;padding:6px 10px;border:2px solid var(--primary);border-radius:999px;background:#fff;color:var(--primary);font-weight:700;font-size:12px;cursor:pointer;font-family:inherit;box-shadow:0 2px 8px rgba(79,70,229,.14)}
+.dg-nest-rot-chip{position:absolute;top:8px;inset-inline-start:8px;z-index:3;display:inline-flex;align-items:center;gap:8px;padding:8px 12px;border:2px solid var(--primary);border-radius:999px;background:#fff;color:var(--primary);font-weight:700;font-size:12px;cursor:pointer;font-family:inherit;box-shadow:0 2px 8px rgba(79,70,229,.14);pointer-events:auto;user-select:none}
 .dg-nest-rot-chip:hover{background:var(--primary-light)}
 .dg-nest-rot-chip.active{background:var(--primary);color:#fff;border-color:var(--primary)}
+.dg-nest-rot-chip .dg-nest-rot-text{display:flex;flex-direction:column;align-items:flex-start;line-height:1.15;text-align:start}
 .dg-nest-rot-chip .dg-nest-rot-sub{font-size:10px;font-weight:600;opacity:.9}
 .dg-nest-zoom{display:flex;align-items:center;justify-content:center;gap:8px;margin:8px 0 0}
 .dg-nest-zoom button{padding:6px 12px;border:2px solid var(--primary);background:var(--surface);color:var(--primary);border-radius:8px;font-weight:700;cursor:pointer;font-family:inherit;font-size:13px}
@@ -239,14 +240,14 @@ body.cc-digital select{appearance:none;border:none;background:transparent;font-w
   <div class="lw-view">
     <div class="lw-view-title" id="dgNestSheetTitle">اختر قياس الورق من المخزون</div>
     <div class="dg-nest-preview">
-      <button type="button" id="dgNestRotBtn" class="dg-nest-rot-chip active cc-no-print" title="تجربة تدوير القطع 90° لزيادة العدد داخل الصفحة">
-        <i class="fa-solid fa-rotate"></i>
-        <span>
-          <span id="dgNestRotLabel">تدوير</span>
-          <span class="dg-nest-rot-sub" id="dgNestRotSub">أصلي / 90°</span>
+      <button type="button" id="dgNestRotBtn" class="dg-nest-rot-chip cc-no-print" title="اضغط لتبديل اتجاه القطع 90°">
+        <i class="fa-solid fa-rotate" aria-hidden="true"></i>
+        <span class="dg-nest-rot-text">
+          <span id="dgNestRotLabel">أصلي</span>
+          <span class="dg-nest-rot-sub" id="dgNestRotSub">اضغط للتدوير 90°</span>
         </span>
       </button>
-      <input type="hidden" id="dgNestAllowRot" value="1">
+      <input type="hidden" id="dgNestAllowRot" value="0">
       <svg id="dgNestSheet" viewBox="0 0 1000 700" preserveAspectRatio="xMidYMid meet"></svg>
     </div>
     <div class="dg-nest-zoom cc-no-print" id="dgNestZoomBar">
@@ -651,7 +652,7 @@ byId('dgClear').addEventListener('click',function(){
   if(byId('dgNestW')) byId('dgNestW').value='';
   if(byId('dgNestD')) byId('dgNestD').value='';
   if(byId('dgNestN')) byId('dgNestN').value='1';
-  setNestRot(true);
+  setNestRot(false);
   setNestShape('rect');
   renderNest();
 });
@@ -742,37 +743,35 @@ function setNestStats(arr){
   arr.forEach(function(p){h+='<div class="lw-stat"><div class="lw-stat-l">'+p[0]+'</div><div class="lw-stat-v">'+p[1]+'</div></div>';});
   el.innerHTML=h;
 }
-function nestFillSheet(SW,SH,pw,ph,allowRot){
+function nestPackOrientation(SW,SH,w,h,markRot){
   var g=NEST.GAP, m=(NEST.MARGIN||0)+(NEST.FRAME_PAD||0), fill=!!NEST.fillInner;
   var innerW=SW-2*m, innerH=SH-2*m;
-  NEST.packMeta={normal:0,rotated:0,usedRot:false,allowRot:!!allowRot};
-  if(innerW<=0||innerH<=0) return [];
-  function pack(w,h){
-    var cols=Math.floor((innerW+g+1e-9)/(w+g));
-    var rows=Math.floor((innerH+g+1e-9)/(h+g));
-    if(cols<1||rows<1) return [];
-    var gapX, gapY, ox, oy, i, j, out=[];
-    if(fill){
-      gapX = cols>1 ? (innerW-cols*w)/(cols-1) : 0;
-      gapY = rows>1 ? (innerH-rows*h)/(rows-1) : 0;
-      ox = m + (cols===1 ? (innerW-w)/2 : 0);
-      oy = m + (rows===1 ? (innerH-h)/2 : 0);
-    }else{
-      gapX=g; gapY=g;
-      ox=m+(innerW-(cols*w+(cols-1)*g))/2;
-      oy=m+(innerH-(rows*h+(rows-1)*g))/2;
-    }
-    for(j=0;j<rows;j++) for(i=0;i<cols;i++){
-      out.push({x:ox+i*(w+gapX),y:oy+j*(h+gapY),w:w,h:h,rot:Math.abs(w-pw)>1e-6});
-    }
-    return out;
+  if(innerW<=0||innerH<=0||w<=0||h<=0) return [];
+  var cols=Math.floor((innerW+g+1e-9)/(w+g));
+  var rows=Math.floor((innerH+g+1e-9)/(h+g));
+  if(cols<1||rows<1) return [];
+  var gapX, gapY, ox, oy, i, j, out=[];
+  if(fill){
+    gapX = cols>1 ? (innerW-cols*w)/(cols-1) : 0;
+    gapY = rows>1 ? (innerH-rows*h)/(rows-1) : 0;
+    ox = m + (cols===1 ? (innerW-w)/2 : 0);
+    oy = m + (rows===1 ? (innerH-h)/2 : 0);
+  }else{
+    gapX=g; gapY=g;
+    ox=m+(innerW-(cols*w+(cols-1)*g))/2;
+    oy=m+(innerH-(rows*h+(rows-1)*g))/2;
   }
-  var a=pack(pw,ph), b=(allowRot && Math.abs(pw-ph)>1e-9) ? pack(ph,pw) : [];
-  NEST.packMeta.normal=a.length;
-  NEST.packMeta.rotated=b.length;
-  var useB=b.length>a.length;
-  NEST.packMeta.usedRot=useB;
-  return useB ? b : a;
+  for(j=0;j<rows;j++) for(i=0;i<cols;i++){
+    out.push({x:ox+i*(w+gapX),y:oy+j*(h+gapY),w:w,h:h,rot:!!markRot});
+  }
+  return out;
+}
+function nestFillSheet(SW,SH,pw,ph,allowRot){
+  /* توافق خلفي: allowRot=true يختار الأفضل تلقائياً */
+  var a=nestPackOrientation(SW,SH,pw,ph,false);
+  var b=(allowRot && Math.abs(pw-ph)>1e-9) ? nestPackOrientation(SW,SH,ph,pw,true) : [];
+  NEST.packMeta={normal:a.length,rotated:b.length,usedRot:b.length>a.length,allowRot:!!allowRot};
+  return (b.length>a.length) ? b : a;
 }
 function nestCenterSlots(slots, SW, SH){
   if(!slots || !slots.length) return slots;
@@ -835,8 +834,17 @@ function renderNest(){
     if(pl<=0||pw<=0){clearNestSvg(svg);nestPageBg(svg,vbW,vbH,graphtec);setNestStats([['—','أدخل أبعاد القطعة']]);return;}
     pieceTxt=pl+' × '+pw+' سم';
   }
-  var allowRot=!circle && ((byId('dgNestAllowRot')||{}).value!=='0');
-  var slots=circle?nestFillSheet(SW,SH,pl,pl,false):nestFillSheet(SW,SH,pl,pw,allowRot);
+  var forceRot=!circle && ((byId('dgNestAllowRot')||{}).value==='1');
+  var slotsOrig, slotsRot, slots, allowRot=forceRot;
+  if(circle){
+    slots=nestPackOrientation(SW,SH,pl,pl,false);
+    NEST.packMeta={normal:slots.length,rotated:slots.length,usedRot:false,allowRot:false};
+  }else{
+    slotsOrig=nestPackOrientation(SW,SH,pl,pw,false);
+    slotsRot=(Math.abs(pl-pw)>1e-9) ? nestPackOrientation(SW,SH,pw,pl,true) : slotsOrig.slice();
+    NEST.packMeta={normal:slotsOrig.length,rotated:slotsRot.length,usedRot:!!forceRot,allowRot:!!forceRot};
+    slots = forceRot ? slotsRot : slotsOrig;
+  }
   var per=slots.length;
   if(per<=0){
     clearNestSvg(svg);
@@ -872,13 +880,13 @@ function renderNest(){
   ];
   if(!circle && Math.abs(pl-pw)>1e-9){
     var pm=NEST.packMeta||{};
-    stats.push(['بدون تدوير',(pm.normal||0)+' قطعة']);
-    stats.push(['مع التدوير',(pm.rotated||0)+' قطعة']);
-    if(allowRot){
-      stats.push(['الاتجاه المستخدم', pm.usedRot ? 'مدوّر 90° (أفضل)' : 'الأصلي']);
-      if((pm.rotated||0)>(pm.normal||0)) stats.push(['الزيادة بالتدوير','+'+(pm.rotated-pm.normal)+' قطعة/صفحة']);
-    }else{
-      stats.push(['تجربة التدوير','متوقفة']);
+    stats.push(['الاتجاه الأصلي',(pm.normal||0)+' قطعة/صفحة']);
+    stats.push(['بعد التدوير 90°',(pm.rotated||0)+' قطعة/صفحة']);
+    stats.push(['الاتجاه الحالي', forceRot ? 'مدوّر 90°' : 'أصلي']);
+    if(forceRot && (pm.rotated||0)>(pm.normal||0)){
+      stats.push(['الزيادة','+'+(pm.rotated-pm.normal)+' قطعة/صفحة']);
+    }else if(forceRot && (pm.rotated||0)<(pm.normal||0)){
+      stats.push(['ملاحظة','التدوير يقلّل العدد هنا']);
     }
   }
   if(graphtec) stats.push(['علامات القص','Graphtec']);
@@ -900,23 +908,33 @@ function setNestRot(on){
   var lab=byId('dgNestRotLabel');
   var sub=byId('dgNestRotSub');
   if(btn) btn.classList.toggle('active', !!on);
-  if(lab) lab.textContent = on ? 'تدوير' : 'بدون تدوير';
-  if(sub) sub.textContent = on ? 'أصلي / 90°' : 'الاتجاه الأصلي فقط';
+  if(lab) lab.textContent = on ? 'مدوّر 90°' : 'أصلي';
+  if(sub){
+    var pm=NEST.packMeta||{};
+    if(on){
+      sub.textContent = ((pm.rotated||0)>(pm.normal||0)) ? ('+'+(pm.rotated-pm.normal)+' قطعة') : 'اضغط للأصلي';
+    }else{
+      sub.textContent = 'اضغط للتدوير 90°';
+    }
+  }
   if(typeof renderNest==='function') renderNest();
 }
 function updateNestRotChip(){
   var btn=byId('dgNestRotBtn');
+  var lab=byId('dgNestRotLabel');
   var sub=byId('dgNestRotSub');
-  if(!btn || !sub) return;
-  var on=((byId('dgNestAllowRot')||{}).value||'1')!=='0';
+  if(!btn) return;
+  var on=((byId('dgNestAllowRot')||{}).value)==='1';
   var pm=NEST.packMeta||{};
-  if(!on){ sub.textContent='الاتجاه الأصلي فقط'; return; }
-  if((pm.rotated||0)>(pm.normal||0) && pm.usedRot){
-    sub.textContent='مدوّر +'+(pm.rotated-pm.normal);
-  }else if(pm.usedRot){
-    sub.textContent='مدوّر 90°';
+  btn.classList.toggle('active', on);
+  if(lab) lab.textContent = on ? 'مدوّر 90°' : 'أصلي';
+  if(!sub) return;
+  if(on){
+    if((pm.rotated||0)>(pm.normal||0)) sub.textContent='+'+ (pm.rotated-pm.normal) +' قطعة';
+    else if((pm.rotated||0)<(pm.normal||0)) sub.textContent=(pm.rotated||0)+' / أصل '+(pm.normal||0);
+    else sub.textContent='نفس العدد';
   }else{
-    sub.textContent='أصلي أفضل';
+    sub.textContent='اضغط للتدوير 90°';
   }
 }
 function setNestShape(v){
@@ -932,11 +950,12 @@ function setNestShape(v){
 }
 if(byId('dgNestShapeRect')) byId('dgNestShapeRect').addEventListener('click',function(){setNestShape('rect');});
 if(byId('dgNestShapeCircle')) byId('dgNestShapeCircle').addEventListener('click',function(){setNestShape('circle');});
-if(byId('dgNestRotBtn')) byId('dgNestRotBtn').addEventListener('click',function(){
-  var on=((byId('dgNestAllowRot')||{}).value||'1')!=='0';
+if(byId('dgNestRotBtn')) byId('dgNestRotBtn').addEventListener('click',function(ev){
+  if(ev){ ev.preventDefault(); ev.stopPropagation(); }
+  var on=((byId('dgNestAllowRot')||{}).value)==='1';
   setNestRot(!on);
 });
-setNestRot(true);
+setNestRot(false);
 ['dgNestL','dgNestW','dgNestD','dgNestN'].forEach(function(id){
   var el=byId(id); if(!el) return;
   el.addEventListener('input',function(){renderNest();recalc();});
