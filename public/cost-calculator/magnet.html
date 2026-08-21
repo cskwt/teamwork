@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl"><head><link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" crossorigin="anonymous"><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>لوحات المغناطيس - حاسبة التكاليف</title><style>
+@import url('https://fonts.googleapis.com/css2?family=Cairo:wght@300;400;500;600;700;800&display=swap');
+body{margin:0;padding:16px;background:#eef1f6;font-family:'Cairo',Tahoma,Arial,sans-serif}
+button,input,select,textarea{font-family:inherit}
+.cost-calc-wrap{max-width:980px;margin:0 auto;background:#fff;border-radius:14px;padding:20px 22px;box-shadow:0 2px 14px rgba(0,0,0,.08)}
+.cc-logo-bar{text-align:center;margin:0 0 18px;padding-bottom:16px;border-bottom:1px solid #e3e8ef}
+.cc-logo-bar img{max-height:80px;width:auto;max-width:min(100%,420px);display:block;margin:0 auto;object-fit:contain}
+.cc-device-picker{margin:0 0 18px}
+.cc-device-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+a.cc-device-btn{text-decoration:none;color:inherit}
+.cc-device-btn{border:2px solid #d7e2ef;background:#fff;border-radius:14px;padding:12px 14px;display:flex;align-items:center;gap:12px;cursor:pointer;transition:transform .08s ease,border-color .12s ease,box-shadow .12s ease;background-clip:padding-box}
+.cc-device-btn:hover{transform:translateY(-1px);border-color:#2d5a87;box-shadow:0 6px 18px rgba(30,58,95,.14)}
+.cc-device-btn[aria-pressed="true"]{border-color:#1e3a5f;box-shadow:0 8px 22px rgba(30,58,95,.18);background:#f4f7fb}
+.cc-device-icon{width:64px;height:64px;border-radius:12px;display:grid;place-items:center;flex:0 0 64px;background:linear-gradient(135deg,#1e3a5f,#2d5a87)}
+.cc-device-icon svg{width:44px;height:44px;fill:#fff}
+.cc-device-icon img{width:44px;height:44px;object-fit:contain;filter:brightness(0) invert(1)}
+.cc-device-meta{display:flex;flex-direction:column;gap:2px;min-width:0}
+.cc-device-title{font-weight:900;color:#1e3a5f;font-size:15px;line-height:1.2;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;text-decoration:none}
+.cc-device-sub{font-size:12px;color:#667085;line-height:1.2}
+.cc-device-hint{font-size:12px;color:#667085;margin-top:10px}
+.cost-calc-head{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:12px;margin-bottom:16px}
+.cost-calc-head h1{margin:0;color:#1e3a5f;font-size:1.25em;display:flex;align-items:center;gap:10px}
+.cost-calc-head h1 i{color:#2d5a87}
+.cc-title-bar{text-align:center;background:linear-gradient(135deg,#1e3a5f,#2d5a87);color:#fff;padding:14px 16px;border-radius:10px;font-size:1.35em;font-weight:800;margin-bottom:18px}
+.cc-meta{display:grid;grid-template-columns:1fr 1fr;gap:12px 20px;margin-bottom:20px;padding:14px;background:#f8fafc;border:1px solid #e3e8ef;border-radius:10px}
+.cc-meta label{display:block;font-size:13px;font-weight:700;color:#444;margin-bottom:5px}
+.cc-meta input{width:100%;padding:10px 12px;border:2px solid #ddd;border-radius:8px;font-size:15px;font-family:inherit;box-sizing:border-box}
+.cc-meta input:focus{outline:none;border-color:#2d5a87;box-shadow:0 0 0 3px rgba(45,90,135,.16)}
+.cc-section-title{background:#e8eef5;color:#1e3a5f;font-size:1.05em;font-weight:800;padding:10px 14px;border-radius:8px;margin:18px 0 10px;border-right:4px solid #2d5a87}
+.cc-section-title.cc-section-indirect{background:#e8eef5;color:#1e3a5f;border-right-color:#2d5a87}
+.cc-section-title.cc-section-profit{background:#e8f5e9;color:#157347;border-right-color:#28a745}
+.cc-table-wrap{overflow-x:auto;-webkit-overflow-scrolling:touch;margin-bottom:8px}
+.cc-table-wrap.cc-table-wrap-direct,.cc-table-wrap.cc-table-wrap-indirect{border-radius:10px;border:1px solid #c5d4e8;overflow:hidden}
+.cc-table{width:100%;border-collapse:collapse;font-size:14px;min-width:640px}
+.cc-table th{background:#2d5a87;color:#fff;padding:9px 8px;text-align:center;font-weight:700;white-space:nowrap}
+.cc-table td{padding:7px 6px;border-bottom:1px solid #edf0f3;vertical-align:middle}
+.cc-table.cc-table-direct tbody tr:not(.cc-total):nth-child(odd),.cc-table.cc-table-indirect tbody tr:not(.cc-total):nth-child(odd){background:#f8fafc}
+.cc-table.cc-table-direct tbody tr:not(.cc-total):nth-child(even),.cc-table.cc-table-indirect tbody tr:not(.cc-total):nth-child(even){background:#fff}
+.cc-table tr.cc-total td{background:#f0f4f8;font-weight:800;color:#1e3a5f}
+.cc-table tr.cc-grand td{background:#dce6f2;font-weight:800;font-size:15px;color:#1e3a5f}
+.cc-table input[type="number"],.cc-table input[type="text"]{width:100%;padding:8px 6px;border:1px solid #ccc;border-radius:6px;font-size:14px;font-family:inherit;box-sizing:border-box;text-align:center}
+.cc-table input.cc-ro{background:#f5f7fa;font-weight:700;color:#1e3a5f;border-color:#d0d7de}
+.cc-table .cc-label{text-align:right;font-weight:700;color:#333;padding-right:10px;white-space:nowrap}
+.cc-table .cc-hint{font-size:11px;color:#888;font-weight:400}
+.cc-profit-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:12px;margin-top:14px}
+.cc-profit-card{background:#f8fafc;border:2px solid #e3e8ef;border-radius:10px;padding:12px;text-align:center}
+.cc-profit-card.highlight{border-color:#2d5a87;background:#eef4fb}
+.cc-profit-card.pos{border-color:#28a745;background:#e8f5e9}
+.cc-profit-card.neg{border-color:#dc3545;background:#fdecea}
+.cc-profit-label{font-size:12px;color:#666;margin-bottom:6px;font-weight:600}
+.cc-profit-value{font-size:1.2em;font-weight:800;color:#1e3a5f;direction:ltr}
+.cc-profit-card.pos .cc-profit-value{color:#157347}
+.cc-profit-card.neg .cc-profit-value{color:#c0392b}
+.cc-actions{display:flex;flex-wrap:wrap;gap:8px;margin:0}
+.cc-btn{display:inline-flex;align-items:center;gap:6px;padding:9px 16px;border:none;border-radius:8px;font-size:14px;font-weight:700;cursor:pointer;font-family:inherit;text-decoration:none;color:#fff}
+.cc-btn-clear{background:#6c757d}.cc-btn-clear:hover{background:#5a6268}
+.cc-btn-print{background:#17a2b8}.cc-btn-print:hover{background:#138496}
+.cc-btn-dl{background:#2d5a87}.cc-btn-dl:hover{background:#1e3a5f}
+.cc-btn-pdf{background:#c0392b}.cc-btn-pdf:hover{background:#a93226}
+.cc-bottom-actions{margin-top:22px;padding-top:18px;border-top:2px solid #e3e8ef;display:flex;flex-wrap:wrap;justify-content:center;gap:12px}
+.cc-bottom-actions .cc-btn{min-width:220px;justify-content:center;padding:12px 22px;border-radius:14px;font-size:16px}
+@media(max-width:720px){.cc-meta,.cc-profit-grid{grid-template-columns:1fr}}
+.lw-section{margin:0 0 18px;padding:16px;background:#f8fafc;border:1px solid #e3e8ef;border-radius:12px}
+.lw-cards{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:14px}
+.lw-card{border:2px solid #dce8f5;background:#fff;border-radius:12px;padding:14px;cursor:pointer;display:flex;align-items:center;gap:12px;transition:transform .1s,border-color .12s,box-shadow .12s}
+.lw-card:hover{border-color:#2d5a87;transform:translateY(-1px)}
+.lw-card.active{border-color:#2d5a87;background:#eef4fb;box-shadow:0 4px 14px rgba(45,90,135,.15)}
+.lw-card i{font-size:26px;color:#2d5a87;flex:0 0 auto}
+.lw-card .lw-card-t{font-weight:800;color:#1e3a5f;font-size:15px}
+.lw-card .lw-card-s{font-size:12px;color:#667085}
+.lw-inputs{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:12px;margin-bottom:14px;align-items:end}
+.lw-inputs label{display:block;font-size:12.5px;font-weight:700;color:#444;margin-bottom:5px}
+.lw-inputs input[type="number"]{width:100%;padding:9px 10px;border:2px solid #ddd;border-radius:8px;font-size:14px;font-family:inherit;box-sizing:border-box;text-align:center}
+.lw-lid-btns{display:flex;gap:6px}
+.lw-lid-btns button{flex:1;padding:9px 8px;border:2px solid #dce8f5;border-radius:8px;background:#eef4fb;color:#1e3a5f;font-weight:700;font-size:13px;cursor:pointer;font-family:inherit}
+.lw-lid-btns button.active{background:#1e3a5f;color:#fff;border-color:#1e3a5f}
+.lw-stage{display:grid;gap:14px}
+.lw-stage.two{grid-template-columns:1fr 1fr}
+.lw-view{background:#fff;border:1px solid #e3e8ef;border-radius:10px;padding:10px}
+.lw-view-title{text-align:center;font-size:13px;font-weight:700;color:#1e3a5f;margin-bottom:8px}
+.lw-view svg{width:100%;height:auto;display:block}
+.lw-stats{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px;margin-top:14px}
+.lw-stat{background:#fff;border:1px solid #e3e8ef;border-right:4px solid #2d5a87;border-radius:8px;padding:10px 12px}
+.lw-stat .lw-stat-l{font-size:11.5px;color:#667085;font-weight:600}
+.lw-stat .lw-stat-v{font-size:1.05em;font-weight:800;color:#1e3a5f;direction:rtl}
+.lw-sheet-nav{display:flex;align-items:center;justify-content:center;gap:12px;margin-top:10px}
+.lw-sheet-nav button{padding:6px 16px;border:2px solid #2d5a87;background:#fff;color:#1e3a5f;border-radius:8px;font-weight:700;cursor:pointer;font-family:inherit}
+.lw-sheet-nav button:hover:not(:disabled){background:#eef4fb}
+.lw-sheet-nav button:disabled{opacity:.4;cursor:default}
+.lw-sheet-nav span{font-weight:800;color:#1e3a5f;min-width:96px;text-align:center}
+@media(max-width:720px){.lw-stage.two{grid-template-columns:1fr}.lw-cards{grid-template-columns:1fr}}
+.cc-print-only{display:none!important}
+.dg-choice-print{display:none!important}
+@media print{
+.cc-no-print{display:none!important}
+body.cc-digital{padding:10px;background:#fff}
+body.cc-digital .cost-calc-wrap{box-shadow:none;border-radius:0;padding:12px}
+body.cc-digital .cc-profit-grid{grid-template-columns:repeat(2,1fr);gap:10px}
+body.cc-digital .cc-profit-card,body.cc-digital .cc-profit-card.pos,body.cc-digital .cc-profit-card.neg,body.cc-digital .cc-profit-card.highlight{-webkit-print-color-adjust:exact;print-color-adjust:exact;break-inside:avoid}
+body.cc-digital .cc-hint{display:none!important}
+body.cc-digital .dg-choice-wrap{display:none!important}
+body.cc-digital .dg-choice-print{display:block!important;width:100%;padding:8px 10px;border:1px solid #ccc;border-radius:6px;background:#f5f7fa;font-weight:700;text-align:center;box-sizing:border-box}
+body.cc-digital .cc-table input[type="number"]{border:none;background:transparent;font-weight:700}
+body.cc-digital select{appearance:none;border:none;background:transparent;font-weight:700}
+}
+</style></head><body class="cc-standalone tm-theme"><div class="cost-calc-wrap">
+<div class="cc-logo-bar cc-no-print"><img src="/logo.png" alt="Creative Solutions"></div>
+<div class="cost-calc-head cc-no-print">
+<h1><i class="fa-solid fa-sign-hanging"></i> حاسبة لوحات المغناطيس</h1>
+<div class="cc-actions">
+<a href="/cost-calculator" class="cc-btn cc-btn-clear"><i class="fa-solid fa-arrow-right"></i> رجوع</a>
+<button type="button" class="cc-btn cc-btn-clear" id="mgClear"><i class="fa-solid fa-eraser"></i> مسح</button>
+</div></div>
+<div class="cc-title-bar">حساب سعر بيع لوحة المغناطيس حسب القياس</div>
+
+<div class="cc-section-title cc-section-direct">قياس اللوحة المطلوبة</div>
+<div class="cc-meta">
+  <div><label>الطول (سم)</label><input type="number" id="mgLen" min="0" step="0.1" placeholder="مثال: 70"></div>
+  <div><label>العرض (سم)</label><input type="number" id="mgWidth" min="0" step="0.1" placeholder="مثال: 50"></div>
+</div>
+
+<div class="cc-section-title cc-section-profit">النتيجة</div>
+<div class="cc-profit-grid">
+  <div class="cc-profit-card"><div class="cc-profit-label">المساحة</div><div class="cc-profit-value" id="mgArea"></div><div class="cc-hint" style="margin-top:4px">الطول × العرض (سم²)</div></div>
+  <div class="cc-profit-card"><div class="cc-profit-label">السعر المحسوب</div><div class="cc-profit-value" id="mgRaw"></div><div class="cc-hint" style="margin-top:4px">المساحة × سعر السنتيمتر</div></div>
+  <div class="cc-profit-card highlight"><div class="cc-profit-label">سعر البيع المقترح</div><div class="cc-profit-value" id="mgSell"></div><div class="cc-hint" style="margin-top:4px">مقرّب لأقرب 0.250 د.ك</div></div>
+</div>
+
+<script>
+(function(){
+// سعر السنتيمتر المربع مشتق من المرجع: 11 د.ك ÷ (70×50) = 0.0031428571 د.ك/سم²
+var RATE = 11/(70*50);
+function num(v){var n=parseFloat(v);return isNaN(n)?0:n;}
+function fmt3(v){return (Math.round(num(v)*1000)/1000).toFixed(3);}
+function byId(id){return document.getElementById(id);}
+function recalc(){
+  var l=num(byId('mgLen').value), w=num(byId('mgWidth').value);
+  var area=l*w;
+  if(area<=0){
+    byId('mgArea').textContent=''; byId('mgRaw').textContent=''; byId('mgSell').textContent='';
+    return;
+  }
+  var raw=area*RATE;
+  var sell=Math.ceil(raw/0.25)*0.25;
+  byId('mgArea').textContent=(Math.round(area*100)/100)+' سم²';
+  byId('mgRaw').textContent=fmt3(raw)+' د.ك';
+  byId('mgSell').textContent=fmt3(sell)+' د.ك';
+}
+['mgLen','mgWidth'].forEach(function(id){
+  var el=byId(id);
+  if(el){el.addEventListener('input',recalc);el.addEventListener('change',recalc);}
+});
+byId('mgClear').addEventListener('click',function(){
+  byId('mgLen').value=''; byId('mgWidth').value='';
+  recalc();
+});
+recalc();
+})();
+</script>
+</div></body></html>

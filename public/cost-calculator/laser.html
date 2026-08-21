@@ -1,0 +1,931 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl"><head><link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" crossorigin="anonymous"><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>منتجات الليزر - حاسبة التكاليف</title><style>
+@import url('https://fonts.googleapis.com/css2?family=Cairo:wght@300;400;500;600;700;800&display=swap');
+body{margin:0;padding:16px;background:#eef1f6;font-family:'Cairo',Tahoma,Arial,sans-serif}
+button,input,select,textarea{font-family:inherit}
+.cost-calc-wrap{max-width:980px;margin:0 auto;background:#fff;border-radius:14px;padding:20px 22px;box-shadow:0 2px 14px rgba(0,0,0,.08)}
+.cc-logo-bar{text-align:center;margin:0 0 18px;padding-bottom:16px;border-bottom:1px solid #e3e8ef}
+.cc-logo-bar img{max-height:80px;width:auto;max-width:min(100%,420px);display:block;margin:0 auto;object-fit:contain}
+.cc-device-picker{margin:0 0 18px}
+.cc-device-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+a.cc-device-btn{text-decoration:none;color:inherit}
+.cc-device-btn{border:2px solid #d7e2ef;background:#fff;border-radius:14px;padding:12px 14px;display:flex;align-items:center;gap:12px;cursor:pointer;transition:transform .08s ease,border-color .12s ease,box-shadow .12s ease;background-clip:padding-box}
+.cc-device-btn:hover{transform:translateY(-1px);border-color:#2d5a87;box-shadow:0 6px 18px rgba(30,58,95,.14)}
+.cc-device-btn[aria-pressed="true"]{border-color:#1e3a5f;box-shadow:0 8px 22px rgba(30,58,95,.18);background:#f4f7fb}
+.cc-device-icon{width:64px;height:64px;border-radius:12px;display:grid;place-items:center;flex:0 0 64px;background:linear-gradient(135deg,#1e3a5f,#2d5a87)}
+.cc-device-icon svg{width:44px;height:44px;fill:#fff}
+.cc-device-icon img{width:44px;height:44px;object-fit:contain;filter:brightness(0) invert(1)}
+.cc-device-meta{display:flex;flex-direction:column;gap:2px;min-width:0}
+.cc-device-title{font-weight:900;color:#1e3a5f;font-size:15px;line-height:1.2;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;text-decoration:none}
+.cc-device-sub{font-size:12px;color:#667085;line-height:1.2}
+.cc-device-hint{font-size:12px;color:#667085;margin-top:10px}
+.cost-calc-head{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:12px;margin-bottom:16px}
+.cost-calc-head h1{margin:0;color:#1e3a5f;font-size:1.25em;display:flex;align-items:center;gap:10px}
+.cost-calc-head h1 i{color:#2d5a87}
+.cc-title-bar{text-align:center;background:linear-gradient(135deg,#1e3a5f,#2d5a87);color:#fff;padding:14px 16px;border-radius:10px;font-size:1.35em;font-weight:800;margin-bottom:18px}
+.cc-meta{display:grid;grid-template-columns:1fr 1fr;gap:12px 20px;margin-bottom:20px;padding:14px;background:#f8fafc;border:1px solid #e3e8ef;border-radius:10px}
+.cc-meta label{display:block;font-size:13px;font-weight:700;color:#444;margin-bottom:5px}
+.cc-meta input{width:100%;padding:10px 12px;border:2px solid #ddd;border-radius:8px;font-size:15px;font-family:inherit;box-sizing:border-box}
+.cc-meta input:focus{outline:none;border-color:#2d5a87;box-shadow:0 0 0 3px rgba(45,90,135,.16)}
+.cc-section-title{background:#e8eef5;color:#1e3a5f;font-size:1.05em;font-weight:800;padding:10px 14px;border-radius:8px;margin:18px 0 10px;border-right:4px solid #2d5a87}
+.cc-section-title.cc-section-indirect{background:#e8eef5;color:#1e3a5f;border-right-color:#2d5a87}
+.cc-section-title.cc-section-profit{background:#e8f5e9;color:#157347;border-right-color:#28a745}
+.cc-table-wrap{overflow-x:auto;-webkit-overflow-scrolling:touch;margin-bottom:8px}
+.cc-table-wrap.cc-table-wrap-direct,.cc-table-wrap.cc-table-wrap-indirect{border-radius:10px;border:1px solid #c5d4e8;overflow:hidden}
+.cc-table{width:100%;border-collapse:collapse;font-size:14px;min-width:640px}
+.cc-table th{background:#2d5a87;color:#fff;padding:9px 8px;text-align:center;font-weight:700;white-space:nowrap}
+.cc-table td{padding:7px 6px;border-bottom:1px solid #edf0f3;vertical-align:middle}
+.cc-table.cc-table-direct tbody tr:not(.cc-total):nth-child(odd),.cc-table.cc-table-indirect tbody tr:not(.cc-total):nth-child(odd){background:#f8fafc}
+.cc-table.cc-table-direct tbody tr:not(.cc-total):nth-child(even),.cc-table.cc-table-indirect tbody tr:not(.cc-total):nth-child(even){background:#fff}
+.cc-table tr.cc-total td{background:#f0f4f8;font-weight:800;color:#1e3a5f}
+.cc-table tr.cc-grand td{background:#dce6f2;font-weight:800;font-size:15px;color:#1e3a5f}
+.cc-table input[type="number"],.cc-table input[type="text"]{width:100%;padding:8px 6px;border:1px solid #ccc;border-radius:6px;font-size:14px;font-family:inherit;box-sizing:border-box;text-align:center}
+.cc-table input.cc-ro{background:#f5f7fa;font-weight:700;color:#1e3a5f;border-color:#d0d7de}
+.cc-table .cc-label{text-align:right;font-weight:700;color:#333;padding-right:10px;white-space:nowrap}
+.cc-table .cc-hint{font-size:11px;color:#888;font-weight:400}
+.cc-profit-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:12px;margin-top:14px}
+.cc-profit-card{background:#f8fafc;border:2px solid #e3e8ef;border-radius:10px;padding:12px;text-align:center}
+.cc-profit-card.highlight{border-color:#2d5a87;background:#eef4fb}
+.cc-profit-card.pos{border-color:#28a745;background:#e8f5e9}
+.cc-profit-card.neg{border-color:#dc3545;background:#fdecea}
+.cc-profit-label{font-size:12px;color:#666;margin-bottom:6px;font-weight:600}
+.cc-profit-value{font-size:1.2em;font-weight:800;color:#1e3a5f;direction:ltr}
+.cc-profit-card.pos .cc-profit-value{color:#157347}
+.cc-profit-card.neg .cc-profit-value{color:#c0392b}
+.cc-actions{display:flex;flex-wrap:wrap;gap:8px;margin:0}
+.cc-btn{display:inline-flex;align-items:center;gap:6px;padding:9px 16px;border:none;border-radius:8px;font-size:14px;font-weight:700;cursor:pointer;font-family:inherit;text-decoration:none;color:#fff}
+.cc-btn-clear{background:#6c757d}.cc-btn-clear:hover{background:#5a6268}
+.cc-btn-print{background:#17a2b8}.cc-btn-print:hover{background:#138496}
+.cc-btn-dl{background:#2d5a87}.cc-btn-dl:hover{background:#1e3a5f}
+.cc-btn-pdf{background:#c0392b}.cc-btn-pdf:hover{background:#a93226}
+.cc-bottom-actions{margin-top:22px;padding-top:18px;border-top:2px solid #e3e8ef;display:flex;flex-wrap:wrap;justify-content:center;gap:12px}
+.cc-bottom-actions .cc-btn{min-width:220px;justify-content:center;padding:12px 22px;border-radius:14px;font-size:16px}
+@media(max-width:720px){.cc-meta,.cc-profit-grid{grid-template-columns:1fr}}
+.lw-section{margin:0 0 18px;padding:16px;background:#f8fafc;border:1px solid #e3e8ef;border-radius:12px}
+.lw-cards{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:14px}
+.lw-card{border:2px solid #dce8f5;background:#fff;border-radius:12px;padding:14px;cursor:pointer;display:flex;align-items:center;gap:12px;transition:transform .1s,border-color .12s,box-shadow .12s}
+.lw-card:hover{border-color:#2d5a87;transform:translateY(-1px)}
+.lw-card.active{border-color:#2d5a87;background:#eef4fb;box-shadow:0 4px 14px rgba(45,90,135,.15)}
+.lw-card i{font-size:26px;color:#2d5a87;flex:0 0 auto}
+.lw-card .lw-card-t{font-weight:800;color:#1e3a5f;font-size:15px}
+.lw-card .lw-card-s{font-size:12px;color:#667085}
+.lw-inputs{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:12px;margin-bottom:14px;align-items:end}
+.lw-inputs label{display:block;font-size:12.5px;font-weight:700;color:#444;margin-bottom:5px}
+.lw-inputs input[type="number"]{width:100%;padding:9px 10px;border:2px solid #ddd;border-radius:8px;font-size:14px;font-family:inherit;box-sizing:border-box;text-align:center}
+.lw-lid-btns{display:flex;gap:6px}
+.lw-lid-btns button{flex:1;padding:9px 8px;border:2px solid #dce8f5;border-radius:8px;background:#eef4fb;color:#1e3a5f;font-weight:700;font-size:13px;cursor:pointer;font-family:inherit}
+.lw-lid-btns button.active{background:#1e3a5f;color:#fff;border-color:#1e3a5f}
+.lw-stage{display:grid;gap:14px}
+.lw-stage.two{grid-template-columns:1fr 1fr}
+.lw-view{background:#fff;border:1px solid #e3e8ef;border-radius:10px;padding:10px}
+.lw-view-title{text-align:center;font-size:13px;font-weight:700;color:#1e3a5f;margin-bottom:8px}
+.lw-view svg{width:100%;height:auto;display:block}
+.lw-stats{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px;margin-top:14px}
+.lw-stat{background:#fff;border:1px solid #e3e8ef;border-right:4px solid #2d5a87;border-radius:8px;padding:10px 12px}
+.lw-stat .lw-stat-l{font-size:11.5px;color:#667085;font-weight:600}
+.lw-stat .lw-stat-v{font-size:1.05em;font-weight:800;color:#1e3a5f;direction:rtl}
+.lw-sheet-nav{display:flex;align-items:center;justify-content:center;gap:12px;margin-top:10px}
+.lw-sheet-nav button{padding:6px 16px;border:2px solid #2d5a87;background:#fff;color:#1e3a5f;border-radius:8px;font-weight:700;cursor:pointer;font-family:inherit}
+.lw-sheet-nav button:hover:not(:disabled){background:#eef4fb}
+.lw-sheet-nav button:disabled{opacity:.4;cursor:default}
+.lw-sheet-nav span{font-weight:800;color:#1e3a5f;min-width:96px;text-align:center}
+@media(max-width:720px){.lw-stage.two{grid-template-columns:1fr}.lw-cards{grid-template-columns:1fr}}
+.cc-print-only{display:none!important}
+.dg-choice-print{display:none!important}
+@media print{
+.cc-no-print{display:none!important}
+body.cc-digital{padding:10px;background:#fff}
+body.cc-digital .cost-calc-wrap{box-shadow:none;border-radius:0;padding:12px}
+body.cc-digital .cc-profit-grid{grid-template-columns:repeat(2,1fr);gap:10px}
+body.cc-digital .cc-profit-card,body.cc-digital .cc-profit-card.pos,body.cc-digital .cc-profit-card.neg,body.cc-digital .cc-profit-card.highlight{-webkit-print-color-adjust:exact;print-color-adjust:exact;break-inside:avoid}
+body.cc-digital .cc-hint{display:none!important}
+body.cc-digital .dg-choice-wrap{display:none!important}
+body.cc-digital .dg-choice-print{display:block!important;width:100%;padding:8px 10px;border:1px solid #ccc;border-radius:6px;background:#f5f7fa;font-weight:700;text-align:center;box-sizing:border-box}
+body.cc-digital .cc-table input[type="number"]{border:none;background:transparent;font-weight:700}
+body.cc-digital select{appearance:none;border:none;background:transparent;font-weight:700}
+}
+</style></head><body class="cc-standalone"><div class="cost-calc-wrap">
+<div class="cc-logo-bar cc-no-print">
+<img src="/logo.png" alt="Creative Solutions">
+</div>
+<div class="cost-calc-head cc-no-print">
+<h1><i class="fa-solid fa-bolt"></i> حاسبة تكاليف ورشة الليزر</h1>
+<div class="cc-actions">
+<a href="https://teamwork.csapp.io" class="cc-btn cc-btn-clear"><i class="fa-solid fa-arrow-right"></i> رجوع</a>
+<button type="button" class="cc-btn cc-btn-clear" id="ccClearAll"><i class="fa-solid fa-eraser"></i> مسح</button>
+</div></div>
+<div class="cc-title-bar">نموذج تسعير منتجات ورشة الليزر</div>
+<div class="cc-meta">
+<div><label>اسم العميل</label><input type="text" id="ccCustomer" placeholder="اسم العميل"></div>
+<div><label>وصف المنتج</label><input type="text" id="ccDescription" placeholder="وصف المنتج"></div>
+<div><label>الكمية</label><input type="number" id="ccQty" min="0" step="1" value="1"></div>
+<div><label>تاريخ عرض السعر</label><input type="date" id="ccDate"></div>
+</div>
+<div class="cc-section-title">نوع العمل وحساب استهلاك اللوح</div>
+<div class="lw-section cc-no-print">
+<div class="lw-cards">
+<div class="lw-card active" data-lw="flat"><i class="fa-solid fa-vector-square"></i><div><div class="lw-card-t">قطع مسطحة</div><div class="lw-card-s">كم قطعة من اللوح</div></div></div>
+<div class="lw-card" data-lw="box"><i class="fa-solid fa-cube"></i><div><div class="lw-card-t">علب ثلاثية الأبعاد</div><div class="lw-card-s">تصميم علبة وفرد جوانبها</div></div></div>
+</div>
+<div id="lwFlatShapeWrap" style="margin-bottom:12px">
+<label style="display:block;font-size:12.5px;font-weight:700;color:#444;margin-bottom:6px">شكل القطعة</label>
+<div class="lw-lid-btns" style="max-width:380px">
+<button type="button" id="lwShapeRect" class="active"><i class="fa-solid fa-vector-square"></i> مستطيل / مربع</button>
+<button type="button" id="lwShapeCircle"><i class="fa-solid fa-circle"></i> دائري</button>
+</div>
+<input type="hidden" id="lwFlatShape" value="rect">
+</div>
+<div class="lw-inputs" id="lwFlatInputs">
+<div id="lwRectL"><label>الطول (سم)</label><input type="number" id="lwFlatL" min="0" step="0.1" placeholder="مثال: 20"></div>
+<div id="lwRectW"><label>العرض (سم)</label><input type="number" id="lwFlatW" min="0" step="0.1" placeholder="مثال: 15"></div>
+<div id="lwCircD" style="display:none"><label>القطر (سم)</label><input type="number" id="lwFlatD" min="0" step="0.1" placeholder="مثال: 10"></div>
+<div id="lwCircMode" style="display:none"><label>توزيع الدوائر</label><div class="lw-lid-btns"><button type="button" id="lwCircFree" class="active"><i class="fa-solid fa-arrows-up-down-left-right"></i> توزيع حر</button><button type="button" id="lwCircDense"><i class="fa-solid fa-grip"></i> ملاصقة (أقصى عدد)</button></div><input type="hidden" id="lwFlatCircMode" value="free"></div>
+<div><label>عدد القطع</label><input type="number" id="lwFlatN" min="1" step="1" value="1"></div>
+</div>
+<div class="lw-inputs" id="lwBoxInputs" style="display:none">
+<div><label>الطول (سم)</label><input type="number" id="lwBoxL" min="0" step="0.1" placeholder="الطول"></div>
+<div><label>العرض (سم)</label><input type="number" id="lwBoxW" min="0" step="0.1" placeholder="العرض"></div>
+<div><label>الارتفاع (سم)</label><input type="number" id="lwBoxH" min="0" step="0.1" placeholder="الارتفاع"></div>
+<div><label>سماكة الخامة (ملم)</label><input type="number" id="lwBoxT" min="0" step="0.5" value="3"></div>
+<div><label>أصابع التعشيق</label><div class="lw-lid-btns"><button type="button" id="lwFingerAuto" class="active">تلقائي</button><button type="button" id="lwFingerSize">حجم السن</button><button type="button" id="lwFingerCount">عدد الأسنان</button></div><input type="hidden" id="lwFingerMode" value="auto"></div>
+<div id="lwFingerSizeWrap" style="display:none"><label>حجم السن (ملم)</label><input type="number" id="lwFingerSizeVal" min="3" step="0.5" value="15"></div>
+<div id="lwFingerCountWrap" style="display:none"><label>عدد الأسنان (فردي يبدأ من ٣)</label><input type="number" id="lwFingerCountVal" min="3" step="2" value="5"></div>
+<div><label>عدد العلب المطلوبة</label><input type="number" id="lwBoxN" min="1" step="1" value="1"></div>
+<div><label>الغطاء</label><div class="lw-lid-btns"><button type="button" id="lwLidOn">بغطاء</button><button type="button" id="lwLidOff" class="active">بدون غطاء</button></div><input type="hidden" id="lwLid" value="0"></div>
+<div id="lwLidTypeWrap" style="display:none"><label>نوع الغطاء</label><div class="lw-lid-btns"><button type="button" id="lwLidFlat" class="active">مسطح</button><button type="button" id="lwLidRaised">مرتفع</button></div><input type="hidden" id="lwLidType" value="flat"></div>
+<div id="lwLidHWrap" style="display:none"><label>ارتفاع الغطاء (سم)</label><input type="number" id="lwLidH" min="0" step="0.1" placeholder="مثال: 3" value="3"></div>
+</div>
+<div class="lw-stage" id="lwStage">
+<div class="lw-view" id="lwView3d" style="display:none">
+<div class="lw-view-title">شكل العلبة (أبعاد حقيقية)</div>
+<svg id="lwBox3d" viewBox="0 0 400 320" preserveAspectRatio="xMidYMid meet"></svg>
+</div>
+<div class="lw-view">
+<div class="lw-view-title" id="lwSheetTitle">اللوح 120 × 80 سم</div>
+<svg id="lwSheet" viewBox="0 0 1200 800" preserveAspectRatio="xMidYMid meet"></svg>
+<div class="lw-sheet-nav" id="lwSheetNav" style="display:none">
+<button type="button" id="lwSheetPrev">&rsaquo; السابق</button>
+<span id="lwSheetInfo">اللوح 1 / 1</span>
+<button type="button" id="lwSheetNext">التالي &lsaquo;</button>
+</div>
+</div>
+</div>
+<div class="lw-stats" id="lwStats"></div>
+<div id="lwBoxActions" style="display:none;margin-top:14px;text-align:center">
+<button type="button" class="cc-btn cc-btn-dl" id="lwExportSvg"><i class="fa-solid fa-download"></i> تصدير ملف القص (SVG)</button>
+<div style="margin-top:6px;font-size:11.5px;color:#888">ملف بمقياس 1:1 (ملم) بأصابع تعشيق جاهز لماكينة الليزر — لعلبة واحدة</div>
+</div>
+</div>
+<script>
+(function(){
+var SHEET_W=120,SHEET_H=80,GAP=0.5,MARGIN=1,CIRCLE_EDGE=1,SVG_NS='http://www.w3.org/2000/svg';
+var mode='flat',LW={total:1,sheetIdx:0,draw:null};
+function num(v){var n=parseFloat(v);return isNaN(n)?0:n;}
+function $(id){return document.getElementById(id);}
+function fmt(v){return (Math.round(v*100)/100).toString();}
+function svgEl(tag,attrs){var e=document.createElementNS(SVG_NS,tag);for(var k in attrs)e.setAttribute(k,attrs[k]);return e;}
+function clearSvg(s){while(s.firstChild)s.removeChild(s.firstChild);}
+function sheetBg(s){clearSvg(s);s.appendChild(svgEl('rect',{x:0,y:0,width:1200,height:800,fill:'#f0f4fa',stroke:'#2d5a87','stroke-width':6,rx:6}));}
+function label(s,x,y,txt,fs,rot){var t=svgEl('text',{x:x,y:y,'text-anchor':'middle','dominant-baseline':'middle','font-size':fs,fill:'#1e3a5f','font-weight':'700','font-family':'Cairo,Tahoma,Arial'});if(rot)t.setAttribute('transform','rotate('+rot+' '+x+' '+y+')');t.textContent=txt;s.appendChild(t);}
+function setStats(arr){var h='';arr.forEach(function(p){h+='<div class="lw-stat"><div class="lw-stat-l">'+p[0]+'</div><div class="lw-stat-v">'+p[1]+'</div></div>';});$('lwStats').innerHTML=h;}
+function newSkyline(availW){return [{x:0,y:0,width:availW}];}
+function skylineFit(sk,availW,fw){
+  var best=null;
+  for(var i=0;i<sk.length;i++){
+    var x=sk[i].x;if(x+fw>availW+1e-6)continue;
+    var y=0,w=0,j=i;
+    while(w<fw-1e-9&&j<sk.length){if(sk[j].y>y)y=sk[j].y;w+=sk[j].width;j++;}
+    if(w<fw-1e-9)continue;
+    if(best===null||y<best.y-1e-9||(Math.abs(y-best.y)<1e-9&&x<best.x))best={x:x,y:y};
+  }
+  return best;
+}
+function skylineAdd(sk,x,fw,newTop){
+  var endX=x+fw,out=[];
+  for(var i=0;i<sk.length;i++){
+    var seg=sk[i],segEnd=seg.x+seg.width;
+    if(segEnd<=x+1e-9||seg.x>=endX-1e-9){out.push({x:seg.x,y:seg.y,width:seg.width});continue;}
+    if(seg.x<x-1e-9)out.push({x:seg.x,y:seg.y,width:x-seg.x});
+    if(segEnd>endX+1e-9)out.push({x:endX,y:seg.y,width:segEnd-endX});
+  }
+  out.push({x:x,y:newTop,width:fw});
+  out.sort(function(a,b){return a.x-b.x;});
+  var m=[];
+  out.forEach(function(s){var last=m[m.length-1];if(last&&Math.abs(last.y-s.y)<1e-9&&Math.abs(last.x+last.width-s.x)<1e-9)last.width+=s.width;else m.push({x:s.x,y:s.y,width:s.width});});
+  return m;
+}
+function placeRect(sk,w,h,rot,availW,availH){
+  var best=null,bw,bh,btop;
+  var a=skylineFit(sk,availW,w);
+  if(a&&a.y+h<=availH+1e-6){best=a;bw=w;bh=h;btop=a.y+h;}
+  if(rot&&Math.abs(w-h)>1e-9){
+    var b=skylineFit(sk,availW,h);
+    if(b&&b.y+w<=availH+1e-6&&(best===null||(b.y+w)<btop-1e-9)){best=b;bw=h;bh=w;btop=b.y+w;}
+  }
+  if(!best)return null;
+  return {x:best.x,y:best.y,w:bw,h:bh,skyline:skylineAdd(sk,best.x,bw,best.y+bh)};
+}
+function rotateEdges(e){return [e[3],e[0],e[1],e[2]];}
+function circleSheetBounds(d){
+  var r=d/2,edge=MARGIN+CIRCLE_EDGE;
+  return {loX:edge+r,hiX:SHEET_W-edge-r,loY:edge+r,hiY:SHEET_H-edge-r,edge:edge};
+}
+function circleSlot(x,y,d,extra){
+  return {x:x-MARGIN,y:y-MARGIN,w:d,h:d,rot:false,free:!!(extra&&extra.free),hex:!!(extra&&extra.hex)};
+}
+function fillSheetCirclesHex(d,gapVal){
+  var g=(gapVal===undefined||gapVal===null)?0:gapVal;
+  var cd=d+g,rowStep=cd*Math.sqrt(3)/2,r=d/2,b=circleSheetBounds(d),edge=b.edge,minX=edge,minY=edge,maxX=SHEET_W-edge,maxY=SHEET_H-edge,out=[],row=0;
+  while(true){
+    var yc=minY+r+row*rowStep;
+    if(yc+r>maxY+1e-9)break;
+    var xOff=(row%2)?cd/2:0,col=0;
+    while(true){
+      var xc=minX+r+xOff+col*cd;
+      if(xc+r>maxX+1e-9)break;
+      out.push(circleSlot(xc-r,yc-r,d));
+      col++;
+    }
+    row++;
+  }
+  return out;
+}
+function stretchCircleSlots(list,hex){
+  if(!list.length)return list;
+  var d=list[0].w,r=d/2;
+  if(list.length===1){
+    return [circleSlot((SHEET_W-d)/2,(SHEET_H-d)/2,d,{hex:hex})];
+  }
+  var centers=list.map(function(s){return {cx:s.x+s.w/2,cy:s.y+s.h/2};});
+  var minCx=1e9,minCy=1e9,maxCx=-1e9,maxCy=-1e9;
+  centers.forEach(function(c){
+    if(c.cx<minCx)minCx=c.cx;if(c.cy<minCy)minCy=c.cy;
+    if(c.cx>maxCx)maxCx=c.cx;if(c.cy>maxCy)maxCy=c.cy;
+  });
+  var spanX=maxCx-minCx,spanY=maxCy-minCy;
+  var b=circleSheetBounds(d),loX=b.loX,hiX=b.hiX,loY=b.loY,hiY=b.hiY;
+  var sx=spanX>1e-9?(hiX-loX)/spanX:0,sy=spanY>1e-9?(hiY-loY)/spanY:0;
+  return centers.map(function(c){
+    var ncx=spanX>1e-9?loX+(c.cx-minCx)*sx:(loX+hiX)/2;
+    var ncy=spanY>1e-9?loY+(c.cy-minCy)*sy:(loY+hiY)/2;
+    return circleSlot(ncx-r,ncy-r,d,{hex:hex});
+  });
+}
+function circleAvgGap(slots,d){
+  if(slots.length<2)return null;
+  var r=d/2,best=1e9;
+  for(var i=0;i<slots.length;i++){
+    var cxi=slots[i].x+r,cyi=slots[i].y+r;
+    for(var j=i+1;j<slots.length;j++){
+      var dist=Math.hypot(slots[j].x+r-cxi,slots[j].y+r-cyi);
+      var g=dist-d;
+      if(g>-1e-6&&g<best)best=g;
+    }
+  }
+  return best<1e8?best:null;
+}
+function maxCirclesOnSheet(d){
+  var a=fillSheetCirclesHex(d,0).length,b=fillSheet(d,d,false,0).length;
+  return Math.max(a,b);
+}
+function hexRowCounts(n,rows){
+  var counts=[],base=Math.floor(n/rows),rem=n%rows;
+  for(var i=0;i<rows;i++){counts.push(base+(i<rem?1:0));}
+  return counts;
+}
+function hexCountVariants(n,rows){
+  var base=hexRowCounts(n,rows),seen={},out=[];
+  function add(c){var k=c.join(',');if(!seen[k]){seen[k]=1;out.push(c);}}
+  add(base);
+  add(base.slice().reverse());
+  var alt=[]; for(var i=0;i<rows;i++){alt.push(base[(i+1)%rows]);} add(alt);
+  var wave=new Array(rows).fill(0),k=0;
+  for(k=0;k<n;k++){wave[k%rows]++;}
+  add(wave);
+  return out;
+}
+function hexCentersFromCounts(counts,cd){
+  var rowStep=cd*Math.sqrt(3)/2,pts=[],y=0;
+  for(var ri=0;ri<counts.length;ri++){
+    var cnt=counts[ri],x0=(ri%2)?cd/2:0;
+    for(var ci=0;ci<cnt;ci++){pts.push({x:x0+ci*cd,y:y});}
+    y+=rowStep;
+  }
+  return pts;
+}
+function hexStretchOk(pts,d,sx,sy){
+  for(var i=0;i<pts.length;i++){
+    for(var j=i+1;j<pts.length;j++){
+      var dx=(pts[i].x-pts[j].x)*sx,dy=(pts[i].y-pts[j].y)*sy;
+      if(Math.hypot(dx,dy)<d-1e-6)return false;
+    }
+  }
+  return true;
+}
+function distributeCirclesFree(d,n){
+  var r=d/2,b=circleSheetBounds(d),loX=b.loX,hiX=b.hiX,loY=b.loY,hiY=b.hiY,spanX=hiX-loX,spanY=hiY-loY;
+  if(n<=0||spanX<-1e-6||spanY<-1e-6)return [];
+  if(n===1)return [circleSlot((SHEET_W-d)/2,(SHEET_H-d)/2,d,{free:true})];
+  var best=null,maxRows=Math.min(n,12);
+  for(var rows=1;rows<=maxRows;rows++){
+    hexCountVariants(n,rows).forEach(function(counts){
+      var rel=hexCentersFromCounts(counts,d),minX=1e9,minY=1e9,maxX=-1e9,maxY=-1e9;
+      rel.forEach(function(p){
+        if(p.x<minX)minX=p.x;if(p.y<minY)minY=p.y;
+        if(p.x>maxX)maxX=p.x;if(p.y>maxY)maxY=p.y;
+      });
+      var bw=Math.max(maxX-minX,d*0.001),bh=Math.max(maxY-minY,d*0.001);
+      var sx=spanX/bw,sy=spanY/bh;
+      if(!hexStretchOk(rel,d,sx,sy))return;
+      var score=sx*sy;
+      if(!best||score>best.score+1e-9){best={rel:rel,minX:minX,minY:minY,sx:sx,sy:sy,score:score};}
+    });
+  }
+  if(!best)return [];
+  return best.rel.map(function(p){
+    return circleSlot(loX+(p.x-best.minX)*best.sx-r,loY+(p.y-best.minY)*best.sy-r,d,{free:true,hex:true});
+  });
+}
+function maxCirclesFreeSheet(d){
+  var tight=fillSheetCirclesHex(d,0).length,cap=Math.max(tight+4,1),n;
+  for(n=cap;n>=1;n--){if(distributeCirclesFree(d,n).length===n)return n;}
+  return 0;
+}
+function circleSlotsForSheet(d,count,mode){
+  if(mode==='dense'){
+    var all=fillSheetCircles(d);
+    return all.slice(0,Math.min(count,all.length));
+  }
+  return distributeCirclesFree(d,count);
+}
+function fillSheetCircles(d){
+  var opts=[
+    {list:fillSheetCirclesHex(d,0),hex:true},
+    {list:fillSheet(d,d,false,0),hex:false}
+  ],best=opts[0];
+  opts.forEach(function(o){if(o.list.length>best.list.length)best=o;});
+  if(!best.list.length)return [];
+  return stretchCircleSlots(best.list,best.hex);
+}
+function fillSheet(w,h,allowRot,gapVal){
+  var g=(gapVal===undefined||gapVal===null)?GAP:gapVal;
+  var availW=SHEET_W-2*MARGIN+g,availH=SHEET_H-2*MARGIN+g,sk=newSkyline(availW),out=[],n=0;
+  while(n++<6000){
+    var r=placeRect(sk,w+g,h+g,allowRot,availW,availH);
+    if(!r)break;
+    sk=r.skyline;out.push({x:r.x,y:r.y,w:r.w-g,h:r.h-g,rot:Math.abs((r.w-g)-w)>1e-6});
+  }
+  return out;
+}
+function packList(items,availW,availH){
+  var sheets=[newSkyline(availW)],placed=[],totalArea=0,oversize=false;
+  var sorted=items.slice().sort(function(a,b){return Math.max(b.w,b.h)-Math.max(a.w,a.h);});
+  sorted.forEach(function(it){
+    totalArea+=it.w*it.h;
+    var fw=it.w+GAP,fh=it.h+GAP,done=false,r;
+    for(var si=0;si<sheets.length&&!done;si++){
+      r=placeRect(sheets[si],fw,fh,true,availW,availH);
+      if(r){sheets[si]=r.skyline;recordPanel(placed,it,r,si);done=true;}
+    }
+    if(!done){
+      var sk=newSkyline(availW);r=placeRect(sk,fw,fh,true,availW,availH);
+      if(r){sheets.push(r.skyline);recordPanel(placed,it,r,sheets.length-1);}else{oversize=true;}
+    }
+  });
+  return {placed:placed,sheets:sheets.length,totalArea:totalArea,oversize:oversize};
+}
+function recordPanel(placed,it,r,si){
+  var rot=Math.abs((r.w-GAP)-it.w)>1e-6;
+  placed.push({x:r.x,y:r.y,w:r.w-GAP,h:r.h-GAP,sheet:si,label:it.label,color:it.color,edges:it.edges?(rot?rotateEdges(it.edges):it.edges):null});
+}
+function renderFlat(){
+  var shape=$('lwFlatShape').value,n=Math.max(1,Math.floor(num($('lwFlatN').value)||1));
+  var s=$('lwSheet');sheetBg(s);
+  var pl,pw,circle=(shape==='circle'),pieceTxt;
+  if(circle){
+    var d=num($('lwFlatD').value);
+    if(d<=0){setStats([['—','أدخل قطر القطعة']]);return;}
+    pl=d;pw=d;pieceTxt='دائرة قطر '+d+' سم';
+  }else{
+    pl=num($('lwFlatL').value);pw=num($('lwFlatW').value);
+    if(pl<=0||pw<=0){setStats([['—','أدخل أبعاد القطعة']]);return;}
+    pieceTxt=pl+' × '+pw+' سم';
+  }
+  var slots,circMode,per,sheets,rotCount=0;
+  if(circle){
+    circMode=($('lwFlatCircMode')&&$('lwFlatCircMode').value)||'free';
+    per=circMode==='free'?maxCirclesFreeSheet(pl):maxCirclesOnSheet(pl);
+    if(per<=0){setStats([['القطعة',pieceTxt],['تنبيه','القطعة أكبر من اللوح']]);return;}
+    sheets=Math.ceil(n/per);
+    slots=circleSlotsForSheet(pl,Math.min(per,n),circMode);
+  }else{
+    slots=fillSheet(pl,pw,!circle);
+    per=slots.length;
+    if(per<=0){setStats([['القطعة',pieceTxt],['تنبيه','القطعة أكبر من اللوح']]);return;}
+    sheets=Math.ceil(n/per);
+    for(var k=0;k<Math.min(per,n);k++){if(slots[k].rot)rotCount++;}
+  }
+  var mMM=MARGIN*10;
+  LW.draw=function(idx){
+    var sv=$('lwSheet');sheetBg(sv);
+    var startI=idx*per,count=Math.min(per,n-startI);
+    var sheetSlots=circle?circleSlotsForSheet(pl,count,circMode):slots;
+    for(var i=0;i<count;i++){
+      var sl=sheetSlots[i],x=mMM+sl.x*10,y=mMM+sl.y*10,wMM=sl.w*10,hMM=sl.h*10;
+      if(circle){
+        sv.appendChild(svgEl('circle',{cx:x+wMM/2,cy:y+hMM/2,r:wMM/2,fill:'#9ec5fe',stroke:'#1e3a5f','stroke-width':3}));
+      }else{
+        sv.appendChild(svgEl('rect',{x:x,y:y,width:wMM,height:hMM,fill:sl.rot?'#bfe0ff':'#9ec5fe',stroke:'#1e3a5f','stroke-width':3,rx:4}));
+      }
+      label(sv,x+wMM/2,y+hMM/2,(startI+i+1),Math.max(18,Math.min(wMM,hMM)/3),(!circle&&hMM>wMM*1.15)?-90:0);
+    }
+  };
+  LW.total=sheets;LW.sheetIdx=0;LW.draw(0);updateSheetNav();
+  var pieceArea=circle?(Math.PI*(pl/2)*(pl/2)*n):(pl*pw*n);
+  var gapTxt='5 ملم',packTxt='';
+  if(circle){
+    var showSlots=circleSlotsForSheet(pl,Math.min(per,n),circMode);
+    if(circMode==='free'){
+      gapTxt='توزيع حر — بدون مسافة ثابتة';
+      packTxt='موزّع على كامل اللوح';
+    }else{
+      var avgG=circleAvgGap(showSlots,pl);
+      gapTxt=avgG!==null?(fmt(avgG*10)+' ملم'):'ملاصقة';
+      packTxt=(showSlots[0]&&showSlots[0].hex)?'سداسي — أقصى عدد':'شبكة — أقصى عدد';
+    }
+  }
+  var stats=[
+    ['القطعة',pieceTxt],
+    ['المسافة بين القطع',gapTxt],
+    ['يتسع اللوح الواحد',per+' قطعة'],
+    ['عدد القطع المطلوب',n+' قطعة'],
+    ['عدد الألواح (120×80)',sheets+' لوح'],
+    ['مساحة القطع الكلية',fmt(pieceArea)+' سم²']
+  ];
+  if(circle&&packTxt)stats.push(['ترتيب القطع',packTxt]);
+  if(!circle&&rotCount>0)stats.push(['قطع مدوّرة 90°',rotCount+' قطعة']);
+  setStats(stats);
+}
+function poly(s,pts,fill,dash){var p=svgEl('polygon',{points:pts.map(function(a){return a[0]+','+a[1];}).join(' '),fill:fill,stroke:'#1e3a5f','stroke-width':2.5,'stroke-linejoin':'round'});if(dash)p.setAttribute('stroke-dasharray',dash);s.appendChild(p);}
+function insetQuad(q,f){var cx=(q[0][0]+q[1][0]+q[2][0]+q[3][0])/4,cy=(q[0][1]+q[1][1]+q[2][1]+q[3][1])/4;return q.map(function(p){return [p[0]+(cx-p[0])*f,p[1]+(cy-p[1])*f];});}
+function drawBox(s,x0,y0,wsc,hsc,dxs,dys,o){
+  var front=[[x0,y0],[x0+wsc,y0],[x0+wsc,y0+hsc],[x0,y0+hsc]];
+  var top=[[x0,y0],[x0+wsc,y0],[x0+wsc+dxs,y0-dys],[x0+dxs,y0-dys]];
+  var side=[[x0+wsc,y0],[x0+wsc+dxs,y0-dys],[x0+wsc+dxs,y0+hsc-dys],[x0+wsc,y0+hsc]];
+  poly(s,side,o.side);
+  poly(s,top,o.top);
+  if(o.openTop){
+    var Wv=[top[1][0]-top[0][0],top[1][1]-top[0][1]],Dv=[top[3][0]-top[0][0],top[3][1]-top[0][1]];
+    var au=Math.max(0.02,Math.min(0.45,o.iw||0.1)),bv=Math.max(0.02,Math.min(0.45,o.id||0.1));
+    var P=function(a,b){return [top[0][0]+a*Wv[0]+b*Dv[0],top[0][1]+a*Wv[1]+b*Dv[1]];};
+    poly(s,[P(au,bv),P(1-au,bv),P(1-au,1-bv),P(au,1-bv)],o.cavity);
+  }
+  poly(s,front,o.front);
+}
+function draw3d(L,W,H,lid,lidType,lidH){
+  var s=$('lwBox3d');clearSvg(s);
+  if(L<=0||W<=0||H<=0)return;
+  var t=num($('lwBoxT').value)/10,raised=lid&&lidType==='raised'&&lidH>0;
+  var Lc=raised?L+2*t:L,Wc=raised?W+2*t:W;
+  var k=0.55,pad=22,vbW=400,vbH=320;
+  var oB=W*k*0.707,oL=Wc*k*0.707,raiseCm=raised?lidH*0.4:0;
+  var contentWcm=Math.max(L+oB,Lc+oL),contentHcm=raised?(H+raiseCm+oL):(H+oB);
+  var sc=Math.min((vbW-2*pad)/contentWcm,(vbH-2*pad)/contentHcm);
+  if(!(sc>0))return;
+  var cx=vbW/2,bw=L*sc,bh=H*sc,bdx=oB*sc,bdy=oB*sc,lw=Lc*sc,lh=lidH*sc,ldx=oL*sc,ldy=oL*sc;
+  var baseY=raised?(pad+ldy+raiseCm*sc):(pad+bdy),baseOpen=!(lid&&!raised);
+  drawBox(s,cx-(bw+bdx)/2,baseY,bw,bh,bdx,bdy,{front:'#cfe2ff',top:'#a9d0f5',side:'#7da7d9',cavity:'#8fb3df',openTop:baseOpen,iw:t/L,id:t/W});
+  if(raised){
+    drawBox(s,cx-(lw+ldx)/2,pad+ldy,lw,lh,ldx,ldy,{front:'#ffd0b0',top:'#ffbf9a',side:'#e0936a',cavity:'#d98a5e',openTop:false});
+  }
+  if(!lid)label(s,cx-(bw+bdx)/2+bw/2+bdx/2,baseY-bdy/2,'مفتوح',Math.max(11,bw/9));
+}
+function nFor(lenCm){
+  var modeEl=$('lwFingerMode'),fm=modeEl?modeEl.value:'auto',n;
+  if(fm==='size'){var fs=num($('lwFingerSizeVal').value)/10;if(fs<=0)fs=2;n=Math.round(lenCm/fs);}
+  else if(fm==='count'){n=Math.round(num($('lwFingerCountVal').value));}
+  else{n=Math.round(lenCm/2);}
+  if(n<3)n=3;if(n%2===0)n+=1;return n;
+}
+function fingerDesc(){
+  var fm=$('lwFingerMode')?$('lwFingerMode').value:'auto';
+  if(fm==='size')return 'حجم السن ‏'+num($('lwFingerSizeVal').value)+' ملم';
+  if(fm==='count'){var n=Math.round(num($('lwFingerCountVal').value));if(n<3)n=3;if(n%2===0)n+=1;return n+' سن (فردي)';}
+  return 'تلقائي';
+}
+function buildPanelPts(w,h,edges,t){
+  var dirs=[[1,0],[0,1],[-1,0],[0,-1]],lens=[w,h,w,h],C=[[0,0],[w,0],[w,h],[0,h]];
+  function nOutOf(e){var u=dirs[e];return [u[1],-u[0]];}
+  function jt(e){var sp=edges[e];return sp.j&&(lens[e]-2*t)>0;}
+  function fem(e){var sp=edges[e];return sp.j&&sp.ns&&(lens[e]-2*t)>0;}
+  var pts=[],cur;
+  function push(p){pts.push([p[0],p[1]]);}
+  for(var e=0;e<4;e++){
+    var u=dirs[e],len=lens[e],spec=edges[e],nlen=len-2*t,sc=C[e],prev=(e+3)%4;
+    var upv=dirs[prev],inwp=[-nOutOf(prev)[0],-nOutOf(prev)[1]];
+    // ركن بداية الضلع: إن التقى ضلعان مؤنّثان (تعشيق أنثى) يُقصّ الركن قطرياً بدل ترك مربع زائد منفصل
+    if(fem(prev)&&fem(e)){
+      var A=[sc[0]-upv[0]*t,sc[1]-upv[1]*t];
+      push([A[0]+inwp[0]*t,A[1]+inwp[1]*t]);
+    }else{
+      push(sc);
+    }
+    if(!jt(e)){continue;}
+    cur=[sc[0]+u[0]*t,sc[1]+u[1]*t];push(cur);
+    var n=nFor(nlen),seg=nlen/n,nO=nOutOf(e);
+    for(var i=0;i<n;i++){
+      var isNotch=spec.ns?(i%2===0):(i%2===1);
+      if(isNotch){
+        cur=[cur[0]-nO[0]*t,cur[1]-nO[1]*t];push(cur);
+        cur=[cur[0]+u[0]*seg,cur[1]+u[1]*seg];push(cur);
+        cur=[cur[0]+nO[0]*t,cur[1]+nO[1]*t];push(cur);
+      }else{
+        cur=[cur[0]+u[0]*seg,cur[1]+u[1]*seg];push(cur);
+      }
+    }
+    var ec=C[(e+1)%4];push([ec[0]-u[0]*t,ec[1]-u[1]*t]);
+  }
+  return pts;
+}
+function makeBoxPanels(L,W,H,lid,t,lidType,lidH){
+  var F=false,T=true,ps=[];
+  var raised=lid&&lidType==='raised'&&lidH>0,flat=lid&&!raised;
+  var full=[{j:T,ns:F},{j:T,ns:F},{j:T,ns:F},{j:T,ns:F}];
+  ps.push({w:L,h:W,label:'الأرضية',color:'#9ec5fe',edges:full});
+  if(flat)ps.push({w:L,h:W,label:'الغطاء',color:'#b6f0c0',edges:full});
+  var wall=[{j:flat,ns:T},{j:T,ns:F},{j:T,ns:T},{j:T,ns:F}];
+  ps.push({w:L,h:H,label:'أمام',color:'#ffd6a5',edges:wall});
+  ps.push({w:L,h:H,label:'خلف',color:'#ffd6a5',edges:wall});
+  var side=[{j:flat,ns:T},{j:T,ns:T},{j:T,ns:T},{j:T,ns:T}];
+  ps.push({w:W,h:H,label:'جانب',color:'#ffadad',edges:side});
+  ps.push({w:W,h:H,label:'جانب',color:'#ffadad',edges:side});
+  if(raised){
+    var Lc=L+2*t,Wc=W+2*t;
+    ps.push({w:Lc,h:Wc,label:'الغطاء',color:'#c3b6f0',edges:full});
+    var capFB=[{j:T,ns:T},{j:T,ns:F},{j:F,ns:F},{j:T,ns:F}];
+    ps.push({w:Lc,h:lidH,label:'حافة الغطاء',color:'#d6ccf5',edges:capFB});
+    ps.push({w:Lc,h:lidH,label:'حافة الغطاء',color:'#d6ccf5',edges:capFB});
+    var capSide=[{j:T,ns:T},{j:T,ns:T},{j:F,ns:F},{j:T,ns:T}];
+    ps.push({w:Wc,h:lidH,label:'حافة الغطاء',color:'#d6ccf5',edges:capSide});
+    ps.push({w:Wc,h:lidH,label:'حافة الغطاء',color:'#d6ccf5',edges:capSide});
+  }
+  return ps;
+}
+function drawPacked(placed,tcm,sheetIdx){
+  var s=$('lwSheet');sheetBg(s);var mMM=MARGIN*10;
+  placed.forEach(function(p){
+    if(p.sheet!==sheetIdx)return;
+    var x=mMM+p.x*10,y=mMM+p.y*10,wMM=p.w*10,hMM=p.h*10;
+    if(p.edges){
+      var pts=buildPanelPts(p.w,p.h,p.edges,tcm).map(function(q){return (q[0]*10+x)+','+(q[1]*10+y);}).join(' ');
+      s.appendChild(svgEl('polygon',{points:pts,fill:p.color,stroke:'#1e3a5f','stroke-width':3,'stroke-linejoin':'round'}));
+    }else{
+      s.appendChild(svgEl('rect',{x:x,y:y,width:wMM,height:hMM,fill:p.color,stroke:'#1e3a5f','stroke-width':3,rx:4}));
+    }
+    label(s,x+wMM/2,y+hMM/2,p.label,Math.max(16,Math.min(wMM,hMM)/4.5),hMM>wMM*1.15?-90:0);
+  });
+}
+function boxParams(){
+  return{
+    L:num($('lwBoxL').value),W:num($('lwBoxW').value),H:num($('lwBoxH').value),
+    lid:$('lwLid').value==='1',t:num($('lwBoxT').value)/10,
+    boxN:Math.max(1,Math.floor(num($('lwBoxN').value)||1)),
+    lidType:$('lwLidType').value,lidH:num($('lwLidH').value)
+  };
+}
+function lidDesc(p){
+  if(!p.lid)return 'بدون غطاء';
+  if(p.lidType==='raised'&&p.lidH>0)return 'غطاء مرتفع ('+p.lidH+' سم)';
+  return 'غطاء مسطح';
+}
+function renderBox(){
+  var p=boxParams();
+  draw3d(p.L,p.W,p.H,p.lid,p.lidType,p.lidH);
+  if(p.L<=0||p.W<=0||p.H<=0){sheetBg($('lwSheet'));setStats([['—','أدخل أبعاد العلبة']]);return;}
+  var one=makeBoxPanels(p.L,p.W,p.H,p.lid,p.t,p.lidType,p.lidH);
+  var all=[];for(var i=0;i<p.boxN;i++){all=all.concat(one);}
+  var availW=SHEET_W-2*MARGIN+GAP,availH=SHEET_H-2*MARGIN+GAP;
+  var res=packList(all,availW,availH),areaOne=res.totalArea/p.boxN;
+  LW.draw=function(idx){drawPacked(res.placed,p.t,idx);};
+  LW.total=res.sheets;LW.sheetIdx=0;LW.draw(0);updateSheetNav();
+  var sheetTxt=res.oversize?'قطعة أكبر من اللوح':(res.sheets+' لوح');
+  setStats([
+    ['أبعاد العلبة',p.L+' × '+p.W+' × '+p.H+' سم'],
+    ['سماكة الخامة',fmt(p.t*10)+' ملم'],
+    ['الغطاء',lidDesc(p)],
+    ['نوع الوصلة','أصابع تعشيق'],
+    ['ضبط الأصابع',fingerDesc()],
+    ['عدد الجوانب للعلبة',one.length+' قطعة'],
+    ['عدد العلب المطلوبة',p.boxN+' علبة'],
+    ['مساحة الأكريليك للعلبة',fmt(areaOne)+' سم²'],
+    ['مساحة الأكريليك الكلية',fmt(res.totalArea)+' سم²'],
+    ['عدد الألواح (120×80)',sheetTxt]
+  ]);
+}
+function exportBoxSVG(){
+  var p=boxParams();
+  if(p.L<=0||p.W<=0||p.H<=0){alert('أدخل أبعاد العلبة أولاً');return;}
+  var panels=makeBoxPanels(p.L,p.W,p.H,p.lid,p.t,p.lidType,p.lidH);
+  var mMM=MARGIN*10,availW=SHEET_W-2*MARGIN+GAP;
+  var res=packList(panels,availW,1e7),body='',maxBottom=0;
+  res.placed.forEach(function(pl){
+    var ox=mMM+pl.x*10,oy=mMM+pl.y*10;
+    var d=buildPanelPts(pl.w,pl.h,pl.edges,p.t).map(function(q,i){return (i===0?'M':'L')+fmt(q[0]*10+ox)+' '+fmt(q[1]*10+oy);}).join(' ')+' Z';
+    body+='<path d="'+d+'" fill="none" stroke="#000" stroke-width="0.1"/>';
+    if(oy+pl.h*10>maxBottom)maxBottom=oy+pl.h*10;
+  });
+  var totW=1200,totH=maxBottom+mMM;
+  var svg='<?xml version="1.0" encoding="UTF-8"?>\n'+
+    '<svg xmlns="http://www.w3.org/2000/svg" width="'+fmt(totW)+'mm" height="'+fmt(totH)+'mm" viewBox="0 0 '+fmt(totW)+' '+fmt(totH)+'">'+body+'</svg>';
+  var blob=new Blob([svg],{type:'image/svg+xml'});
+  var a=document.createElement('a');
+  a.href=URL.createObjectURL(blob);
+  a.download='box-'+p.L+'x'+p.W+'x'+p.H+(p.lid?'-lid':'')+'.svg';
+  document.body.appendChild(a);a.click();
+  setTimeout(function(){URL.revokeObjectURL(a.href);a.remove();},200);
+}
+function updateSheetNav(){
+  var nav=$('lwSheetNav');
+  if(LW.total>1){
+    nav.style.display='';
+    $('lwSheetInfo').textContent='اللوح '+(LW.sheetIdx+1)+' / '+LW.total;
+    $('lwSheetPrev').disabled=LW.sheetIdx<=0;
+    $('lwSheetNext').disabled=LW.sheetIdx>=LW.total-1;
+  }else nav.style.display='none';
+}
+function resetSheetNav(){LW.total=1;LW.sheetIdx=0;LW.draw=null;$('lwSheetNav').style.display='none';}
+function render(){resetSheetNav();if(mode==='flat')renderFlat();else renderBox();}
+function setMode(m){
+  mode=m;
+  document.querySelectorAll('.lw-card').forEach(function(c){c.classList.toggle('active',c.getAttribute('data-lw')===m);});
+  $('lwFlatInputs').style.display=(m==='flat')?'':'none';
+  $('lwFlatShapeWrap').style.display=(m==='flat')?'':'none';
+  $('lwBoxInputs').style.display=(m==='box')?'':'none';
+  $('lwView3d').style.display=(m==='box')?'':'none';
+  $('lwBoxActions').style.display=(m==='box')?'':'none';
+  $('lwStage').classList.toggle('two',m==='box');
+  $('lwSheetTitle').textContent=(m==='box')?'فرد الجوانب على اللوح 120 × 80 سم':'اللوح 120 × 80 سم';
+  render();
+}
+document.querySelectorAll('.lw-card').forEach(function(c){c.addEventListener('click',function(){setMode(c.getAttribute('data-lw'));});});
+['lwFlatL','lwFlatW','lwFlatD','lwFlatN','lwBoxL','lwBoxW','lwBoxH','lwBoxT','lwBoxN'].forEach(function(id){var e=$(id);if(e)e.addEventListener('input',render);});
+function setShape(sh){
+  $('lwFlatShape').value=sh;
+  $('lwShapeRect').classList.toggle('active',sh==='rect');
+  $('lwShapeCircle').classList.toggle('active',sh==='circle');
+  $('lwRectL').style.display=(sh==='rect')?'':'none';
+  $('lwRectW').style.display=(sh==='rect')?'':'none';
+  $('lwCircD').style.display=(sh==='circle')?'':'none';
+  $('lwCircMode').style.display=(sh==='circle')?'':'none';
+  render();
+}
+function setCircMode(m){
+  $('lwFlatCircMode').value=m;
+  $('lwCircFree').classList.toggle('active',m==='free');
+  $('lwCircDense').classList.toggle('active',m==='dense');
+  render();
+}
+$('lwShapeRect').addEventListener('click',function(){setShape('rect');});
+$('lwShapeCircle').addEventListener('click',function(){setShape('circle');});
+$('lwCircFree').addEventListener('click',function(){setCircMode('free');});
+$('lwCircDense').addEventListener('click',function(){setCircMode('dense');});
+function syncLidUI(){
+  var on=$('lwLid').value==='1',raised=$('lwLidType').value==='raised';
+  $('lwLidTypeWrap').style.display=on?'':'none';
+  $('lwLidHWrap').style.display=(on&&raised)?'':'none';
+}
+$('lwLidOn').addEventListener('click',function(){$('lwLid').value='1';$('lwLidOn').classList.add('active');$('lwLidOff').classList.remove('active');syncLidUI();render();});
+$('lwLidOff').addEventListener('click',function(){$('lwLid').value='0';$('lwLidOff').classList.add('active');$('lwLidOn').classList.remove('active');syncLidUI();render();});
+$('lwLidFlat').addEventListener('click',function(){$('lwLidType').value='flat';$('lwLidFlat').classList.add('active');$('lwLidRaised').classList.remove('active');syncLidUI();render();});
+$('lwLidRaised').addEventListener('click',function(){$('lwLidType').value='raised';$('lwLidRaised').classList.add('active');$('lwLidFlat').classList.remove('active');syncLidUI();render();});
+$('lwLidH').addEventListener('input',render);
+function setFingerMode(m){
+  $('lwFingerMode').value=m;
+  $('lwFingerAuto').classList.toggle('active',m==='auto');
+  $('lwFingerSize').classList.toggle('active',m==='size');
+  $('lwFingerCount').classList.toggle('active',m==='count');
+  $('lwFingerSizeWrap').style.display=(m==='size')?'':'none';
+  $('lwFingerCountWrap').style.display=(m==='count')?'':'none';
+  render();
+}
+$('lwFingerAuto').addEventListener('click',function(){setFingerMode('auto');});
+$('lwFingerSize').addEventListener('click',function(){setFingerMode('size');});
+$('lwFingerCount').addEventListener('click',function(){setFingerMode('count');});
+$('lwFingerSizeVal').addEventListener('input',render);
+$('lwFingerCountVal').addEventListener('input',render);
+$('lwExportSvg').addEventListener('click',exportBoxSVG);
+$('lwSheetPrev').addEventListener('click',function(){if(LW.draw&&LW.sheetIdx>0){LW.sheetIdx--;LW.draw(LW.sheetIdx);updateSheetNav();}});
+$('lwSheetNext').addEventListener('click',function(){if(LW.draw&&LW.sheetIdx<LW.total-1){LW.sheetIdx++;LW.draw(LW.sheetIdx);updateSheetNav();}});
+setMode('flat');
+})();
+</script>
+<div class="cc-section-title cc-section-direct">التكاليف المباشرة</div>
+<div class="cc-table-wrap cc-table-wrap-direct">
+<table class="cc-table cc-table-direct" id="ccDirectTable">
+<thead><tr><th>البند</th><th>القيمة</th><th>التكلفة للحبة</th></tr></thead>
+<tbody>
+<tr data-direct><td class="cc-label">أجور التصميم</td><td><input type="number" class="cc-direct-val" min="0" step="0.001"></td><td><input type="text" class="cc-direct-unit cc-ro" readonly tabindex="-1" value=""></td></tr>
+<tr data-direct><td class="cc-label">مواد خام أكريليك</td><td><input type="number" class="cc-direct-val" min="0" step="0.001"></td><td><input type="text" class="cc-direct-unit cc-ro" readonly tabindex="-1" value=""></td></tr>
+<tr data-direct><td class="cc-label">خشب</td><td><input type="number" class="cc-direct-val" min="0" step="0.001"></td><td><input type="text" class="cc-direct-unit cc-ro" readonly tabindex="-1" value=""></td></tr>
+<tr data-direct><td class="cc-label">اكسسوارات إضافية</td><td><input type="number" class="cc-direct-val" min="0" step="0.001"></td><td><input type="text" class="cc-direct-unit cc-ro" readonly tabindex="-1" value=""></td></tr>
+<tr data-direct><td class="cc-label">الطباعة</td><td><input type="number" class="cc-direct-val" min="0" step="0.001"></td><td><input type="text" class="cc-direct-unit cc-ro" readonly tabindex="-1" value=""></td></tr>
+<tr class="cc-total"><td class="cc-label">المجموع</td><td><input type="text" id="ccDirectTotal" class="cc-ro" readonly tabindex="-1" value=""></td><td><input type="text" id="ccDirectPerUnit" class="cc-ro" readonly tabindex="-1" value=""></td></tr>
+</tbody></table></div>
+<div class="cc-section-title cc-section-indirect">التكاليف غير المباشرة</div>
+<div class="cc-table-wrap cc-table-wrap-indirect">
+<table class="cc-table cc-table-indirect" id="ccIndirectTable">
+<thead><tr><th>البند</th><th>عدد الساعات</th><th>التكلفة</th><th>التكلفة للحبة</th></tr></thead>
+<tbody>
+<tr data-indirect data-mult="1"><td class="cc-label">الإيجار <span class="cc-hint">(×1)</span></td><td><input type="number" class="cc-hours" min="0" step="0.01"></td><td><input type="text" class="cc-ind-cost cc-ro" readonly tabindex="-1" value=""></td><td><input type="text" class="cc-ind-unit cc-ro" readonly tabindex="-1" value=""></td></tr>
+<tr data-indirect data-mult="2.7"><td class="cc-label">أجور عمالة أساسية <span class="cc-hint">(×2.7)</span></td><td><input type="number" class="cc-hours" min="0" step="0.01"></td><td><input type="text" class="cc-ind-cost cc-ro" readonly tabindex="-1" value=""></td><td><input type="text" class="cc-ind-unit cc-ro" readonly tabindex="-1" value=""></td></tr>
+<tr data-indirect data-mult="0.9"><td class="cc-label">أجور عمالة إضافية <span class="cc-hint">(×0.9)</span></td><td><input type="number" class="cc-hours" min="0" step="0.01"></td><td><input type="text" class="cc-ind-cost cc-ro" readonly tabindex="-1" value=""></td><td><input type="text" class="cc-ind-unit cc-ro" readonly tabindex="-1" value=""></td></tr>
+<tr class="cc-total"><td class="cc-label" colspan="2">المجموع</td><td><input type="text" id="ccIndirectTotal" class="cc-ro" readonly tabindex="-1" value=""></td><td><input type="text" id="ccIndirectPerUnit" class="cc-ro" readonly tabindex="-1" value=""></td></tr>
+</tbody></table></div>
+<div class="cc-table-wrap">
+<table class="cc-table"><tbody>
+<tr class="cc-grand"><td class="cc-label">مجموع التكاليف</td><td colspan="2"><input type="text" id="ccGrandTotal" class="cc-ro" readonly tabindex="-1" value="" style="max-width:200px;margin:0 auto;display:block"></td></tr>
+</tbody></table></div>
+<div class="cc-section-title cc-section-profit">حساب الأرباح</div>
+<div class="cc-table-wrap">
+<table class="cc-table"><tbody>
+<tr><td class="cc-label">نسبة الربح %</td><td><input type="number" id="ccProfitPct" min="0" step="0.01" style="max-width:140px"></td><td class="cc-label">سعر البيع</td><td><input type="number" id="ccSellPrice" min="0" step="0.001" style="max-width:160px;font-weight:700"></td></tr>
+</tbody></table></div>
+<div class="cc-profit-grid">
+<div class="cc-profit-card highlight" id="ccGrossCard"><div class="cc-profit-label">هامش الربح</div><div class="cc-profit-value" id="ccGrossMargin"></div><div class="cc-hint" style="margin-top:4px">سعر البيع − التكاليف المباشرة</div></div>
+<div class="cc-profit-card" id="ccUnitSellCard"><div class="cc-profit-label">سعر بيع الحبة</div><div class="cc-profit-value" id="ccUnitSellValue"></div><div class="cc-hint" style="margin-top:4px">سعر البيع ÷ الكمية</div></div>
+<div class="cc-profit-card" id="ccNetCard"><div class="cc-profit-label">صافي الربح</div><div class="cc-profit-value" id="ccNetProfit"></div><div class="cc-hint" style="margin-top:4px">سعر البيع − مجموع التكاليف</div></div>
+<div class="cc-profit-card" id="ccNetPctCard"><div class="cc-profit-label">نسبة صافي الربح</div><div class="cc-profit-value" id="ccNetPct"></div></div>
+</div>
+<div class="cc-bottom-actions cc-no-print">
+<button type="button" class="cc-btn cc-btn-pdf" id="ccDownloadPdf"><i class="fa-solid fa-file-pdf"></i> تحميل نموذج التكلفة</button>
+<button type="button" class="cc-btn cc-btn-print" id="ccPrint"><i class="fa-solid fa-print"></i> طباعة</button>
+</div>
+<script>
+(function(){
+function num(v){var n=parseFloat(v);return isNaN(n)?0:n;}
+function fmt3(v){return num(v).toFixed(3);}
+function fmtDisp(v){var n=num(v);return Math.abs(n)<0.0005?'':n.toFixed(3);}
+function fmtPctDisp(v){var n=num(v);return Math.abs(n)<0.0005?'':n.toFixed(2)+'%';}
+function fmtPct(v){return num(v).toFixed(2)+'%';}
+function qtySafe(){var q=num(document.getElementById('ccQty').value);return q>0?q:1;}
+var sellManual=false;
+function recalc(){
+  var qty=qtySafe();
+  var directSum=0;
+  document.querySelectorAll('#ccDirectTable tr[data-direct]').forEach(function(tr){
+    var val=num(tr.querySelector('.cc-direct-val').value);
+    var per=Math.round(val/qty*1000)/1000;
+    tr.querySelector('.cc-direct-unit').value=fmtDisp(per);
+    directSum+=val;
+  });
+  directSum=Math.round(directSum*1000)/1000;
+  var directPer=Math.round(directSum/qty*1000)/1000;
+  document.getElementById('ccDirectTotal').value=fmtDisp(directSum);
+  document.getElementById('ccDirectPerUnit').value=fmtDisp(directPer);
+  var indirectSum=0;
+  document.querySelectorAll('#ccIndirectTable tr[data-indirect]').forEach(function(tr){
+    var hours=num(tr.querySelector('.cc-hours').value);
+    var mult=num(tr.getAttribute('data-mult'));
+    var cost=Math.round(hours*mult*1000)/1000;
+    var per=Math.round(cost/qty*1000)/1000;
+    tr.querySelector('.cc-ind-cost').value=fmtDisp(cost);
+    tr.querySelector('.cc-ind-unit').value=fmtDisp(per);
+    indirectSum+=cost;
+  });
+  indirectSum=Math.round(indirectSum*1000)/1000;
+  var indirectPer=Math.round(indirectSum/qty*1000)/1000;
+  document.getElementById('ccIndirectTotal').value=fmtDisp(indirectSum);
+  document.getElementById('ccIndirectPerUnit').value=fmtDisp(indirectPer);
+  var grand=Math.round((directSum+indirectSum)*1000)/1000;
+  document.getElementById('ccGrandTotal').value=fmtDisp(grand);
+  var pct=num(document.getElementById('ccProfitPct').value);
+  var sellEl=document.getElementById('ccSellPrice');
+  if(!sellManual){sellEl.value=fmtDisp(grand*(1+pct/100));}
+  else if(grand>0){var p=Math.round((num(sellEl.value)/grand-1)*10000)/100;document.getElementById('ccProfitPct').value=Math.abs(p)<0.0005?'':p;}
+  var sell=num(sellEl.value);
+  var gross=Math.round((sell-directSum)*1000)/1000;
+  var net=Math.round((sell-grand)*1000)/1000;
+  var netPct=sell>0?Math.round(net/sell*10000)/100:0;
+  document.getElementById('ccGrossMargin').textContent=fmtDisp(gross);
+  var unitSell=(sell>0&&qty>0)?Math.round(sell/qty*1000)/1000:0;
+  document.getElementById('ccUnitSellValue').textContent=fmtDisp(unitSell);
+  document.getElementById('ccNetProfit').textContent=fmtDisp(net);
+  document.getElementById('ccNetPct').textContent=fmtPctDisp(netPct);
+  ['ccGrossCard','ccUnitSellCard','ccNetCard','ccNetPctCard'].forEach(function(id,idx){
+    var el=document.getElementById(id);
+    var v=idx===0?gross:(idx===1?unitSell:net);
+    el.className=el.className.replace(/\s*(pos|neg)/g,'');
+    if(v>0.0005)el.classList.add('pos');
+    else if(v<-0.0005)el.classList.add('neg');
+  });
+}
+document.querySelectorAll('.cc-direct-val,.cc-hours,#ccQty').forEach(function(el){
+  el.addEventListener('input',function(){sellManual=false;recalc();});
+});
+document.getElementById('ccProfitPct').addEventListener('input',function(){sellManual=false;recalc();});
+document.getElementById('ccSellPrice').addEventListener('input',function(){sellManual=true;recalc();});
+document.getElementById('ccClearAll').addEventListener('click',function(){
+  if(!confirm('مسح جميع الحقول؟'))return;
+  document.getElementById('ccCustomer').value='';
+  document.getElementById('ccDescription').value='';
+  document.getElementById('ccQty').value='1';
+  document.querySelectorAll('.cc-direct-val').forEach(function(el){el.value='';});
+  document.querySelectorAll('.cc-hours').forEach(function(el){el.value='';});
+  document.getElementById('ccProfitPct').value='';
+  document.getElementById('ccSellPrice').value='';
+  sellManual=false;
+  var d=new Date();
+  document.getElementById('ccDate').value=d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
+  recalc();
+});
+function ccCollectPayload(){
+  recalc();
+  var payload={
+    customer:document.getElementById('ccCustomer').value.trim(),
+    description:document.getElementById('ccDescription').value.trim(),
+    qty:document.getElementById('ccQty').value,
+    date:document.getElementById('ccDate').value,
+    direct:[],
+    direct_total:document.getElementById('ccDirectTotal').value,
+    direct_per:document.getElementById('ccDirectPerUnit').value,
+    indirect:[],
+    indirect_total:document.getElementById('ccIndirectTotal').value,
+    indirect_per:document.getElementById('ccIndirectPerUnit').value,
+    grand_total:document.getElementById('ccGrandTotal').value,
+    profit_pct:document.getElementById('ccProfitPct').value,
+    sell_price:document.getElementById('ccSellPrice').value,
+    unit_sell:document.getElementById('ccUnitSellValue').textContent,
+    gross_margin:document.getElementById('ccGrossMargin').textContent,
+    net_profit:document.getElementById('ccNetProfit').textContent,
+    net_pct:document.getElementById('ccNetPct').textContent
+  };
+  document.querySelectorAll('#ccDirectTable tr[data-direct]').forEach(function(tr){
+    payload.direct.push({
+      label:(tr.querySelector('.cc-label')||{}).textContent||'',
+      total:(tr.querySelector('.cc-direct-val')||{}).value||'0',
+      per:(tr.querySelector('.cc-direct-unit')||{}).value||'0'
+    });
+  });
+  document.querySelectorAll('#ccIndirectTable tr[data-indirect]').forEach(function(tr){
+    var lbl=(tr.querySelector('.cc-label')||{});
+    payload.indirect.push({
+      label:lbl.textContent?lbl.textContent.replace(/\s*\([^)]*\)\s*/g,'').trim():'',
+      hours:(tr.querySelector('.cc-hours')||{}).value||'0',
+      cost:(tr.querySelector('.cc-ind-cost')||{}).value||'0',
+      per:(tr.querySelector('.cc-ind-unit')||{}).value||'0'
+    });
+  });
+  return payload;
+}
+function ccFetchPdfBlob(){
+  return fetch('/cost-calculator-pdf',{
+    method:'POST',
+    headers:{'Content-Type':'application/json;charset=utf-8'},
+    body:JSON.stringify(ccCollectPayload())
+  }).then(function(r){
+    if(!r.ok)return r.text().then(function(t){throw new Error(t||'pdf');});
+    return r.blob();
+  });
+}
+document.getElementById('ccDownloadPdf').addEventListener('click',function(){
+  var btn=this;
+  btn.disabled=true;
+  ccFetchPdfBlob().then(function(blob){
+    var a=document.createElement('a');
+    a.href=URL.createObjectURL(blob);
+    a.download='نموذج-تسعير-التكلفة.pdf';
+    document.body.appendChild(a);
+    a.click();
+    setTimeout(function(){URL.revokeObjectURL(a.href);a.remove();},200);
+  }).catch(function(){
+    alert('تعذر إنشاء ملف PDF. حاول مرة أخرى.');
+  }).finally(function(){btn.disabled=false;});
+});
+document.getElementById('ccPrint').addEventListener('click',function(){
+  var btn=this;
+  btn.disabled=true;
+  ccFetchPdfBlob().then(function(blob){
+    var url=URL.createObjectURL(blob);
+    var w=window.open(url,'_blank');
+    if(w){
+      setTimeout(function(){try{w.focus();w.print();}catch(e){}},800);
+      setTimeout(function(){URL.revokeObjectURL(url);},120000);
+    }else{
+      var iframe=document.createElement('iframe');
+      iframe.style.cssText='position:fixed;left:0;top:0;width:100%;height:100%;border:0;z-index:9999;background:#fff';
+      iframe.src=url;
+      document.body.appendChild(iframe);
+      iframe.onload=function(){
+        try{iframe.contentWindow.focus();iframe.contentWindow.print();}catch(e){}
+        setTimeout(function(){iframe.remove();URL.revokeObjectURL(url);},120000);
+      };
+    }
+  }).catch(function(){
+    alert('تعذر إنشاء ملف للطباعة. حاول مرة أخرى.');
+  }).finally(function(){btn.disabled=false;});
+});
+var d=new Date();
+document.getElementById('ccDate').value=d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
+recalc();
+})();
+</script></body></html>

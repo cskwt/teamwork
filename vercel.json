@@ -18,11 +18,19 @@
     },
     {
       "source": "/cost-calculator",
-      "destination": "https://acc.csapp.io/cost-calculator"
+      "destination": "/cost-calculator/index.html"
     },
     {
-      "source": "/cost-calculator/:path*",
-      "destination": "https://acc.csapp.io/cost-calculator/:path*"
+      "source": "/cost-calculator/digital",
+      "destination": "/cost-calculator/digital.html"
+    },
+    {
+      "source": "/cost-calculator/laser",
+      "destination": "/cost-calculator/laser.html"
+    },
+    {
+      "source": "/cost-calculator/magnet",
+      "destination": "/cost-calculator/magnet.html"
     },
     {
       "source": "/cost-calculator-pdf",
@@ -35,10 +43,6 @@
     {
       "source": "/api/template-export-pdf",
       "destination": "https://acc.csapp.io/api/template-export-pdf"
-    },
-    {
-      "source": "/logo.png",
-      "destination": "https://acc.csapp.io/logo.png"
     },
     {
       "source": "/assets/paper-bag-icon.png",
@@ -69,7 +73,7 @@
       "destination": "/api/$1"
     },
     {
-      "source": "/((?!api/|attendance(?:/|$)|template-maker(?:/|$)|cost-calculator(?:/|$)|cost-calculator-pdf$|cost-calculator-digital-pdf$|logo\\.png$|assets/(?:paper-bag|slidebox|lidbox|pinchlock|tucklock)-icon\\.png$|assets/acrylic-pricing-template\\.xlsx$).*)",
+      "source": "/((?!api/|attendance(?:/|$)|template-maker(?:/|$)|cost-calculator(?:/|$)|cost-calculator-pdf$|cost-calculator-digital-pdf$|logo\\.png$|favicon\\.png$|assets/(?:paper-bag|slidebox|lidbox|pinchlock|tucklock)-icon\\.png$|assets/acrylic-pricing-template\\.xlsx$).*)",
       "destination": "/index.html"
     }
   ],
