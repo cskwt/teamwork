@@ -81,7 +81,7 @@ a.cc-device-btn{text-decoration:none;color:inherit}
 .lw-view-title{text-align:center;font-size:13px;font-weight:700;color:#1e3a5f;margin-bottom:8px}
 .lw-view svg{width:100%;height:auto;display:block}
 .dg-nest-preview{display:flex;align-items:center;justify-content:center;padding:10px 8px;min-height:160px;max-height:280px;background:#f8fafc;border:1px dashed #d0d7e2;border-radius:10px}
-#dgNestSheet{width:auto!important;height:auto!important;max-width:min(100%,220px);max-height:240px;margin:0 auto;display:block;filter:drop-shadow(0 2px 6px rgba(30,58,95,.12))}
+#dgNestSheet{flex:0 0 auto;width:min(100%,140px)!important;height:auto!important;max-height:240px;margin:0 auto;display:block;overflow:visible;filter:drop-shadow(0 2px 6px rgba(30,58,95,.12))}
 #dgNestSection .lw-view{background:transparent;border:none;padding:0}
 #dgNestSection .lw-view-title{margin-bottom:10px}
 .lw-stats{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px;margin-top:14px}
@@ -426,6 +426,7 @@ function fillPlaceholder(sel, text){
 function fillSheets(){
   var sel = byId('dgSheet');
   if(!sel) return;
+  var prev = sel.value || '';
   fillPlaceholder(sel, '-- اختر --');
   SHEET_SIZES.forEach(function(s){
     var opt=document.createElement('option');
@@ -433,6 +434,12 @@ function fillSheets(){
     opt.textContent=s.label;
     sel.appendChild(opt);
   });
+  var keep = prev && SHEET_SIZES.some(function(s){return s.id===prev;}) ? prev : (SHEET_SIZES[0] && SHEET_SIZES[0].id) || '';
+  if(keep){
+    sel.value=keep;
+    var ph=sel.querySelector('option[value=""]');
+    if(ph) ph.selected=false;
+  }
 }
 function fillMaterials(){
   var sel = byId('dgMaterial');
@@ -652,6 +659,15 @@ function nestPageBg(sv, vbW, vbH, graphtec){
   }));
   if(graphtec) drawGraphtecMarks(sv, vbW, vbH);
 }
+function nestFitSvg(sv, vbW, vbH){
+  if(!sv) return;
+  sv.setAttribute('viewBox','0 0 '+vbW+' '+vbH);
+  sv.setAttribute('width','140');
+  sv.setAttribute('height', String(Math.max(1, Math.round(140*vbH/Math.max(vbW,1)))));
+  sv.style.width='min(100%, 140px)';
+  sv.style.height='auto';
+  sv.style.maxHeight='240px';
+}
 function selectedSheetSize(){
   var id=(byId('dgSheet')&&byId('dgSheet').value)||'';
   return SHEET_SIZES.find(function(s){return s.id===id;})||null;
@@ -714,7 +730,7 @@ function renderNest(){
   if(!sheet){
     if(title) title.textContent='اختر قياس الورق من المخزون';
     clearNestSvg(svg);
-    svg.setAttribute('viewBox','0 0 1000 700');
+    nestFitSvg(svg, 1000, 700);
     nestPageBg(svg, 1000, 700, graphtec);
     setNestStats([['—','اختر قياس الورق أولاً']]);
     NEST.total=1;NEST.sheetIdx=0;NEST.draw=null;updateNestNav();
@@ -722,7 +738,7 @@ function renderNest(){
   }
   var SW=sheet.w, SH=sheet.h;
   var vbW=Math.round(SW*10), vbH=Math.round(SH*10);
-  svg.setAttribute('viewBox','0 0 '+vbW+' '+vbH);
+  nestFitSvg(svg, vbW, vbH);
   if(title) title.textContent='الصفحة '+sheet.label;
   var shape=(byId('dgNestShape')&&byId('dgNestShape').value)||'rect';
   var n=Math.max(1,Math.floor(num(byId('dgNestN').value)||1));
