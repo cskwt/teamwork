@@ -6,8 +6,12 @@ import { Material, MaterialKind } from '../../types';
 import { generateId } from '../../utils/helpers';
 import { normalizeAmountInput, toWesternDigits } from '../../utils/helpers';
 import {
+  ACRYLIC_CUT_PIECE,
+  ACRYLIC_FACTORY_BOARD,
+  acrylicPieceCostFromBoard,
   DIGITAL_FACTORY_SHEET,
   digitalPieceCosts,
+  effectiveAcrylicPieceCostKd,
   effectiveMeterCostKd,
   effectiveSheetCostKd,
   formatMaterialCostFils,
@@ -28,6 +32,7 @@ const MaterialsModal: React.FC<MaterialsModalProps> = ({ onClose }) => {
   const { tr } = useLang();
   const digitalMaterials = materialsOfKind(state.materials, 'digital');
   const largeMaterials = materialsOfKind(state.materials, 'large-format');
+  const acrylicMaterials = materialsOfKind(state.materials, 'acrylics');
 
   const [paperType, setPaperType] = useState('');
   const [paperWeight, setPaperWeight] = useState('');
@@ -39,11 +44,15 @@ const MaterialsModal: React.FC<MaterialsModalProps> = ({ onClose }) => {
   const [rollWidth, setRollWidth] = useState('');
   const [rollCostKd, setRollCostKd] = useState('');
   const [rollMeters, setRollMeters] = useState('');
+  const [acrylicType, setAcrylicType] = useState('');
+  const [acrylicThickness, setAcrylicThickness] = useState('');
+  const [acrylicBoardCostKd, setAcrylicBoardCostKd] = useState('');
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editingKind, setEditingKind] = useState<MaterialKind | null>(null);
   const [expandedIds, setExpandedIds] = useState<Record<string, boolean>>({});
   const [showDigitalForm, setShowDigitalForm] = useState(false);
   const [showLargeForm, setShowLargeForm] = useState(false);
+  const [showAcrylicForm, setShowAcrylicForm] = useState(false);
 
   const clearDigitalForm = () => {
     setPaperType('');
@@ -59,13 +68,25 @@ const MaterialsModal: React.FC<MaterialsModalProps> = ({ onClose }) => {
     setRollMeters('');
   };
 
+  const clearAcrylicForm = () => {
+    setAcrylicType('');
+    setAcrylicThickness('');
+    setAcrylicBoardCostKd('');
+  };
+
+  const resolveKind = (m: Material): MaterialKind => {
+    if (m.kind === 'large-format' || m.kind === 'acrylics' || m.kind === 'digital') return m.kind;
+    return 'digital';
+  };
+
   const startEdit = (m: Material) => {
-    const kind = m.kind === 'large-format' ? 'large-format' : 'digital';
+    const kind = resolveKind(m);
     setEditingId(m.id);
     setEditingKind(kind);
+    setShowDigitalForm(kind === 'digital');
+    setShowLargeForm(kind === 'large-format');
+    setShowAcrylicForm(kind === 'acrylics');
     if (kind === 'digital') {
-      setShowDigitalForm(true);
-      setShowLargeForm(false);
       setPaperType(m.paperType || m.name || '');
       setPaperWeight(m.paperWeight || '');
       const packKdVal = parseMaterialCost(m.packCost);
@@ -73,9 +94,8 @@ const MaterialsModal: React.FC<MaterialsModalProps> = ({ onClose }) => {
       const pages = parseMaterialCost(m.sheetsPerPack);
       setSheetsPerPack(pages > 0 ? String(Math.round(pages)) : '');
       clearLargeForm();
-    } else {
-      setShowLargeForm(true);
-      setShowDigitalForm(false);
+      clearAcrylicForm();
+    } else if (kind === 'large-format') {
       setRollType(m.rollType || m.name || '');
       setRollWidth(m.rollWidth || '');
       const costKdVal = parseMaterialCost(m.rollCost);
@@ -83,6 +103,14 @@ const MaterialsModal: React.FC<MaterialsModalProps> = ({ onClose }) => {
       const meters = parseMaterialCost(m.rollMeters);
       setRollMeters(meters > 0 ? String(meters) : '');
       clearDigitalForm();
+      clearAcrylicForm();
+    } else {
+      setAcrylicType(m.acrylicType || m.name || '');
+      setAcrylicThickness(m.acrylicThickness || '');
+      const boardKd = parseMaterialCost(m.acrylicBoardCost);
+      setAcrylicBoardCostKd(boardKd > 0 ? String(boardKd) : '');
+      clearDigitalForm();
+      clearLargeForm();
     }
   };
 
@@ -91,20 +119,25 @@ const MaterialsModal: React.FC<MaterialsModalProps> = ({ onClose }) => {
     setEditingKind(null);
     clearDigitalForm();
     clearLargeForm();
+    clearAcrylicForm();
     setShowDigitalForm(false);
     setShowLargeForm(false);
+    setShowAcrylicForm(false);
   };
 
   const openDigitalForm = () => {
     cancelEdit();
     setShowDigitalForm(true);
-    setShowLargeForm(false);
   };
 
   const openLargeForm = () => {
     cancelEdit();
     setShowLargeForm(true);
-    setShowDigitalForm(false);
+  };
+
+  const openAcrylicForm = () => {
+    cancelEdit();
+    setShowAcrylicForm(true);
   };
 
   const toggleExpand = (id: string) => {
@@ -124,6 +157,12 @@ const MaterialsModal: React.FC<MaterialsModalProps> = ({ onClose }) => {
   const liveMeterCostKd = useMemo(
     () => meterCostFromRoll(liveRollKd > 0 ? String(liveRollKd) : '', liveMeters > 0 ? String(liveMeters) : ''),
     [liveRollKd, liveMeters],
+  );
+
+  const liveAcrylicBoardKd = parseMaterialCost(acrylicBoardCostKd);
+  const liveAcrylicPieceKd = useMemo(
+    () => acrylicPieceCostFromBoard(liveAcrylicBoardKd > 0 ? liveAcrylicBoardKd : 0),
+    [liveAcrylicBoardKd],
   );
 
   const saveMaterial = (kind: MaterialKind) => {
@@ -190,6 +229,67 @@ const MaterialsModal: React.FC<MaterialsModalProps> = ({ onClose }) => {
       });
       clearDigitalForm();
       setShowDigitalForm(false);
+      return;
+    }
+
+    if (kind === 'acrylics') {
+      const at = acrylicType.trim();
+      const th = acrylicThickness.trim();
+      const boardKdVal = parseMaterialCost(acrylicBoardCostKd);
+      if (!at || !th) {
+        alert('Enter acrylic type and thickness');
+        return;
+      }
+      if (acrylicBoardCostKd.trim() && boardKdVal <= 0) {
+        alert(tr.acrylicCostInvalid);
+        return;
+      }
+      const boardKd = boardKdVal > 0 ? String(boardKdVal) : '';
+      const pieceKdVal = acrylicPieceCostFromBoard(boardKd);
+      const pieceKd = pieceKdVal > 0 ? String(pieceKdVal) : '';
+      const exists = acrylicMaterials.some(
+        (m) =>
+          m.id !== editingId &&
+          (m.acrylicType || '').localeCompare(at, undefined, { sensitivity: 'base' }) === 0 &&
+          (m.acrylicThickness || '').localeCompare(th, undefined, { sensitivity: 'base' }) === 0,
+      );
+      if (exists) {
+        alert('This material already exists');
+        return;
+      }
+      if (editingId && editingKind === 'acrylics') {
+        const prev = acrylicMaterials.find((m) => m.id === editingId);
+        dispatch({
+          type: 'UPDATE_MATERIAL',
+          payload: {
+            id: editingId,
+            kind: 'acrylics',
+            acrylicType: at,
+            acrylicThickness: th,
+            acrylicBoardCost: boardKd,
+            acrylicPieceCost: pieceKd || prev?.acrylicPieceCost || '',
+            createdAt: prev?.createdAt || now,
+            updatedAt: now,
+          },
+        });
+        cancelEdit();
+        return;
+      }
+      dispatch({
+        type: 'ADD_MATERIAL',
+        payload: {
+          id: generateId(),
+          kind: 'acrylics',
+          acrylicType: at,
+          acrylicThickness: th,
+          acrylicBoardCost: boardKd,
+          acrylicPieceCost: pieceKd,
+          createdAt: now,
+          updatedAt: now,
+        },
+      });
+      clearAcrylicForm();
+      setShowAcrylicForm(false);
       return;
     }
 
@@ -305,6 +405,7 @@ const MaterialsModal: React.FC<MaterialsModalProps> = ({ onClose }) => {
 
   const editingLarge = editingKind === 'large-format' && !!editingId;
   const editingDigital = editingKind === 'digital' && !!editingId;
+  const editingAcrylic = editingKind === 'acrylics' && !!editingId;
 
   return (
     <div className="modal-overlay" onClick={onClose}>
@@ -327,7 +428,7 @@ const MaterialsModal: React.FC<MaterialsModalProps> = ({ onClose }) => {
             <h3>Large Format</h3>
             {!showLargeForm && !editingLarge ? (
               <button type="button" className="mat-add-btn mat-add-trigger" onClick={openLargeForm}>
-                <Plus size={15} /> Add material
+                <Plus size={15} /> {tr.addMaterial}
               </button>
             ) : (
               <>
@@ -386,7 +487,7 @@ const MaterialsModal: React.FC<MaterialsModalProps> = ({ onClose }) => {
                       Close
                     </button>
                     <button type="submit" className="mat-add-btn" disabled={!rollType.trim() || !rollWidth.trim()}>
-                      {editingLarge ? <><Check size={15} /> Save</> : <><Plus size={15} /> Add material</>}
+                      {editingLarge ? <><Check size={15} /> Save</> : <><Plus size={15} /> {tr.addMaterial}</>}
                     </button>
                   </div>
                 </form>
@@ -434,7 +535,7 @@ const MaterialsModal: React.FC<MaterialsModalProps> = ({ onClose }) => {
             <h3>Digital</h3>
             {!showDigitalForm && !editingDigital ? (
               <button type="button" className="mat-add-btn mat-add-trigger" onClick={openDigitalForm}>
-                <Plus size={15} /> Add material
+                <Plus size={15} /> {tr.addMaterial}
               </button>
             ) : (
               <>
@@ -515,7 +616,7 @@ const MaterialsModal: React.FC<MaterialsModalProps> = ({ onClose }) => {
                       Close
                     </button>
                     <button type="submit" className="mat-add-btn" disabled={!paperType.trim() || !paperWeight.trim()}>
-                      {editingDigital ? <><Check size={15} /> Save</> : <><Plus size={15} /> Add material</>}
+                      {editingDigital ? <><Check size={15} /> Save</> : <><Plus size={15} /> {tr.addMaterial}</>}
                     </button>
                   </div>
                 </form>
@@ -578,6 +679,115 @@ const MaterialsModal: React.FC<MaterialsModalProps> = ({ onClose }) => {
                         </div>
                       </div>
                       {hasCost && expanded && renderPieceCosts(sheetKd)}
+                    </div>
+                  );
+                })
+              )}
+            </div>
+          </section>
+
+          <section className="mat-section" style={{ ['--mat-color' as string]: '#0d9488' }}>
+            <h3>{tr.sectionAcrylics}</h3>
+            {!showAcrylicForm && !editingAcrylic ? (
+              <button type="button" className="mat-add-btn mat-add-trigger" onClick={openAcrylicForm}>
+                <Plus size={15} /> {tr.addMaterial}
+              </button>
+            ) : (
+              <>
+                <p className="mat-sheet-note mat-sheet-note-teal">
+                  {tr.acrylicsNote
+                    .replace('{bw}', String(ACRYLIC_FACTORY_BOARD.widthCm))
+                    .replace('{bh}', String(ACRYLIC_FACTORY_BOARD.heightCm))
+                    .replaceAll('{n}', String(ACRYLIC_CUT_PIECE.piecesPerBoard))
+                    .replace('{pw}', String(ACRYLIC_CUT_PIECE.widthCm))
+                    .replace('{ph}', String(ACRYLIC_CUT_PIECE.heightCm))}
+                </p>
+                <form
+                  className="mat-add-grid mat-add-grid-pack"
+                  onSubmit={(e) => {
+                    e.preventDefault();
+                    saveMaterial('acrylics');
+                  }}
+                >
+                  <label className="mat-field">
+                    <span>{tr.acrylicTypeLabel}</span>
+                    <input
+                      value={acrylicType}
+                      onChange={(e) => setAcrylicType(e.target.value)}
+                      placeholder={tr.acrylicTypePlaceholder}
+                      autoFocus
+                    />
+                  </label>
+                  <label className="mat-field">
+                    <span>{tr.acrylicThicknessLabel}</span>
+                    <input
+                      value={acrylicThickness}
+                      onChange={(e) => setAcrylicThickness(e.target.value)}
+                      placeholder={tr.acrylicThicknessPlaceholder}
+                    />
+                  </label>
+                  <label className="mat-field">
+                    <span>{tr.acrylicBoardCostLabel}</span>
+                    <input
+                      inputMode="decimal"
+                      value={acrylicBoardCostKd}
+                      onChange={(e) => setAcrylicBoardCostKd(normalizeAmountInput(e.target.value))}
+                      placeholder="0"
+                    />
+                  </label>
+                  {liveAcrylicPieceKd > 0 && (
+                    <div className="mat-auto-sheet mat-auto-sheet-teal">
+                      <span>{tr.acrylicPieceCostLabel}</span>
+                      <strong>
+                        {formatMaterialCostKd(liveAcrylicPieceKd)} {tr.currencyKd}
+                      </strong>
+                      <span className="mat-auto-sheet-sub">
+                        {ACRYLIC_CUT_PIECE.widthCm}×{ACRYLIC_CUT_PIECE.heightCm} cm · ÷{ACRYLIC_CUT_PIECE.piecesPerBoard}
+                      </span>
+                    </div>
+                  )}
+                  <div className="mat-form-actions">
+                    <button type="button" className="mat-cancel-btn" onClick={cancelEdit}>
+                      Cancel
+                    </button>
+                    <button type="submit" className="mat-add-btn">
+                      {editingAcrylic ? <><Check size={15} /> Save</> : <><Plus size={15} /> Add</>}
+                    </button>
+                  </div>
+                </form>
+              </>
+            )}
+            <div className="mat-list">
+              {acrylicMaterials.length === 0 ? (
+                <p className="mat-empty">{tr.noMaterialsYet}</p>
+              ) : (
+                acrylicMaterials.map((m) => {
+                  const label = materialLabel(m);
+                  const pieceKd = effectiveAcrylicPieceCostKd(m);
+                  const boardKd = parseMaterialCost(m.acrylicBoardCost);
+                  return (
+                    <div
+                      key={m.id}
+                      className={`mat-item${editingId === m.id ? ' editing' : ''}`}
+                    >
+                      <div className="mat-item-main">
+                        <div className="mat-item-text">
+                          <span className="mat-item-name">{label}</span>
+                          {(boardKd > 0 || pieceKd > 0) && (
+                            <span className="mat-item-meta">
+                              {tr.acrylicSummary
+                                .replace('{board}', boardKd > 0 ? `${formatMaterialCostKd(boardKd)} ${tr.currencyKd}` : '—')
+                                .replace('{thickness}', m.acrylicThickness || '—')}
+                            </span>
+                          )}
+                        </div>
+                        {pieceKd > 0 && (
+                          <span className="mat-meter-price mat-acrylic-piece-price">
+                            {tr.acrylicPieceCostShort}: {formatMaterialCostKd(pieceKd)} {tr.currencyKd}
+                          </span>
+                        )}
+                        {renderActions(m, label)}
+                      </div>
                     </div>
                   );
                 })

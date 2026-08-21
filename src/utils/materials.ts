@@ -101,12 +101,34 @@ export const effectiveMeterCostKd = (
   return parseMaterialCost(m.meterCost);
 };
 
+/** لوح Acrylics من المصنع يُقطع إلى 3 قطع 120×80 */
+export const ACRYLIC_FACTORY_BOARD = { widthCm: 144, heightCm: 244 } as const;
+export const ACRYLIC_CUT_PIECE = { widthCm: 120, heightCm: 80, piecesPerBoard: 3 } as const;
+
+/** سعر قطعة Acrylic = سعر اللوح ÷ 3 */
+export const acrylicPieceCostFromBoard = (boardCost: string | number | undefined): number => {
+  const board = typeof boardCost === 'number' ? boardCost : parseMaterialCost(boardCost);
+  if (board <= 0) return 0;
+  return board / ACRYLIC_CUT_PIECE.piecesPerBoard;
+};
+
+export const effectiveAcrylicPieceCostKd = (
+  m: Pick<Material, 'acrylicBoardCost' | 'acrylicPieceCost'>,
+): number => {
+  const fromBoard = acrylicPieceCostFromBoard(m.acrylicBoardCost);
+  if (fromBoard > 0) return fromBoard;
+  return parseMaterialCost(m.acrylicPieceCost);
+};
+
 export const materialLabel = (m: Material): string => {
   if (m.kind === 'digital') {
     return [m.paperType, m.paperWeight].filter(Boolean).join(' · ') || m.name || '';
   }
   if (m.kind === 'large-format') {
     return [m.rollType, m.rollWidth].filter(Boolean).join(' · ') || m.name || '';
+  }
+  if (m.kind === 'acrylics') {
+    return [m.acrylicType || m.name, m.acrylicThickness].filter(Boolean).join(' · ') || '';
   }
   return m.name || [m.paperType, m.paperWeight, m.rollType, m.rollWidth].filter(Boolean).join(' · ');
 };

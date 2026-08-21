@@ -176,7 +176,7 @@ export interface OpsRow {
   updatedAt?: string;
 }
 
-export type MaterialKind = 'digital' | 'large-format';
+export type MaterialKind = 'digital' | 'large-format' | 'acrylics';
 
 /** Shared print material catalog (Order Request) */
 export interface Material {
@@ -208,6 +208,16 @@ export interface Material {
    * سعر المتر بالدينار = rollCost ÷ rollMeters (محسوب تلقائياً).
    */
   meterCost?: string;
+  /** Acrylics */
+  acrylicType?: string;
+  /** سماكة اللوح */
+  acrylicThickness?: string;
+  /** سعر لوح المصنع 144×244 بالدينار */
+  acrylicBoardCost?: string;
+  /**
+   * سعر القطعة 120×80 = acrylicBoardCost ÷ 3
+   */
+  acrylicPieceCost?: string;
   /** Legacy single-name materials */
   name?: string;
   createdAt: string;
