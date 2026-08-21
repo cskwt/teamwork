@@ -14504,12 +14504,6 @@ def _cost_calculator_hub_page_html():
         <span class="cc-device-title">طباعة الديجيتال</span>
       </span>
     </a>
-    <a class="cc-device-btn" href="/cost-calculator/magnet">
-      <span class="cc-device-icon" aria-hidden="true"><i class="fa-solid fa-sign-hanging" style="color:#fff;font-size:28px"></i></span>
-      <span class="cc-device-meta">
-        <span class="cc-device-title">لوحات المغناطيس</span>
-      </span>
-    </a>
   </div>
   <div class="cc-device-hint">اختر القسم لفتح الحاسبة المناسبة.</div>
 </div>
@@ -15371,73 +15365,6 @@ recalc();
         '<title>طباعة الديجيتال - حاسبة التكاليف</title>'
         f"<style>{_COST_CALCULATOR_STYLES}</style></head>"
         f'<body class="cc-standalone cc-digital">{body}</body></html>'
-    )
-
-
-def _cost_calculator_magnet_page_html():
-    """صفحة حساب سعر بيع لوحة المغناطيس حسب القياس (الطول × العرض)."""
-    body = """<div class="cost-calc-wrap">
-<div class="cc-logo-bar cc-no-print"><img src="/logo.png" alt="Creative Solutions"></div>
-<div class="cost-calc-head cc-no-print">
-<h1><i class="fa-solid fa-sign-hanging"></i> حاسبة لوحات المغناطيس</h1>
-<div class="cc-actions">
-<a href="/cost-calculator" class="cc-btn cc-btn-clear"><i class="fa-solid fa-arrow-right"></i> رجوع</a>
-<button type="button" class="cc-btn cc-btn-clear" id="mgClear"><i class="fa-solid fa-eraser"></i> مسح</button>
-</div></div>
-<div class="cc-title-bar">حساب سعر بيع لوحة المغناطيس حسب القياس</div>
-
-<div class="cc-section-title cc-section-direct">قياس اللوحة المطلوبة</div>
-<div class="cc-meta">
-  <div><label>الطول (سم)</label><input type="number" id="mgLen" min="0" step="0.1" placeholder="مثال: 70"></div>
-  <div><label>العرض (سم)</label><input type="number" id="mgWidth" min="0" step="0.1" placeholder="مثال: 50"></div>
-</div>
-
-<div class="cc-section-title cc-section-profit">النتيجة</div>
-<div class="cc-profit-grid">
-  <div class="cc-profit-card"><div class="cc-profit-label">المساحة</div><div class="cc-profit-value" id="mgArea"></div><div class="cc-hint" style="margin-top:4px">الطول × العرض (سم²)</div></div>
-  <div class="cc-profit-card"><div class="cc-profit-label">السعر المحسوب</div><div class="cc-profit-value" id="mgRaw"></div><div class="cc-hint" style="margin-top:4px">المساحة × سعر السنتيمتر</div></div>
-  <div class="cc-profit-card highlight"><div class="cc-profit-label">سعر البيع المقترح</div><div class="cc-profit-value" id="mgSell"></div><div class="cc-hint" style="margin-top:4px">مقرّب لأقرب 0.250 د.ك</div></div>
-</div>
-
-<script>
-(function(){
-// سعر السنتيمتر المربع مشتق من المرجع: 11 د.ك ÷ (70×50) = 0.0031428571 د.ك/سم²
-var RATE = 11/(70*50);
-function num(v){var n=parseFloat(v);return isNaN(n)?0:n;}
-function fmt3(v){return (Math.round(num(v)*1000)/1000).toFixed(3);}
-function byId(id){return document.getElementById(id);}
-function recalc(){
-  var l=num(byId('mgLen').value), w=num(byId('mgWidth').value);
-  var area=l*w;
-  if(area<=0){
-    byId('mgArea').textContent=''; byId('mgRaw').textContent=''; byId('mgSell').textContent='';
-    return;
-  }
-  var raw=area*RATE;
-  var sell=Math.ceil(raw/0.25)*0.25;
-  byId('mgArea').textContent=(Math.round(area*100)/100)+' سم²';
-  byId('mgRaw').textContent=fmt3(raw)+' د.ك';
-  byId('mgSell').textContent=fmt3(sell)+' د.ك';
-}
-['mgLen','mgWidth'].forEach(function(id){
-  var el=byId(id);
-  if(el){el.addEventListener('input',recalc);el.addEventListener('change',recalc);}
-});
-byId('mgClear').addEventListener('click',function(){
-  byId('mgLen').value=''; byId('mgWidth').value='';
-  recalc();
-});
-recalc();
-})();
-</script>
-</div>"""
-    return (
-        '<!DOCTYPE html>\n<html lang="ar" dir="rtl"><head>'
-        '<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" crossorigin="anonymous">'
-        '<meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1">'
-        '<title>لوحات المغناطيس - حاسبة التكاليف</title>'
-        f"<style>{_COST_CALCULATOR_STYLES}</style></head>"
-        f'<body class="cc-standalone tm-theme">{body}</body></html>'
     )
 
 
@@ -18746,7 +18673,6 @@ PAGES = {
     "/cost-calculator": _cost_calculator_hub_page_html(),
     "/cost-calculator/laser": _cost_calculator_page_html(),
     "/cost-calculator/digital": _cost_calculator_digital_page_html(),
-    "/cost-calculator/magnet": _cost_calculator_magnet_page_html(),
     "/template-maker": _template_maker_hub_page_html(),
     "/template-maker/bag": _template_bag_page_html(),
     "/template-maker/drawer": _template_drawer_page_html(),
@@ -21275,7 +21201,7 @@ def get_html(path, msg="", msg_type="ok", params=None, current_user=None):
             )
     if path == "/salaries-defaults":
         html = html.replace('<div class="content-inner">', '<div class="content-inner employees-list-layout">', 1)
-        if path in ("/cost-calculator", "/cost-calculator/laser", "/cost-calculator/digital", "/cost-calculator/magnet"):
+        if path in ("/cost-calculator", "/cost-calculator/laser", "/cost-calculator/digital"):
             html = html.replace('<div class="content-inner">', '<div class="content-inner cost-calculator-layout">', 1)
             if _COST_CALCULATOR_STYLES not in html:
                 html = html.replace("</head>", f"<style>{_COST_CALCULATOR_STYLES}</style></head>", 1)
@@ -21497,7 +21423,7 @@ class Handler(BaseHTTPRequestHandler):
         _no_auth_paths = (
             "/login", "/health", "/version", "/favicon.png", "/logo.png", "/logo-white.png", "/logo-home.png",
             "/assets/logo.png", "/assets/smart-accountant-light.png", "/assets/smart-accountant-dark.png",
-            "/assets/paper-bag-icon.png", "/assets/slidebox-icon.png", "/assets/lidbox-icon.png", "/assets/pinchlock-icon.png", "/assets/tucklock-icon.png", "/assets/acrylic-pricing-template.xlsx", "/logout", "/attendance", "/attendance/unlock", "/attendance/workspace", "/attendance/dashboard", "/attendance/report", "/attendance/photo", "/cost-calculator", "/cost-calculator/laser", "/cost-calculator/digital", "/cost-calculator/magnet",
+            "/assets/paper-bag-icon.png", "/assets/slidebox-icon.png", "/assets/lidbox-icon.png", "/assets/pinchlock-icon.png", "/assets/tucklock-icon.png", "/assets/acrylic-pricing-template.xlsx", "/logout", "/attendance", "/attendance/unlock", "/attendance/workspace", "/attendance/dashboard", "/attendance/report", "/attendance/photo", "/cost-calculator", "/cost-calculator/laser", "/cost-calculator/digital",
             "/template-maker", "/template-maker/bag", "/template-maker/drawer", "/template-maker/lidbox", "/template-maker/pinchlock", "/template-maker/tucklock",
         )
         _user = _get_session_user(self)
@@ -21639,7 +21565,7 @@ class Handler(BaseHTTPRequestHandler):
             self.wfile.write(_html_response_bytes(cc_html))
             return
 
-        if path in ("/cost-calculator", "/cost-calculator/laser", "/cost-calculator/digital", "/cost-calculator/magnet", "/template-maker", "/template-maker/bag", "/template-maker/drawer", "/template-maker/lidbox", "/template-maker/pinchlock", "/template-maker/tucklock"):
+        if path in ("/cost-calculator", "/cost-calculator/laser", "/cost-calculator/digital", "/template-maker", "/template-maker/bag", "/template-maker/drawer", "/template-maker/lidbox", "/template-maker/pinchlock", "/template-maker/tucklock"):
             cc_html = PAGES.get(path, PAGES.get("/cost-calculator", ""))
             if _user is None:
                 cc_html = cc_html.replace(

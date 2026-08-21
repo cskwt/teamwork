@@ -29,10 +29,6 @@
       "destination": "/cost-calculator/laser.html"
     },
     {
-      "source": "/cost-calculator/magnet",
-      "destination": "/cost-calculator/magnet.html"
-    },
-    {
       "source": "/cost-calculator-pdf",
       "destination": "https://acc.csapp.io/cost-calculator-pdf"
     },

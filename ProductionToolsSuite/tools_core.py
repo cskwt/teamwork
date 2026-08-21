@@ -33,7 +33,6 @@ TOOL_GET_PATHS = frozenset(
         "/cost-calculator",
         "/cost-calculator/laser",
         "/cost-calculator/digital",
-        "/cost-calculator/magnet",
         "/template-maker",
         "/template-maker/bag",
         "/template-maker/drawer",
