@@ -1,10 +1,12 @@
 import React, { useMemo, useState } from 'react';
-import { X, Plus, Trash2, Package, Pencil, Check, ChevronDown } from 'lucide-react';
+import { X, Plus, Trash2, Package, Pencil, Check, ChevronDown, Layers } from 'lucide-react';
 import { useApp } from '../../contexts/AppContext';
 import { useLang } from '../../contexts/LanguageContext';
 import { Material, MaterialKind } from '../../types';
 import { generateId } from '../../utils/helpers';
 import { normalizeAmountInput, toWesternDigits } from '../../utils/helpers';
+import digitalPrintingImg from '../../assets/digital-printing.png';
+import largeFormatImg from '../../assets/large-format-printing.png';
 import {
   ACRYLIC_CUT_PIECE,
   ACRYLIC_FACTORY_BOARD,
@@ -425,7 +427,12 @@ const MaterialsModal: React.FC<MaterialsModalProps> = ({ onClose }) => {
 
         <div className="mat-sections">
           <section className="mat-section" style={{ ['--mat-color' as string]: '#6438E0' }}>
-            <h3>Large Format</h3>
+            <h3 className="mat-section-title">
+              <span className="mat-section-icon" aria-hidden>
+                <img src={largeFormatImg} alt="" />
+              </span>
+              Large Format
+            </h3>
             {!showLargeForm && !editingLarge ? (
               <button type="button" className="mat-add-btn mat-add-trigger" onClick={openLargeForm}>
                 <Plus size={15} /> {tr.addMaterial}
@@ -532,7 +539,12 @@ const MaterialsModal: React.FC<MaterialsModalProps> = ({ onClose }) => {
           </section>
 
           <section className="mat-section" style={{ ['--mat-color' as string]: '#16a34a' }}>
-            <h3>Digital</h3>
+            <h3 className="mat-section-title">
+              <span className="mat-section-icon" aria-hidden>
+                <img src={digitalPrintingImg} alt="" />
+              </span>
+              Digital
+            </h3>
             {!showDigitalForm && !editingDigital ? (
               <button type="button" className="mat-add-btn mat-add-trigger" onClick={openDigitalForm}>
                 <Plus size={15} /> {tr.addMaterial}
@@ -687,7 +699,12 @@ const MaterialsModal: React.FC<MaterialsModalProps> = ({ onClose }) => {
           </section>
 
           <section className="mat-section" style={{ ['--mat-color' as string]: '#0d9488' }}>
-            <h3>{tr.sectionAcrylics}</h3>
+            <h3 className="mat-section-title">
+              <span className="mat-section-icon" aria-hidden>
+                <Layers size={26} color="#fff" strokeWidth={2} />
+              </span>
+              {tr.sectionAcrylics}
+            </h3>
             {!showAcrylicForm && !editingAcrylic ? (
               <button type="button" className="mat-add-btn mat-add-trigger" onClick={openAcrylicForm}>
                 <Plus size={15} /> {tr.addMaterial}
@@ -770,24 +787,28 @@ const MaterialsModal: React.FC<MaterialsModalProps> = ({ onClose }) => {
                       key={m.id}
                       className={`mat-item${editingId === m.id ? ' editing' : ''}`}
                     >
-                      <div className="mat-item-main">
-                        <div className="mat-item-text">
-                          <span className="mat-item-name">{label}</span>
-                          {(boardKd > 0 || pieceKd > 0) && (
-                            <span className="mat-item-meta">
-                              {tr.acrylicSummary
-                                .replace('{board}', boardKd > 0 ? `${formatMaterialCostKd(boardKd)} ${tr.currencyKd}` : '—')
-                                .replace('{thickness}', m.acrylicThickness || '—')}
-                            </span>
-                          )}
-                        </div>
-                        {pieceKd > 0 && (
-                          <span className="mat-meter-price mat-acrylic-piece-price">
-                            {tr.acrylicPieceCostShort}: {formatMaterialCostKd(pieceKd)} {tr.currencyKd}
-                          </span>
+                      <div className="mat-item-meta">
+                        <strong>{label}</strong>
+                        {(boardKd > 0 || m.acrylicThickness) && (
+                          <small>
+                            {tr.acrylicSummary
+                              .replace(
+                                '{board}',
+                                boardKd > 0 ? `${formatMaterialCostKd(boardKd)} ${tr.currencyKd}` : '—',
+                              )
+                              .replace('{thickness}', m.acrylicThickness || '—')}
+                            {pieceKd > 0 ? (
+                              <>
+                                {' · '}
+                                <span className="mat-meter-price mat-acrylic-piece-price">
+                                  {tr.acrylicPieceCostShort}: {formatMaterialCostKd(pieceKd)} {tr.currencyKd}
+                                </span>
+                              </>
+                            ) : null}
+                          </small>
                         )}
-                        {renderActions(m, label)}
                       </div>
+                      {renderActions(m, label)}
                     </div>
                   );
                 })

@@ -1205,9 +1205,31 @@ html[data-view="phone"] .tools-cards-grid {
 .mat-section:first-child { border-inline-start: none; }
 .mat-section h3 {
   margin: 0;
-  font-size: 13px;
+  font-size: 15px;
   font-weight: 800;
   color: var(--mat-color, #111827);
+}
+.mat-section-title {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.mat-section-icon {
+  width: 44px;
+  height: 44px;
+  border-radius: 12px;
+  background: var(--mat-color, #64748b);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  box-shadow: 0 2px 8px color-mix(in srgb, var(--mat-color, #64748b) 35%, transparent);
+}
+.mat-section-icon img {
+  width: 28px;
+  height: 28px;
+  object-fit: contain;
+  filter: brightness(0) invert(1);
 }
 .mat-add-grid {
   display: grid;
@@ -1289,6 +1311,11 @@ html[data-view="phone"] .tools-cards-grid {
   border: 1px solid #ddd6fe;
   border-radius: 6px;
   padding: 1px 6px;
+}
+.mat-meter-price.mat-acrylic-piece-price {
+  color: #0d9488 !important;
+  background: #f0fdfa;
+  border-color: #99f6e4;
 }
 .mat-sheet-note {
   margin: 0;
