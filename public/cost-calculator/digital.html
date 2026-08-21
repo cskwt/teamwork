@@ -292,7 +292,7 @@ body.cc-digital select{appearance:none;border:none;background:transparent;font-w
 </tbody></table></div>
 <div class="cc-profit-grid">
   <div class="cc-profit-card highlight" id="dgGrossCard"><div class="cc-profit-label">سعر البيع</div><div class="cc-profit-value" id="dgSellCardValue"></div><div class="cc-hint" style="margin-top:4px">قيمة البيع النهائية للطلب</div></div>
-  <div class="cc-profit-card" id="dgUnitSellCard"><div class="cc-profit-label">سعر بيع الحبة</div><div class="cc-profit-value" id="dgUnitSellValue"></div><div class="cc-hint" style="margin-top:4px">إجمالي سعر البيع ÷ عدد الصفحات</div></div>
+  <div class="cc-profit-card" id="dgUnitSellCard"><div class="cc-profit-label">سعر بيع الحبة</div><div class="cc-profit-value" id="dgUnitSellValue"></div><div class="cc-hint" style="margin-top:4px">إجمالي سعر البيع ÷ عدد القطع</div></div>
   <div class="cc-profit-card" id="dgNetCard"><div class="cc-profit-label">صافي الربح</div><div class="cc-profit-value" id="dgNetProfit"></div><div class="cc-hint" style="margin-top:4px">سعر البيع − إجمالي تكلفة الطلب</div></div>
   <div class="cc-profit-card" id="dgNetPctCard"><div class="cc-profit-label">نسبة صافي الربح</div><div class="cc-profit-value" id="dgNetPct"></div></div>
 </div>
@@ -551,7 +551,8 @@ function recalc(){
   byId('dgTotalPer').value=(ready||designTotal>0||assemblyTotal>0)?fmt3(totalJob):'';
   byId('dgSellTotal').value=(sellTotal>0)?fmt3(sellTotal):'';
   byId('dgSellCardValue').textContent = (sellTotal>0) ? fmt3(sellTotal) : '';
-  var unit = (sellTotal>0 && qty>0) ? (sellTotal/qty) : 0;
+  var pieces = Math.max(0, Math.floor(num((byId('dgNestN')||{}).value)||0));
+  var unit = (sellTotal>0 && pieces>0) ? (sellTotal/pieces) : 0;
   if(byId('dgUnitSellValue')) byId('dgUnitSellValue').textContent = (unit>0) ? fmt3(unit) : '';
   byId('dgNetProfit').textContent = (sellTotal>0 || totalJob>0) ? fmt3(net) : '';
   byId('dgNetPct').textContent = (sellTotal>0) ? (Math.round(netPct*100)/100).toFixed(2)+'%' : '';
