@@ -651,7 +651,7 @@ try{
 
 /* —— حساب عدد القطع على قياس الورق المختار من المخزون —— */
 var SVG_NS='http://www.w3.org/2000/svg';
-var NEST={GAP:0.5,MARGIN:0,fillInner:false,total:1,sheetIdx:0,draw:null,zoom:1,baseW:140,vbW:1000,vbH:700};
+var NEST={GAP:0.5,MARGIN:0,FRAME_PAD:0,fillInner:false,total:1,sheetIdx:0,draw:null,zoom:1,baseW:140,vbW:1000,vbH:700};
 function nestSvgEl(tag,attrs){var e=document.createElementNS(SVG_NS,tag);for(var k in attrs)e.setAttribute(k,attrs[k]);return e;}
 function clearNestSvg(s){while(s.firstChild)s.removeChild(s.firstChild);}
 function drawGraphtecMarks(sv, vbW, vbH){
@@ -728,7 +728,7 @@ function setNestStats(arr){
   el.innerHTML=h;
 }
 function nestFillSheet(SW,SH,pw,ph,allowRot){
-  var g=NEST.GAP, m=NEST.MARGIN||0, fill=!!NEST.fillInner;
+  var g=NEST.GAP, m=(NEST.MARGIN||0)+(NEST.FRAME_PAD||0), fill=!!NEST.fillInner;
   var innerW=SW-2*m, innerH=SH-2*m;
   if(innerW<=0||innerH<=0) return [];
   function pack(w,h){
@@ -757,7 +757,7 @@ function nestFillSheet(SW,SH,pw,ph,allowRot){
 }
 function nestCenterSlots(slots, SW, SH){
   if(!slots || !slots.length) return slots;
-  var m=NEST.MARGIN||0;
+  var m=(NEST.MARGIN||0)+(NEST.FRAME_PAD||0);
   var minX=Infinity, minY=Infinity, maxX=-Infinity, maxY=-Infinity, i, sl;
   for(i=0;i<slots.length;i++){
     sl=slots[i];
@@ -787,8 +787,10 @@ function renderNest(){
   var svg=byId('dgNestSheet');
   if(!svg) return;
   var graphtec=((byId('dgCut')||{}).value||'')==='graphtec';
+  /* علامات Graphtec على 2.5سم؛ القطع داخل الإطار بمسافة GAP ولا تلامس الإطار */
   NEST.MARGIN = graphtec ? 2.5 : 0;
-  NEST.fillInner = graphtec;
+  NEST.FRAME_PAD = graphtec ? 0.5 : 0;
+  NEST.fillInner = false;
   if(!sheet){
     if(title) title.textContent='اختر قياس الورق من المخزون';
     clearNestSvg(svg);
@@ -827,7 +829,7 @@ function renderNest(){
     var sv=byId('dgNestSheet'); clearNestSvg(sv);
     nestPageBg(sv, vbW, vbH, graphtec);
     var startI=idx*per, count=Math.min(per,n-startI);
-    var pageSlots=NEST.fillInner ? slots.slice(0,count) : nestCenterSlots(slots.slice(0,count), SW, SH);
+    var pageSlots=nestCenterSlots(slots.slice(0,count), SW, SH);
     for(var i=0;i<count;i++){
       var sl=pageSlots[i], x=sl.x*10, y=sl.y*10, wMM=sl.w*10, hMM=sl.h*10;
       if(circle){
