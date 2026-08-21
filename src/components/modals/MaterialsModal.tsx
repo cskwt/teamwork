@@ -11,6 +11,7 @@ import {
   effectiveMeterCostKd,
   effectiveSheetCostKd,
   formatMaterialCostFils,
+  formatMaterialCostKd,
   materialLabel,
   materialsOfKind,
   meterCostFromRoll,
@@ -374,9 +375,9 @@ const MaterialsModal: React.FC<MaterialsModalProps> = ({ onClose }) => {
                   </label>
                   <div className="mat-auto-sheet mat-auto-sheet-purple">
                     <span>{tr.meterCostLabel}</span>
-                    <strong>
+                    <strong className="mat-meter-price">
                       {liveMeterCostKd > 0
-                        ? `${formatMaterialCostFils(liveMeterCostKd)} ${tr.currencyShort}`
+                        ? `${formatMaterialCostKd(liveMeterCostKd)} ${tr.currencyKd}`
                         : '—'}
                     </strong>
                   </div>
@@ -411,9 +412,14 @@ const MaterialsModal: React.FC<MaterialsModalProps> = ({ onClose }) => {
                                 .replace('{cost}', `${costKdVal} ${tr.currencyKd}`)
                                 .replace('{meters}', String(meters))}`
                             : ''}
-                          {meterKd > 0
-                            ? ` · ${tr.meterCostShort}: ${formatMaterialCostFils(meterKd)} ${tr.currencyShort}`
-                            : ''}
+                          {meterKd > 0 ? (
+                            <>
+                              {' · '}
+                              <span className="mat-meter-price">
+                                {tr.meterCostShort}: {formatMaterialCostKd(meterKd)} {tr.currencyKd}
+                              </span>
+                            </>
+                          ) : null}
                         </small>
                       </div>
                       {renderActions(m, label)}

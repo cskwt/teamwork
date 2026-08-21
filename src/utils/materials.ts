@@ -40,6 +40,13 @@ export const formatMaterialCostFils = (kd: number): string => {
   return String(fils);
 };
 
+/** عرض التكلفة بالدينار */
+export const formatMaterialCostKd = (kd: number): string => {
+  if (!Number.isFinite(kd) || kd <= 0) return '—';
+  const rounded = Math.round(kd * 1000) / 1000;
+  return Number.isInteger(rounded) ? String(rounded) : String(rounded);
+};
+
 /** @deprecated use formatMaterialCostFils */
 export const formatMaterialCost = formatMaterialCostFils;
 
