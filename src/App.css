@@ -1040,7 +1040,7 @@ html[data-view="phone"] .tools-cards-grid {
 .orq-mini-btn {
   display: inline-flex;
   align-items: center;
-  gap: 5px;
+  gap: 8px;
   border: none;
   border-radius: 9px;
   padding: 8px 12px;
@@ -1060,6 +1060,24 @@ html[data-view="phone"] .tools-cards-grid {
   object-fit: contain;
   filter: brightness(0) invert(1);
   flex-shrink: 0;
+}
+.orq-mini-names {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0;
+  line-height: 1.15;
+  text-align: start;
+}
+.orq-mini-en {
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.01em;
+}
+.orq-mini-ar {
+  font-size: 11px;
+  font-weight: 700;
+  opacity: 0.92;
 }
 .orq-table-section { margin-top: 0; }
 .orq-split-tables {
@@ -1311,6 +1329,8 @@ html[data-view="phone"] .tools-cards-grid {
   border: 1px solid #ddd6fe;
   border-radius: 6px;
   padding: 1px 6px;
+  unicode-bidi: isolate;
+  flex-shrink: 0;
 }
 .mat-meter-price.mat-acrylic-piece-price {
   color: #0d9488 !important;
@@ -1512,6 +1532,15 @@ html[data-view="phone"] .tools-cards-grid {
   font-size: 11px;
   color: #64748b;
   font-weight: 600;
+}
+.mat-item-subline {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+.mat-item-subline-text {
+  unicode-bidi: isolate;
 }
 @media (max-width: 1100px) {
   .mat-sections { grid-template-columns: 1fr; }

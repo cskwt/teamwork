@@ -13424,9 +13424,11 @@ a.cc-device-btn{text-decoration:none;color:inherit}
 .cc-device-icon{width:64px;height:64px;border-radius:12px;display:grid;place-items:center;flex:0 0 64px;background:linear-gradient(135deg,var(--primary),var(--purple))}
 .cc-device-icon svg{width:44px;height:44px;fill:#fff}
 .cc-device-icon img{width:44px;height:44px;object-fit:contain;filter:brightness(0) invert(1)}
+.cc-device-icon--photo{background:transparent;padding:0;overflow:hidden;box-shadow:none}
+.cc-device-icon--photo img{width:64px;height:64px;object-fit:contain;filter:none;border-radius:12px}
 .cc-device-meta{display:flex;flex-direction:column;gap:2px;min-width:0}
 .cc-device-title{font-weight:900;color:var(--primary);font-size:15px;line-height:1.2;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;text-decoration:none}
-.cc-device-sub{font-size:12px;color:var(--text-muted);line-height:1.2}
+.cc-device-sub{font-size:12px;color:var(--text-muted);line-height:1.2;font-weight:700}
 .cc-device-hint{font-size:12px;color:var(--text-muted);margin-top:10px}
 .cost-calc-head{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:12px;margin-bottom:16px}
 .cost-calc-head h1{margin:0;color:var(--primary);font-size:1.25em;display:flex;align-items:center;gap:10px}
@@ -14496,12 +14498,14 @@ def _cost_calculator_hub_page_html():
       <span class="cc-device-icon" aria-hidden="true"><i class="fa-solid fa-bolt" style="color:#fff;font-size:28px"></i></span>
       <span class="cc-device-meta">
         <span class="cc-device-title">منتجات الليزر</span>
+        <span class="cc-device-sub">Laser Products</span>
       </span>
     </a>
     <a class="cc-device-btn" href="/cost-calculator/digital">
-      <span class="cc-device-icon" aria-hidden="true"><i class="fa-solid fa-print" style="color:#fff;font-size:28px"></i></span>
+      <span class="cc-device-icon cc-device-icon--photo" aria-hidden="true"><img src="/cost-calculator/digital-printing-icon.png" alt=""></span>
       <span class="cc-device-meta">
         <span class="cc-device-title">طباعة الديجيتال</span>
+        <span class="cc-device-sub">Digital Printing</span>
       </span>
     </a>
   </div>
@@ -15546,23 +15550,38 @@ def _template_maker_hub_page_html():
   <div class="cc-device-grid" role="group" aria-label="اختيار نوع القالب">
     <a class="cc-device-btn" href="/template-maker/bag">
       <span class="cc-device-icon" aria-hidden="true"><img src="/assets/paper-bag-icon.png" alt="Paper Bag"></span>
-      <span class="cc-device-meta"><span class="cc-device-title">أكياس Paper Bag</span></span>
+      <span class="cc-device-meta">
+        <span class="cc-device-title">أكياس</span>
+        <span class="cc-device-sub">Paper Bag</span>
+      </span>
     </a>
     <a class="cc-device-btn" href="/template-maker/drawer">
       <span class="cc-device-icon" aria-hidden="true"><img src="/assets/slidebox-icon.png" alt="Slide Box"></span>
-      <span class="cc-device-meta"><span class="cc-device-title">علبة سحب Slide Box</span></span>
+      <span class="cc-device-meta">
+        <span class="cc-device-title">علبة سحب</span>
+        <span class="cc-device-sub">Slide Box</span>
+      </span>
     </a>
     <a class="cc-device-btn" href="/template-maker/lidbox">
       <span class="cc-device-icon" aria-hidden="true"><img src="/assets/lidbox-icon.png" alt="Lid Box"></span>
-      <span class="cc-device-meta"><span class="cc-device-title">علبة مع غطاء Lid Box</span></span>
+      <span class="cc-device-meta">
+        <span class="cc-device-title">علبة مع غطاء</span>
+        <span class="cc-device-sub">Lid Box</span>
+      </span>
     </a>
     <a class="cc-device-btn" href="/template-maker/pinchlock">
       <span class="cc-device-icon" aria-hidden="true"><img src="/assets/pinchlock-icon.png" alt="Pinch lock"></span>
-      <span class="cc-device-meta"><span class="cc-device-title">علبة قفل ذاتي Pinch lock</span></span>
+      <span class="cc-device-meta">
+        <span class="cc-device-title">علبة قفل ذاتي</span>
+        <span class="cc-device-sub">Pinch lock</span>
+      </span>
     </a>
     <a class="cc-device-btn" href="/template-maker/tucklock">
       <span class="cc-device-icon" aria-hidden="true"><img src="/assets/tucklock-icon.png" alt="Tuck Lock"></span>
-      <span class="cc-device-meta"><span class="cc-device-title">علبة بقفل إدخال Tuck Lock</span></span>
+      <span class="cc-device-meta">
+        <span class="cc-device-title">علبة بقفل إدخال</span>
+        <span class="cc-device-sub">Tuck Lock</span>
+      </span>
     </a>
   </div>
   <div class="cc-device-hint">اختر نوع القالب لإنشائه ومعاينته وتصديره كملف قص.</div>

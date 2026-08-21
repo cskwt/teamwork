@@ -188,7 +188,7 @@ const DigitalPrintingOrderModal: React.FC<DigitalPrintingOrderModalProps> = ({
           <div className="dp2-header-title">
             <span className="dp2-header-icon"><Printer size={18} /></span>
             <div>
-              <h2>Digital Printing</h2>
+              <h2>Digital Printing · طباعة الديجيتال</h2>
               <p>{editing ? 'Edit order · تعديل الطلبية' : 'Order details · تفاصيل الطباعة الرقمية'}</p>
             </div>
           </div>

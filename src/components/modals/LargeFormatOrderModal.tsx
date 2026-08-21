@@ -158,7 +158,7 @@ const LargeFormatOrderModal: React.FC<LargeFormatOrderModalProps> = ({
           <div className="dp2-header-title">
             <span className="dp2-header-icon"><Printer size={18} /></span>
             <div>
-              <h2>Large Format</h2>
+              <h2>Large Format · الطباعة الكبيرة</h2>
               <p>{editing ? 'Edit order · تعديل الطلبية' : 'Printing details · تفاصيل الطباعة الكبيرة'}</p>
             </div>
           </div>

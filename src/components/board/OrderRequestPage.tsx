@@ -61,7 +61,7 @@ const OrderRequestPage: React.FC = () => {
   const renderTable = (
     list: Order[],
     emptyLabel: string,
-    banner: { title: string; icon: string; color: string },
+    banner: { titleEn: string; titleAr: string; icon: string; color: string },
   ) => (
     <div className="table-card orq-split-card" style={{ ['--orq-color' as string]: banner.color }}>
       <div className="orders-table-wrap">
@@ -74,7 +74,8 @@ const OrderRequestPage: React.FC = () => {
                     <img src={banner.icon} alt="" />
                   </span>
                   <span className="orq-banner-names" style={{ color: banner.color }}>
-                    <span className="orq-banner-en">{banner.title}</span>
+                    <span className="orq-banner-en">{banner.titleEn}</span>
+                    <span className="orq-banner-ar">{banner.titleAr}</span>
                   </span>
                 </div>
               </th>
@@ -155,26 +156,34 @@ const OrderRequestPage: React.FC = () => {
       />
 
       <div className="orq-header-actions" style={{ marginBottom: 16 }}>
-        <button type="button" className="orq-mini-btn" onClick={() => setPrintType('digital')}>
+        <button type="button" className="orq-mini-btn" style={{ background: '#2563eb' }} onClick={() => setPrintType('digital')}>
           <img className="orq-mini-icon" src={digitalPrintingImg} alt="" />
-          Digital Printing
+          <span className="orq-mini-names">
+            <span className="orq-mini-en">Digital Printing</span>
+            <span className="orq-mini-ar">طباعة الديجيتال</span>
+          </span>
           <Plus size={16} />
         </button>
-        <button type="button" className="orq-mini-btn" onClick={() => setPrintType('large-format')}>
+        <button type="button" className="orq-mini-btn" style={{ background: '#7c3aed' }} onClick={() => setPrintType('large-format')}>
           <img className="orq-mini-icon" src={largeFormatImg} alt="" />
-          Large Format
+          <span className="orq-mini-names">
+            <span className="orq-mini-en">Large Format</span>
+            <span className="orq-mini-ar">الطباعة الكبيرة</span>
+          </span>
           <Plus size={16} />
         </button>
       </div>
 
       <div className="orq-split-tables">
         {renderTable(digitalOrders, 'No digital print requests yet', {
-          title: 'Digital Printing',
+          titleEn: 'Digital Printing',
+          titleAr: 'طباعة الديجيتال',
           icon: digitalPrintingImg,
           color: '#2563eb',
         })}
         {renderTable(largeFormatOrders, 'No large format requests yet', {
-          title: 'Large Format',
+          titleEn: 'Large Format',
+          titleAr: 'الطباعة الكبيرة',
           icon: largeFormatImg,
           color: '#7c3aed',
         })}
