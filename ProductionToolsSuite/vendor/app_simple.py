@@ -14445,10 +14445,6 @@ def _cost_calculator_digital_page_html():
     </select>
   </div>
   <div>
-    <label>عدد الصفحات <span style="font-weight:600;color:#6b7280;font-size:11px">(تلقائي من التوزيع)</span></label>
-    <input type="number" id="dgQty" class="cc-ro" min="0" step="1" value="" readonly tabindex="-1" title="يُحسب تلقائياً عند توزيع أبعاد المنتج في صفحة العرض">
-  </div>
-  <div>
     <label>جهات الطباعة</label>
     <div class="dg-choice-wrap" style="display:flex;gap:10px;align-items:center;justify-content:flex-start;padding:10px 12px;border:2px solid #ddd;border-radius:8px;background:#fff">
       <button type="button" id="dgSideOne" class="cc-btn cc-btn-clear" style="color:#4f46e5;background:#eef2ff;padding:8px 12px;border-radius:10px">
@@ -14541,7 +14537,11 @@ def _cost_calculator_digital_page_html():
     </div>
   </div>
   <div class="lw-stats" id="dgNestStats"></div>
-  <div style="margin-top:10px;font-size:12px;color:#667085;font-weight:600">يُحدَّث «عدد الصفحات» تلقائياً حسب عدد الصفحات اللازمة للقطع.</div>
+  <div class="dg-nest-qty" style="margin-top:14px;padding:12px;background:#fff;border:1px solid var(--border,#e5e7eb);border-radius:10px;border-right:4px solid var(--primary,#4f46e5)">
+    <label style="display:block;font-size:12.5px;font-weight:700;color:#444;margin-bottom:6px">عدد الصفحات <span style="font-weight:600;color:#6b7280;font-size:11px">(تلقائي من التوزيع)</span></label>
+    <input type="number" id="dgQty" class="cc-ro" min="0" step="1" value="" readonly tabindex="-1" title="يُحسب تلقائياً عند توزيع أبعاد المنتج في صفحة العرض" style="width:100%;max-width:220px;padding:10px 12px;border:2px solid #d0d7de;border-radius:8px;font-size:15px;font-family:inherit;box-sizing:border-box;background:#f5f7fa;font-weight:700;color:var(--primary,#4f46e5)">
+    <div style="margin-top:8px;font-size:12px;color:#667085;font-weight:600">يُحدَّث تلقائياً حسب عدد الصفحات اللازمة للقطع في صفحة العرض.</div>
+  </div>
 </div>
 
 <div class="cc-section-title cc-section-direct">حساب التكاليف</div>
@@ -15198,8 +15198,8 @@ if(byId('dgNestRotBtn')) byId('dgNestRotBtn').addEventListener('click',function(
 setNestRot(true);
 ['dgNestL','dgNestW','dgNestD','dgNestN'].forEach(function(id){
   var el=byId(id); if(!el) return;
-  el.addEventListener('input',renderNest);
-  el.addEventListener('change',renderNest);
+  el.addEventListener('input',function(){renderNest();recalc();});
+  el.addEventListener('change',function(){renderNest();recalc();});
 });
 if(byId('dgSheet')) byId('dgSheet').addEventListener('change',renderNest);
 if(byId('dgNestSheetPrev')) byId('dgNestSheetPrev').addEventListener('click',function(){if(NEST.sheetIdx>0){NEST.sheetIdx--;if(NEST.draw)NEST.draw(NEST.sheetIdx);updateNestNav();}});
