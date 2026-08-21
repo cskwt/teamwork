@@ -9,9 +9,7 @@ import {
   digitalPieceCosts,
   effectiveMeterCostKd,
   effectiveSheetCostKd,
-  filsToKd,
   formatMaterialCostFils,
-  kdToFils,
   materialLabel,
   materialsOfKind,
   meterCostFromRoll,
@@ -37,7 +35,7 @@ const MaterialsModal: React.FC<MaterialsModalProps> = ({ onClose }) => {
   const [sheetsPerPack, setSheetsPerPack] = useState('');
   const [rollType, setRollType] = useState('');
   const [rollWidth, setRollWidth] = useState('');
-  const [rollCostFils, setRollCostFils] = useState('');
+  const [rollCostKd, setRollCostKd] = useState('');
   const [rollMeters, setRollMeters] = useState('');
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editingKind, setEditingKind] = useState<MaterialKind | null>(null);
@@ -55,7 +53,7 @@ const MaterialsModal: React.FC<MaterialsModalProps> = ({ onClose }) => {
   const clearLargeForm = () => {
     setRollType('');
     setRollWidth('');
-    setRollCostFils('');
+    setRollCostKd('');
     setRollMeters('');
   };
 
@@ -78,8 +76,8 @@ const MaterialsModal: React.FC<MaterialsModalProps> = ({ onClose }) => {
       setShowDigitalForm(false);
       setRollType(m.rollType || m.name || '');
       setRollWidth(m.rollWidth || '');
-      const costFils = kdToFils(parseMaterialCost(m.rollCost));
-      setRollCostFils(costFils > 0 ? String(costFils) : '');
+      const costKdVal = parseMaterialCost(m.rollCost);
+      setRollCostKd(costKdVal > 0 ? String(costKdVal) : '');
       const meters = parseMaterialCost(m.rollMeters);
       setRollMeters(meters > 0 ? String(meters) : '');
       clearDigitalForm();
@@ -119,7 +117,7 @@ const MaterialsModal: React.FC<MaterialsModalProps> = ({ onClose }) => {
   );
   const livePieceCosts = digitalPieceCosts(liveSheetCostKd > 0 ? liveSheetCostKd : 0);
 
-  const liveRollKd = filsToKd(parseMaterialCost(rollCostFils));
+  const liveRollKd = parseMaterialCost(rollCostKd);
   const liveMeters = parseMaterialCost(rollMeters);
   const liveMeterCostKd = useMemo(
     () => meterCostFromRoll(liveRollKd > 0 ? String(liveRollKd) : '', liveMeters > 0 ? String(liveMeters) : ''),
@@ -195,19 +193,19 @@ const MaterialsModal: React.FC<MaterialsModalProps> = ({ onClose }) => {
 
     const rt = rollType.trim();
     const rw = rollWidth.trim();
-    const costFils = parseMaterialCost(rollCostFils);
+    const costKdVal = parseMaterialCost(rollCostKd);
     const meters = parseMaterialCost(rollMeters);
     if (!rt || !rw) {
       alert('Enter roll type and roll width');
       return;
     }
-    if ((rollCostFils.trim() || rollMeters.trim()) && (costFils <= 0 || meters <= 0)) {
+    if ((rollCostKd.trim() || rollMeters.trim()) && (costKdVal <= 0 || meters <= 0)) {
       alert(tr.rollCostInvalid);
       return;
     }
-    const rollCostKd = costFils > 0 ? String(filsToKd(costFils)) : '';
+    const rollCostKdStr = costKdVal > 0 ? String(costKdVal) : '';
     const metersStr = meters > 0 ? String(meters) : '';
-    const derivedMeter = meterCostFromRoll(rollCostKd, metersStr);
+    const derivedMeter = meterCostFromRoll(rollCostKdStr, metersStr);
     const meterCost = derivedMeter > 0 ? String(derivedMeter) : '';
     const exists = largeMaterials.some(
       (m) =>
@@ -228,7 +226,7 @@ const MaterialsModal: React.FC<MaterialsModalProps> = ({ onClose }) => {
           kind: 'large-format',
           rollType: rt,
           rollWidth: rw,
-          rollCost: rollCostKd,
+          rollCost: rollCostKdStr,
           rollMeters: metersStr,
           meterCost: meterCost || prev?.meterCost || '',
           createdAt: prev?.createdAt || now,
@@ -245,7 +243,7 @@ const MaterialsModal: React.FC<MaterialsModalProps> = ({ onClose }) => {
         kind: 'large-format',
         rollType: rt,
         rollWidth: rw,
-        rollCost: rollCostKd,
+        rollCost: rollCostKdStr,
         rollMeters: metersStr,
         meterCost,
         createdAt: now,
@@ -358,10 +356,10 @@ const MaterialsModal: React.FC<MaterialsModalProps> = ({ onClose }) => {
                   <label>
                     <span>{tr.rollCostLabel}</span>
                     <input
-                      value={rollCostFils}
-                      onChange={(e) => setRollCostFils(e.target.value)}
-                      inputMode="numeric"
-                      placeholder="25000"
+                      value={rollCostKd}
+                      onChange={(e) => setRollCostKd(e.target.value)}
+                      inputMode="decimal"
+                      placeholder="25"
                     />
                   </label>
                   <label>
@@ -399,7 +397,7 @@ const MaterialsModal: React.FC<MaterialsModalProps> = ({ onClose }) => {
                 largeMaterials.map((m) => {
                   const label = materialLabel(m);
                   const meterKd = effectiveMeterCostKd(m);
-                  const costFils = kdToFils(parseMaterialCost(m.rollCost));
+                  const costKdVal = parseMaterialCost(m.rollCost);
                   const meters = parseMaterialCost(m.rollMeters);
                   return (
                     <div key={m.id} className={`mat-item${editingId === m.id ? ' editing' : ''}`}>
@@ -407,9 +405,9 @@ const MaterialsModal: React.FC<MaterialsModalProps> = ({ onClose }) => {
                         <strong>{m.rollType || m.name}</strong>
                         <small>
                           {m.rollWidth}
-                          {costFils > 0 && meters > 0
+                          {costKdVal > 0 && meters > 0
                             ? ` · ${tr.rollSummary
-                                .replace('{cost}', `${costFils} ${tr.currencyShort}`)
+                                .replace('{cost}', `${costKdVal} ${tr.currencyKd}`)
                                 .replace('{meters}', String(meters))}`
                             : ''}
                           {meterKd > 0
