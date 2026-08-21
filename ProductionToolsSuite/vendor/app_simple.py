@@ -14475,6 +14475,33 @@ def _cost_calculator_digital_page_html():
   </div>
 </div>
 
+<div class="cc-section-title cc-no-print">حساب عدد القطع في الصفحة</div>
+<div class="lw-section cc-no-print" id="dgNestSection">
+  <label style="display:block;font-size:12.5px;font-weight:700;color:#444;margin-bottom:6px">شكل القطعة</label>
+  <div class="lw-lid-btns" style="max-width:380px;margin-bottom:12px">
+    <button type="button" id="dgNestShapeRect" class="active"><i class="fa-solid fa-vector-square"></i> مستطيل / مربع</button>
+    <button type="button" id="dgNestShapeCircle"><i class="fa-solid fa-circle"></i> دائري</button>
+  </div>
+  <input type="hidden" id="dgNestShape" value="rect">
+  <div class="lw-inputs">
+    <div id="dgNestRectL"><label>الطول (سم)</label><input type="number" id="dgNestL" min="0" step="0.1" placeholder="مثال: 20"></div>
+    <div id="dgNestRectW"><label>العرض (سم)</label><input type="number" id="dgNestW" min="0" step="0.1" placeholder="مثال: 15"></div>
+    <div id="dgNestCircD" style="display:none"><label>القطر (سم)</label><input type="number" id="dgNestD" min="0" step="0.1" placeholder="مثال: 10"></div>
+    <div><label>عدد القطع</label><input type="number" id="dgNestN" min="1" step="1" value="1"></div>
+  </div>
+  <div class="lw-view">
+    <div class="lw-view-title" id="dgNestSheetTitle">اختر قياس الورق من المخزون</div>
+    <svg id="dgNestSheet" viewBox="0 0 1000 700" preserveAspectRatio="xMidYMid meet"></svg>
+    <div class="lw-sheet-nav" id="dgNestSheetNav" style="display:none">
+      <button type="button" id="dgNestSheetPrev">&rsaquo; السابق</button>
+      <span id="dgNestSheetInfo">الصفحة 1 / 1</span>
+      <button type="button" id="dgNestSheetNext">التالي &lsaquo;</button>
+    </div>
+  </div>
+  <div class="lw-stats" id="dgNestStats"></div>
+  <div style="margin-top:10px;font-size:12px;color:#667085;font-weight:600">يُحدَّث «عدد الصفحات» تلقائياً حسب عدد الصفحات اللازمة للقطع.</div>
+</div>
+
 <div class="cc-section-title cc-section-direct">حساب التكاليف</div>
 <div class="cc-table-wrap cc-table-wrap-direct">
 <table class="cc-table" id="dgAutoTable">
@@ -14518,10 +14545,10 @@ var TW_API = 'https://www.csapp.io/teamwork-api/api.php';
 var TW_KEY = 'tw_Cs9kWt2026xTeAmWoRk';
 /** قياسات المخزون (Digital) — نفس DIGITAL_PRINT_SIZES في Teamwork */
 var SHEET_SIZES = [
-  {id:'33x70', label:'33 × 70 cm', pieces:3},
-  {id:'33x48', label:'33 × 48 cm', pieces:4},
-  {id:'a3', label:'A3 (42 × 29.7)', pieces:4},
-  {id:'a4', label:'A4 (29.7 × 21)', pieces:9}
+  {id:'33x70', label:'33 × 70 cm', pieces:3, w:33, h:70},
+  {id:'33x48', label:'33 × 48 cm', pieces:4, w:33, h:48},
+  {id:'a3', label:'A3 (42 × 29.7)', pieces:4, w:42, h:29.7},
+  {id:'a4', label:'A4 (29.7 × 21)', pieces:9, w:29.7, h:21}
 ];
 var SETTINGS = {
   printing: { // per page by inventory size id
@@ -14844,6 +14871,12 @@ byId('dgClear').addEventListener('click',function(){
   setCut('none');
   byId('dgProfitPct').value='';
   setSides('one');
+  if(byId('dgNestL')) byId('dgNestL').value='';
+  if(byId('dgNestW')) byId('dgNestW').value='';
+  if(byId('dgNestD')) byId('dgNestD').value='';
+  if(byId('dgNestN')) byId('dgNestN').value='1';
+  setNestShape('rect');
+  renderNest();
 });
 setSides('one');
 setLamSides('one');
@@ -14853,6 +14886,139 @@ try{
   var d=new Date();
   if(byId('dgDate')){byId('dgDate').value=d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');}
 }catch(e){}
+
+/* —— حساب عدد القطع على قياس الورق المختار من المخزون —— */
+var SVG_NS='http://www.w3.org/2000/svg';
+var NEST={GAP:0.3,MARGIN:0.4,total:1,sheetIdx:0,draw:null};
+function nestSvgEl(tag,attrs){var e=document.createElementNS(SVG_NS,tag);for(var k in attrs)e.setAttribute(k,attrs[k]);return e;}
+function clearNestSvg(s){while(s.firstChild)s.removeChild(s.firstChild);}
+function selectedSheetSize(){
+  var id=(byId('dgSheet')&&byId('dgSheet').value)||'';
+  return SHEET_SIZES.find(function(s){return s.id===id;})||null;
+}
+function setNestStats(arr){
+  var el=byId('dgNestStats'); if(!el) return;
+  var h='';
+  arr.forEach(function(p){h+='<div class="lw-stat"><div class="lw-stat-l">'+p[0]+'</div><div class="lw-stat-v">'+p[1]+'</div></div>';});
+  el.innerHTML=h;
+}
+function nestFillSheet(SW,SH,pw,ph,allowRot){
+  var g=NEST.GAP,m=NEST.MARGIN;
+  var availW=SW-2*m+g, availH=SH-2*m+g;
+  function pack(w,h){
+    var cols=Math.floor((availW+1e-9)/(w+g));
+    var rows=Math.floor((availH+1e-9)/(h+g));
+    if(cols<1||rows<1) return [];
+    var out=[],i,j;
+    for(j=0;j<rows;j++) for(i=0;i<cols;i++) out.push({x:i*(w+g),y:j*(h+g),w:w,h:h,rot:Math.abs(w-pw)>1e-6});
+    return out;
+  }
+  var a=pack(pw,ph), b=(allowRot && Math.abs(pw-ph)>1e-9) ? pack(ph,pw) : [];
+  return b.length>a.length ? b : a;
+}
+function nestFmt(v){return (Math.round(v*100)/100).toString();}
+function updateNestNav(){
+  var nav=byId('dgNestSheetNav'), info=byId('dgNestSheetInfo');
+  var prev=byId('dgNestSheetPrev'), next=byId('dgNestSheetNext');
+  if(!nav) return;
+  if(NEST.total<=1){nav.style.display='none'; return;}
+  nav.style.display='flex';
+  if(info) info.textContent='الصفحة '+(NEST.sheetIdx+1)+' / '+NEST.total;
+  if(prev) prev.disabled=NEST.sheetIdx<=0;
+  if(next) next.disabled=NEST.sheetIdx>=NEST.total-1;
+}
+function renderNest(){
+  var sheet=selectedSheetSize();
+  var title=byId('dgNestSheetTitle');
+  var svg=byId('dgNestSheet');
+  if(!svg) return;
+  if(!sheet){
+    if(title) title.textContent='اختر قياس الورق من المخزون';
+    clearNestSvg(svg);
+    svg.setAttribute('viewBox','0 0 1000 700');
+    svg.appendChild(nestSvgEl('rect',{x:0,y:0,width:1000,height:700,fill:'#f0f4fa',stroke:'#94a3b8','stroke-width':4,rx:8}));
+    setNestStats([['—','اختر قياس الورق أولاً']]);
+    NEST.total=1;NEST.sheetIdx=0;NEST.draw=null;updateNestNav();
+    return;
+  }
+  var SW=sheet.w, SH=sheet.h;
+  var vbW=Math.round(SW*10), vbH=Math.round(SH*10);
+  svg.setAttribute('viewBox','0 0 '+vbW+' '+vbH);
+  if(title) title.textContent='الصفحة '+sheet.label;
+  var shape=(byId('dgNestShape')&&byId('dgNestShape').value)||'rect';
+  var n=Math.max(1,Math.floor(num(byId('dgNestN').value)||1));
+  var circle=shape==='circle', pl, pw, pieceTxt;
+  if(circle){
+    var d=num(byId('dgNestD').value);
+    if(d<=0){clearNestSvg(svg);svg.appendChild(nestSvgEl('rect',{x:0,y:0,width:vbW,height:vbH,fill:'#f0f4fa',stroke:'#2d5a87','stroke-width':4,rx:6}));setNestStats([['—','أدخل قطر القطعة']]);return;}
+    pl=d;pw=d;pieceTxt='دائرة قطر '+d+' سم';
+  }else{
+    pl=num(byId('dgNestL').value);pw=num(byId('dgNestW').value);
+    if(pl<=0||pw<=0){clearNestSvg(svg);svg.appendChild(nestSvgEl('rect',{x:0,y:0,width:vbW,height:vbH,fill:'#f0f4fa',stroke:'#2d5a87','stroke-width':4,rx:6}));setNestStats([['—','أدخل أبعاد القطعة']]);return;}
+    pieceTxt=pl+' × '+pw+' سم';
+  }
+  var slots=circle?nestFillSheet(SW,SH,pl,pl,false):nestFillSheet(SW,SH,pl,pw,true);
+  var per=slots.length;
+  if(per<=0){
+    clearNestSvg(svg);
+    svg.appendChild(nestSvgEl('rect',{x:0,y:0,width:vbW,height:vbH,fill:'#f0f4fa',stroke:'#2d5a87','stroke-width':4,rx:6}));
+    setNestStats([['القطعة',pieceTxt],['تنبيه','القطعة أكبر من الصفحة']]);
+    return;
+  }
+  var pages=Math.ceil(n/per);
+  var mMM=NEST.MARGIN*10;
+  NEST.draw=function(idx){
+    var sv=byId('dgNestSheet'); clearNestSvg(sv);
+    sv.appendChild(nestSvgEl('rect',{x:0,y:0,width:vbW,height:vbH,fill:'#f0f4fa',stroke:'#2d5a87','stroke-width':4,rx:6}));
+    var startI=idx*per, count=Math.min(per,n-startI);
+    for(var i=0;i<count;i++){
+      var sl=slots[i], x=mMM+sl.x*10, y=mMM+sl.y*10, wMM=sl.w*10, hMM=sl.h*10;
+      if(circle){
+        sv.appendChild(nestSvgEl('circle',{cx:x+wMM/2,cy:y+hMM/2,r:wMM/2,fill:'#9ec5fe',stroke:'#1e3a5f','stroke-width':2}));
+      }else{
+        sv.appendChild(nestSvgEl('rect',{x:x,y:y,width:wMM,height:hMM,fill:sl.rot?'#bfe0ff':'#9ec5fe',stroke:'#1e3a5f','stroke-width':2,rx:3}));
+      }
+      var t=nestSvgEl('text',{x:x+wMM/2,y:y+hMM/2,'text-anchor':'middle','dominant-baseline':'middle','font-size':Math.max(10,Math.min(wMM,hMM)/3.2),fill:'#1e3a5f','font-weight':'700'});
+      t.textContent=String(startI+i+1);
+      sv.appendChild(t);
+    }
+  };
+  NEST.total=pages; NEST.sheetIdx=0; NEST.draw(0); updateNestNav();
+  setNestStats([
+    ['القطعة',pieceTxt],
+    ['قياس الصفحة',sheet.label],
+    ['يتسع الصفحة الواحدة',per+' قطعة'],
+    ['عدد القطع المطلوب',n+' قطعة'],
+    ['عدد الصفحات اللازمة',pages+' صفحة']
+  ]);
+  var qtyEl=byId('dgQty');
+  if(qtyEl && pages>0){
+    qtyEl.value=String(pages);
+    recalc();
+  }
+}
+function setNestShape(v){
+  if(byId('dgNestShape')) byId('dgNestShape').value=v;
+  var rect=v!=='circle';
+  if(byId('dgNestShapeRect')) byId('dgNestShapeRect').classList.toggle('active',rect);
+  if(byId('dgNestShapeCircle')) byId('dgNestShapeCircle').classList.toggle('active',!rect);
+  if(byId('dgNestRectL')) byId('dgNestRectL').style.display=rect?'':'none';
+  if(byId('dgNestRectW')) byId('dgNestRectW').style.display=rect?'':'none';
+  if(byId('dgNestCircD')) byId('dgNestCircD').style.display=rect?'none':'';
+  renderNest();
+}
+if(byId('dgNestShapeRect')) byId('dgNestShapeRect').addEventListener('click',function(){setNestShape('rect');});
+if(byId('dgNestShapeCircle')) byId('dgNestShapeCircle').addEventListener('click',function(){setNestShape('circle');});
+['dgNestL','dgNestW','dgNestD','dgNestN'].forEach(function(id){
+  var el=byId(id); if(!el) return;
+  el.addEventListener('input',renderNest);
+  el.addEventListener('change',renderNest);
+});
+if(byId('dgSheet')) byId('dgSheet').addEventListener('change',renderNest);
+if(byId('dgNestSheetPrev')) byId('dgNestSheetPrev').addEventListener('click',function(){if(NEST.sheetIdx>0){NEST.sheetIdx--;if(NEST.draw)NEST.draw(NEST.sheetIdx);updateNestNav();}});
+if(byId('dgNestSheetNext')) byId('dgNestSheetNext').addEventListener('click',function(){if(NEST.sheetIdx<NEST.total-1){NEST.sheetIdx++;if(NEST.draw)NEST.draw(NEST.sheetIdx);updateNestNav();}});
+renderNest();
+
 recalc();
 })();
 </script>
