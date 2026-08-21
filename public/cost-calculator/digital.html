@@ -236,6 +236,13 @@ body.cc-digital select{appearance:none;border:none;background:transparent;font-w
     <div id="dgNestCircD" style="display:none"><label>القطر (سم)</label><input type="number" id="dgNestD" min="0" step="0.1" placeholder="مثال: 10"></div>
     <div><label>عدد القطع</label><input type="number" id="dgNestN" min="1" step="1" value="1"></div>
   </div>
+  <div id="dgNestRotWrap" style="margin:0 0 12px;max-width:420px">
+    <button type="button" id="dgNestRotBtn" class="active" style="width:100%;padding:10px 12px;border:2px solid var(--primary,#4f46e5);border-radius:8px;background:var(--primary,#4f46e5);color:#fff;font-weight:700;font-size:13px;cursor:pointer;font-family:inherit">
+      <i class="fa-solid fa-rotate"></i> تجربة تدوير القطع لزيادة العدد
+    </button>
+    <input type="hidden" id="dgNestAllowRot" value="1">
+    <div style="font-size:12px;color:#667085;margin-top:6px;font-weight:600">يُجرَّب الاتجاهان (أصلي / مدوّر 90°) ويُختار ما يستوعب قطعاً أكثر داخل الصفحة</div>
+  </div>
   <div class="lw-view">
     <div class="lw-view-title" id="dgNestSheetTitle">اختر قياس الورق من المخزون</div>
     <div class="dg-nest-preview">
@@ -638,6 +645,7 @@ byId('dgClear').addEventListener('click',function(){
   if(byId('dgNestW')) byId('dgNestW').value='';
   if(byId('dgNestD')) byId('dgNestD').value='';
   if(byId('dgNestN')) byId('dgNestN').value='1';
+  setNestRot(true);
   setNestShape('rect');
   renderNest();
 });
@@ -731,6 +739,7 @@ function setNestStats(arr){
 function nestFillSheet(SW,SH,pw,ph,allowRot){
   var g=NEST.GAP, m=(NEST.MARGIN||0)+(NEST.FRAME_PAD||0), fill=!!NEST.fillInner;
   var innerW=SW-2*m, innerH=SH-2*m;
+  NEST.packMeta={normal:0,rotated:0,usedRot:false,allowRot:!!allowRot};
   if(innerW<=0||innerH<=0) return [];
   function pack(w,h){
     var cols=Math.floor((innerW+g+1e-9)/(w+g));
@@ -738,7 +747,6 @@ function nestFillSheet(SW,SH,pw,ph,allowRot){
     if(cols<1||rows<1) return [];
     var gapX, gapY, ox, oy, i, j, out=[];
     if(fill){
-      /* توزيع متساوٍ يملأ إطار Graphtec من الحافة إلى الحافة */
       gapX = cols>1 ? (innerW-cols*w)/(cols-1) : 0;
       gapY = rows>1 ? (innerH-rows*h)/(rows-1) : 0;
       ox = m + (cols===1 ? (innerW-w)/2 : 0);
@@ -754,7 +762,11 @@ function nestFillSheet(SW,SH,pw,ph,allowRot){
     return out;
   }
   var a=pack(pw,ph), b=(allowRot && Math.abs(pw-ph)>1e-9) ? pack(ph,pw) : [];
-  return b.length>a.length ? b : a;
+  NEST.packMeta.normal=a.length;
+  NEST.packMeta.rotated=b.length;
+  var useB=b.length>a.length;
+  NEST.packMeta.usedRot=useB;
+  return useB ? b : a;
 }
 function nestCenterSlots(slots, SW, SH){
   if(!slots || !slots.length) return slots;
@@ -817,7 +829,8 @@ function renderNest(){
     if(pl<=0||pw<=0){clearNestSvg(svg);nestPageBg(svg,vbW,vbH,graphtec);setNestStats([['—','أدخل أبعاد القطعة']]);return;}
     pieceTxt=pl+' × '+pw+' سم';
   }
-  var slots=circle?nestFillSheet(SW,SH,pl,pl,false):nestFillSheet(SW,SH,pl,pw,true);
+  var allowRot=!circle && ((byId('dgNestAllowRot')||{}).value!=='0');
+  var slots=circle?nestFillSheet(SW,SH,pl,pl,false):nestFillSheet(SW,SH,pl,pw,allowRot);
   var per=slots.length;
   if(per<=0){
     clearNestSvg(svg);
@@ -851,6 +864,17 @@ function renderNest(){
     ['عدد القطع المطلوب',n+' قطعة'],
     ['عدد الصفحات اللازمة',pages+' صفحة']
   ];
+  if(!circle && Math.abs(pl-pw)>1e-9){
+    var pm=NEST.packMeta||{};
+    stats.push(['بدون تدوير',(pm.normal||0)+' قطعة']);
+    stats.push(['مع التدوير',(pm.rotated||0)+' قطعة']);
+    if(allowRot){
+      stats.push(['الاتجاه المستخدم', pm.usedRot ? 'مدوّر 90° (أفضل)' : 'الأصلي']);
+      if((pm.rotated||0)>(pm.normal||0)) stats.push(['الزيادة بالتدوير','+'+(pm.rotated-pm.normal)+' قطعة/صفحة']);
+    }else{
+      stats.push(['تجربة التدوير','متوقفة']);
+    }
+  }
   if(graphtec) stats.push(['علامات القص','Graphtec']);
   setNestStats(stats);
   syncQtyFromNest(pages);
@@ -863,6 +887,16 @@ function syncQtyFromNest(pages){
   qtyEl.value = next;
   if(typeof recalc==='function') recalc();
 }
+function setNestRot(on){
+  if(byId('dgNestAllowRot')) byId('dgNestAllowRot').value=on?'1':'0';
+  var btn=byId('dgNestRotBtn');
+  if(btn){
+    btn.classList.toggle('active', !!on);
+    btn.style.background = on ? 'var(--primary,#4f46e5)' : '#eef2ff';
+    btn.style.color = on ? '#fff' : 'var(--primary,#4f46e5)';
+  }
+  if(typeof renderNest==='function') renderNest();
+}
 function setNestShape(v){
   if(byId('dgNestShape')) byId('dgNestShape').value=v;
   var rect=v!=='circle';
@@ -871,10 +905,16 @@ function setNestShape(v){
   if(byId('dgNestRectL')) byId('dgNestRectL').style.display=rect?'':'none';
   if(byId('dgNestRectW')) byId('dgNestRectW').style.display=rect?'':'none';
   if(byId('dgNestCircD')) byId('dgNestCircD').style.display=rect?'none':'';
+  if(byId('dgNestRotWrap')) byId('dgNestRotWrap').style.display=rect?'':'none';
   renderNest();
 }
 if(byId('dgNestShapeRect')) byId('dgNestShapeRect').addEventListener('click',function(){setNestShape('rect');});
 if(byId('dgNestShapeCircle')) byId('dgNestShapeCircle').addEventListener('click',function(){setNestShape('circle');});
+if(byId('dgNestRotBtn')) byId('dgNestRotBtn').addEventListener('click',function(){
+  var on=((byId('dgNestAllowRot')||{}).value||'1')!=='0';
+  setNestRot(!on);
+});
+setNestRot(true);
 ['dgNestL','dgNestW','dgNestD','dgNestN'].forEach(function(id){
   var el=byId(id); if(!el) return;
   el.addEventListener('input',renderNest);
