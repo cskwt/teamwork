@@ -1526,7 +1526,7 @@ html[data-view="phone"] .tools-cards-grid {
   border: none;
   border-radius: 10px;
   padding: 10px 14px;
-  background: #ea580c;
+  background: var(--mat-color, #16a34a);
   color: #fff;
   font-weight: 800;
   font-size: 12px;
