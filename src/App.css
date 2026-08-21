@@ -1387,10 +1387,10 @@ html[data-view="phone"] .tools-cards-grid {
   border-color: var(--mat-color, #ea580c);
   box-shadow: 0 0 0 3px color-mix(in srgb, var(--mat-color, #ea580c) 18%, transparent);
 }
-.mat-form-actions {
-  grid-column: 1 / -1;
-  display: flex;
-  gap: 8px;
+.mat-add-trigger {
+  width: 100%;
+  justify-content: center;
+  margin: 0;
 }
 .mat-form-actions .mat-add-btn {
   flex: 1;

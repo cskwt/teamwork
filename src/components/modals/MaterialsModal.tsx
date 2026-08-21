@@ -42,6 +42,8 @@ const MaterialsModal: React.FC<MaterialsModalProps> = ({ onClose }) => {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editingKind, setEditingKind] = useState<MaterialKind | null>(null);
   const [expandedIds, setExpandedIds] = useState<Record<string, boolean>>({});
+  const [showDigitalForm, setShowDigitalForm] = useState(false);
+  const [showLargeForm, setShowLargeForm] = useState(false);
 
   const clearDigitalForm = () => {
     setPaperType('');
@@ -62,6 +64,8 @@ const MaterialsModal: React.FC<MaterialsModalProps> = ({ onClose }) => {
     setEditingId(m.id);
     setEditingKind(kind);
     if (kind === 'digital') {
+      setShowDigitalForm(true);
+      setShowLargeForm(false);
       setPaperType(m.paperType || m.name || '');
       setPaperWeight(m.paperWeight || '');
       const packKdVal = parseMaterialCost(m.packCost);
@@ -70,6 +74,8 @@ const MaterialsModal: React.FC<MaterialsModalProps> = ({ onClose }) => {
       setSheetsPerPack(pages > 0 ? String(Math.round(pages)) : '');
       clearLargeForm();
     } else {
+      setShowLargeForm(true);
+      setShowDigitalForm(false);
       setRollType(m.rollType || m.name || '');
       setRollWidth(m.rollWidth || '');
       const costFils = kdToFils(parseMaterialCost(m.rollCost));
@@ -85,6 +91,20 @@ const MaterialsModal: React.FC<MaterialsModalProps> = ({ onClose }) => {
     setEditingKind(null);
     clearDigitalForm();
     clearLargeForm();
+    setShowDigitalForm(false);
+    setShowLargeForm(false);
+  };
+
+  const openDigitalForm = () => {
+    cancelEdit();
+    setShowDigitalForm(true);
+    setShowLargeForm(false);
+  };
+
+  const openLargeForm = () => {
+    cancelEdit();
+    setShowLargeForm(true);
+    setShowDigitalForm(false);
   };
 
   const toggleExpand = (id: string) => {
@@ -169,6 +189,7 @@ const MaterialsModal: React.FC<MaterialsModalProps> = ({ onClose }) => {
         },
       });
       clearDigitalForm();
+      setShowDigitalForm(false);
       return;
     }
 
@@ -232,6 +253,7 @@ const MaterialsModal: React.FC<MaterialsModalProps> = ({ onClose }) => {
       },
     });
     clearLargeForm();
+    setShowLargeForm(false);
   };
 
   const handleDelete = (id: string, label: string) => {
@@ -303,67 +325,73 @@ const MaterialsModal: React.FC<MaterialsModalProps> = ({ onClose }) => {
         <div className="mat-sections">
           <section className="mat-section" style={{ ['--mat-color' as string]: '#6438E0' }}>
             <h3>Large Format</h3>
-            <p className="mat-sheet-note mat-sheet-note-purple">{tr.largeFormatNote}</p>
-            <form
-              className="mat-add-grid mat-add-grid-pack"
-              onSubmit={(e) => {
-                e.preventDefault();
-                saveMaterial('large-format');
-              }}
-            >
-              <label>
-                <span>{tr.rollType}</span>
-                <input
-                  value={rollType}
-                  onChange={(e) => setRollType(e.target.value)}
-                  placeholder={tr.rollTypePlaceholder}
-                />
-              </label>
-              <label>
-                <span>{tr.rollWidth}</span>
-                <input
-                  value={rollWidth}
-                  onChange={(e) => setRollWidth(e.target.value)}
-                  placeholder={tr.rollWidthPlaceholder}
-                />
-              </label>
-              <label>
-                <span>{tr.rollCostLabel}</span>
-                <input
-                  value={rollCostFils}
-                  onChange={(e) => setRollCostFils(e.target.value)}
-                  inputMode="numeric"
-                  placeholder="25000"
-                />
-              </label>
-              <label>
-                <span>{tr.rollMetersLabel}</span>
-                <input
-                  value={rollMeters}
-                  onChange={(e) => setRollMeters(e.target.value)}
-                  inputMode="decimal"
-                  placeholder="50"
-                />
-              </label>
-              <div className="mat-auto-sheet mat-auto-sheet-purple">
-                <span>{tr.meterCostLabel}</span>
-                <strong>
-                  {liveMeterCostKd > 0
-                    ? `${formatMaterialCostFils(liveMeterCostKd)} ${tr.currencyShort}`
-                    : '—'}
-                </strong>
-              </div>
-              <div className="mat-form-actions">
-                {editingLarge && (
-                  <button type="button" className="mat-cancel-btn" onClick={cancelEdit}>
-                    Close
-                  </button>
-                )}
-                <button type="submit" className="mat-add-btn" disabled={!rollType.trim() || !rollWidth.trim()}>
-                  {editingLarge ? <><Check size={15} /> Save</> : <><Plus size={15} /> Add material</>}
-                </button>
-              </div>
-            </form>
+            {!showLargeForm && !editingLarge ? (
+              <button type="button" className="mat-add-btn mat-add-trigger" onClick={openLargeForm}>
+                <Plus size={15} /> Add material
+              </button>
+            ) : (
+              <>
+                <p className="mat-sheet-note mat-sheet-note-purple">{tr.largeFormatNote}</p>
+                <form
+                  className="mat-add-grid mat-add-grid-pack"
+                  onSubmit={(e) => {
+                    e.preventDefault();
+                    saveMaterial('large-format');
+                  }}
+                >
+                  <label>
+                    <span>{tr.rollType}</span>
+                    <input
+                      value={rollType}
+                      onChange={(e) => setRollType(e.target.value)}
+                      placeholder={tr.rollTypePlaceholder}
+                    />
+                  </label>
+                  <label>
+                    <span>{tr.rollWidth}</span>
+                    <input
+                      value={rollWidth}
+                      onChange={(e) => setRollWidth(e.target.value)}
+                      placeholder={tr.rollWidthPlaceholder}
+                    />
+                  </label>
+                  <label>
+                    <span>{tr.rollCostLabel}</span>
+                    <input
+                      value={rollCostFils}
+                      onChange={(e) => setRollCostFils(e.target.value)}
+                      inputMode="numeric"
+                      placeholder="25000"
+                    />
+                  </label>
+                  <label>
+                    <span>{tr.rollMetersLabel}</span>
+                    <input
+                      value={rollMeters}
+                      onChange={(e) => setRollMeters(e.target.value)}
+                      inputMode="decimal"
+                      placeholder="50"
+                    />
+                  </label>
+                  <div className="mat-auto-sheet mat-auto-sheet-purple">
+                    <span>{tr.meterCostLabel}</span>
+                    <strong>
+                      {liveMeterCostKd > 0
+                        ? `${formatMaterialCostFils(liveMeterCostKd)} ${tr.currencyShort}`
+                        : '—'}
+                    </strong>
+                  </div>
+                  <div className="mat-form-actions">
+                    <button type="button" className="mat-cancel-btn" onClick={cancelEdit}>
+                      Close
+                    </button>
+                    <button type="submit" className="mat-add-btn" disabled={!rollType.trim() || !rollWidth.trim()}>
+                      {editingLarge ? <><Check size={15} /> Save</> : <><Plus size={15} /> Add material</>}
+                    </button>
+                  </div>
+                </form>
+              </>
+            )}
             <div className="mat-list">
               {largeMaterials.length === 0 ? (
                 <p className="mat-empty">No materials yet</p>
@@ -399,89 +427,95 @@ const MaterialsModal: React.FC<MaterialsModalProps> = ({ onClose }) => {
 
           <section className="mat-section" style={{ ['--mat-color' as string]: '#16a34a' }}>
             <h3>Digital</h3>
-            <p className="mat-sheet-note">
-              {tr.factorySheetNote
-                .replace('{w}', String(DIGITAL_FACTORY_SHEET.widthCm))
-                .replace('{h}', String(DIGITAL_FACTORY_SHEET.heightCm))}
-            </p>
-            <form
-              className="mat-add-grid mat-add-grid-digital mat-add-grid-pack"
-              onSubmit={(e) => {
-                e.preventDefault();
-                saveMaterial('digital');
-              }}
-            >
-              <label>
-                <span>Paper Type</span>
-                <input
-                  value={paperType}
-                  onChange={(e) => setPaperType(e.target.value)}
-                  placeholder="Ready made Envelope"
-                />
-              </label>
-              <label>
-                <span>Paper Weight</span>
-                <input
-                  value={paperWeight}
-                  onChange={(e) => setPaperWeight(e.target.value)}
-                  placeholder="100 GSM"
-                />
-              </label>
-              <label>
-                <span>{tr.packCostLabel}</span>
-                <input
-                  value={packCostKd}
-                  onChange={(e) => setPackCostKd(e.target.value)}
-                  inputMode="decimal"
-                  placeholder="5"
-                />
-              </label>
-              <label>
-                <span>{tr.sheetsPerPackLabel}</span>
-                <input
-                  value={sheetsPerPack}
-                  onChange={(e) => setSheetsPerPack(e.target.value)}
-                  inputMode="numeric"
-                  placeholder="500"
-                />
-              </label>
-              <div className="mat-auto-sheet">
-                <span>{tr.sheetCostLabel}</span>
-                <strong>
-                  {liveSheetCostKd > 0
-                    ? `${formatMaterialCostFils(liveSheetCostKd)} ${tr.currencyShort}`
-                    : '—'}
-                </strong>
-              </div>
-              {liveSheetCostKd > 0 && (
-                <div className="mat-live-costs">
-                  <div className="mat-live-costs-title">{tr.autoPieceCosts}</div>
-                  <div className="mat-piece-costs">
-                    {livePieceCosts.map((c) => (
-                      <div key={c.id} className="mat-piece-cost">
-                        <span className="mat-piece-size">{c.label}</span>
-                        <span className="mat-piece-meta">
-                          {tr.piecesPerSheet.replace('{n}', String(c.piecesPerSheet))}
-                        </span>
-                        <strong className="mat-piece-price">
-                          {formatMaterialCostFils(c.pieceCost)} {tr.currencyShort}
-                        </strong>
-                      </div>
-                    ))}
+            {!showDigitalForm && !editingDigital ? (
+              <button type="button" className="mat-add-btn mat-add-trigger" onClick={openDigitalForm}>
+                <Plus size={15} /> Add material
+              </button>
+            ) : (
+              <>
+                <p className="mat-sheet-note">
+                  {tr.factorySheetNote
+                    .replace('{w}', String(DIGITAL_FACTORY_SHEET.widthCm))
+                    .replace('{h}', String(DIGITAL_FACTORY_SHEET.heightCm))}
+                </p>
+                <form
+                  className="mat-add-grid mat-add-grid-digital mat-add-grid-pack"
+                  onSubmit={(e) => {
+                    e.preventDefault();
+                    saveMaterial('digital');
+                  }}
+                >
+                  <label>
+                    <span>Paper Type</span>
+                    <input
+                      value={paperType}
+                      onChange={(e) => setPaperType(e.target.value)}
+                      placeholder="Ready made Envelope"
+                    />
+                  </label>
+                  <label>
+                    <span>Paper Weight</span>
+                    <input
+                      value={paperWeight}
+                      onChange={(e) => setPaperWeight(e.target.value)}
+                      placeholder="100 GSM"
+                    />
+                  </label>
+                  <label>
+                    <span>{tr.packCostLabel}</span>
+                    <input
+                      value={packCostKd}
+                      onChange={(e) => setPackCostKd(e.target.value)}
+                      inputMode="decimal"
+                      placeholder="5"
+                    />
+                  </label>
+                  <label>
+                    <span>{tr.sheetsPerPackLabel}</span>
+                    <input
+                      value={sheetsPerPack}
+                      onChange={(e) => setSheetsPerPack(e.target.value)}
+                      inputMode="numeric"
+                      placeholder="500"
+                    />
+                  </label>
+                  <div className="mat-auto-sheet">
+                    <span>{tr.sheetCostLabel}</span>
+                    <strong>
+                      {liveSheetCostKd > 0
+                        ? `${formatMaterialCostFils(liveSheetCostKd)} ${tr.currencyShort}`
+                        : '—'}
+                    </strong>
                   </div>
-                </div>
-              )}
-              <div className="mat-form-actions">
-                {editingDigital && (
-                  <button type="button" className="mat-cancel-btn" onClick={cancelEdit}>
-                    Close
-                  </button>
-                )}
-                <button type="submit" className="mat-add-btn" disabled={!paperType.trim() || !paperWeight.trim()}>
-                  {editingDigital ? <><Check size={15} /> Save</> : <><Plus size={15} /> Add material</>}
-                </button>
-              </div>
-            </form>
+                  {liveSheetCostKd > 0 && (
+                    <div className="mat-live-costs">
+                      <div className="mat-live-costs-title">{tr.autoPieceCosts}</div>
+                      <div className="mat-piece-costs">
+                        {livePieceCosts.map((c) => (
+                          <div key={c.id} className="mat-piece-cost">
+                            <span className="mat-piece-size">{c.label}</span>
+                            <span className="mat-piece-meta">
+                              {tr.piecesPerSheet.replace('{n}', String(c.piecesPerSheet))}
+                            </span>
+                            <strong className="mat-piece-price">
+                              {formatMaterialCostFils(c.pieceCost)} {tr.currencyShort}
+                            </strong>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  <div className="mat-form-actions">
+                    <button type="button" className="mat-cancel-btn" onClick={cancelEdit}>
+                      Close
+                    </button>
+                    <button type="submit" className="mat-add-btn" disabled={!paperType.trim() || !paperWeight.trim()}>
+                      {editingDigital ? <><Check size={15} /> Save</> : <><Plus size={15} /> Add material</>}
+                    </button>
+                  </div>
+                </form>
+              </>
+            )}
             <div className="mat-list">
               {digitalMaterials.length === 0 ? (
                 <p className="mat-empty">No materials yet</p>
