@@ -40,7 +40,7 @@ const ToolsPage: React.FC<ToolsPageProps> = ({ onNavigate }) => {
       desc: tr.toolCostCalculatorDesc,
       href: COST_CALCULATOR_URL,
       icon: <Calculator size={28} color="#fff" />,
-      color: '#1e3a5f',
+      color: '#4f46e5',
     },
     {
       id: 'revenue-split',
