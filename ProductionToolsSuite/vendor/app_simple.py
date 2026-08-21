@@ -13547,12 +13547,12 @@ def _cost_calculator_body_html():
 <img src="/logo.png" alt="Creative Solutions">
 </div>
 <div class="cost-calc-head cc-no-print">
-<h1><i class="fa-solid fa-bolt"></i> حاسبة تكاليف ورشة الليزر</h1>
+<h1><i class="fa-solid fa-bolt"></i> حاسبة تكاليف منتجات الأكريليك والخشب</h1>
 <div class="cc-actions">
 <a href="/" class="cc-btn cc-btn-clear"><i class="fa-solid fa-arrow-right"></i> رجوع</a>
 <button type="button" class="cc-btn cc-btn-clear" id="ccClearAll"><i class="fa-solid fa-eraser"></i> مسح</button>
 </div></div>
-<div class="cc-title-bar">نموذج تسعير منتجات ورشة الليزر</div>
+<div class="cc-title-bar">نموذج تسعير منتجات الأكريليك والخشب</div>
 <div class="cc-meta">
 <div><label>اسم العميل</label><input type="text" id="ccCustomer" placeholder="اسم العميل"></div>
 <div><label>وصف المنتج</label><input type="text" id="ccDescription" placeholder="وصف المنتج"></div>
@@ -14477,13 +14477,13 @@ def _cost_calculator_page_html():
         '<!DOCTYPE html>\n<html lang="ar" dir="rtl"><head>'
         '<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" crossorigin="anonymous">'
         '<meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1">'
-        '<title>منتجات الليزر - حاسبة التكاليف</title>'
+        '<title>منتجات الأكريليك والخشب - حاسبة التكاليف</title>'
         f"<style>{_COST_CALCULATOR_STYLES}</style></head>"
         f'<body class="cc-standalone">{_cost_calculator_body_html()}</body></html>'
     )
 
 def _cost_calculator_hub_page_html():
-    """صفحة اختيار نوع الحاسبة (منتجات الليزر / طباعة الديجيتال)."""
+    """صفحة اختيار نوع الحاسبة (منتجات الأكريليك والخشب / طباعة الديجيتال)."""
     hub_body = """<div class="cost-calc-wrap">
 <div class="cc-logo-bar cc-no-print"><img src="/logo.png" alt="Creative Solutions"></div>
 <div class="cost-calc-head cc-no-print" style="margin-bottom:12px">
@@ -14497,8 +14497,8 @@ def _cost_calculator_hub_page_html():
     <a class="cc-device-btn" href="/cost-calculator/laser">
       <span class="cc-device-icon" aria-hidden="true"><i class="fa-solid fa-bolt" style="color:#fff;font-size:28px"></i></span>
       <span class="cc-device-meta">
-        <span class="cc-device-title">منتجات الليزر</span>
-        <span class="cc-device-sub">Laser Products</span>
+        <span class="cc-device-title">منتجات الأكريليك والخشب</span>
+        <span class="cc-device-sub">Acrylics and Woods</span>
       </span>
     </a>
     <a class="cc-device-btn" href="/cost-calculator/digital">
