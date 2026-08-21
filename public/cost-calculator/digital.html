@@ -215,7 +215,9 @@ body.cc-digital select{appearance:none;border:none;background:transparent;font-w
   </div>
   <div class="lw-view">
     <div class="lw-view-title" id="dgNestSheetTitle">اختر قياس الورق من المخزون</div>
-    <svg id="dgNestSheet" viewBox="0 0 1000 700" preserveAspectRatio="xMidYMid meet"></svg>
+    <div class="dg-nest-preview">
+      <svg id="dgNestSheet" viewBox="0 0 1000 700" preserveAspectRatio="xMidYMid meet"></svg>
+    </div>
     <div class="lw-sheet-nav" id="dgNestSheetNav" style="display:none">
       <button type="button" id="dgNestSheetPrev">&rsaquo; السابق</button>
       <span id="dgNestSheetInfo">الصفحة 1 / 1</span>
@@ -562,6 +564,7 @@ function setCut(v){
     byId('dgCutPrint').value = (v==='scissors') ? 'مقص' : ((v==='graphtec') ? 'Graphtec' : 'لا يوجد');
   }
   recalc();
+  if(typeof renderNest==='function') renderNest();
 }
 byId('dgCutNone').addEventListener('click', function(){ setCut('none'); });
 byId('dgCutScissors').addEventListener('click', function(){ setCut('scissors'); });
@@ -616,6 +619,39 @@ var SVG_NS='http://www.w3.org/2000/svg';
 var NEST={GAP:0.3,MARGIN:0.4,total:1,sheetIdx:0,draw:null};
 function nestSvgEl(tag,attrs){var e=document.createElementNS(SVG_NS,tag);for(var k in attrs)e.setAttribute(k,attrs[k]);return e;}
 function clearNestSvg(s){while(s.firstChild)s.removeChild(s.firstChild);}
+function drawGraphtecMarks(sv, vbW, vbH){
+  var m=Math.max(6, Math.min(vbW, vbH)*0.035);
+  var arm=Math.max(10, Math.min(vbW, vbH)*0.055);
+  var sw=Math.max(1.6, Math.min(vbW, vbH)*0.008);
+  function mark(x1,y1,x2,y2,x3,y3){
+    sv.appendChild(nestSvgEl('path',{
+      d:'M '+x1+' '+y1+' L '+x2+' '+y2+' L '+x3+' '+y3,
+      fill:'none', stroke:'#111827', 'stroke-width':sw, 'stroke-linecap':'square', 'stroke-linejoin':'miter'
+    }));
+  }
+  /* زوايا Graphtec — رأس العلامة نحو ركن الصفحة */
+  mark(m, m+arm, m, m, m+arm, m);                         /* أعلى يسار */
+  mark(vbW-m-arm, m, vbW-m, m, vbW-m, m+arm);             /* أعلى يمين */
+  mark(m, vbH-m-arm, m, vbH-m, m+arm, vbH-m);             /* أسفل يسار */
+  mark(vbW-m-arm, vbH-m, vbW-m, vbH-m, vbW-m, vbH-m-arm); /* أسفل يمين */
+  /* مؤشر الأصل أسفل اليسار */
+  var ox=m*0.35, oy=vbH-m*0.35, al=Math.max(8, arm*0.7);
+  sv.appendChild(nestSvgEl('line',{x1:ox,y1:oy,x2:ox+al,y2:oy,stroke:'#111827','stroke-width':sw,'stroke-linecap':'round'}));
+  sv.appendChild(nestSvgEl('line',{x1:ox,y1:oy,x2:ox,y2:oy-al,stroke:'#111827','stroke-width':sw,'stroke-linecap':'round'}));
+  var ah=Math.max(2.5, sw*1.6);
+  sv.appendChild(nestSvgEl('polygon',{points:(ox+al)+','+oy+' '+(ox+al-ah)+','+(oy-ah)+' '+(ox+al-ah)+','+(oy+ah), fill:'#111827'}));
+  sv.appendChild(nestSvgEl('polygon',{points:ox+','+(oy-al)+' '+(ox-ah)+','+(oy-al+ah)+' '+(ox+ah)+','+(oy-al+ah), fill:'#111827'}));
+}
+function nestPageBg(sv, vbW, vbH, graphtec){
+  sv.appendChild(nestSvgEl('rect',{
+    x:0,y:0,width:vbW,height:vbH,
+    fill: graphtec ? '#ffffff' : '#f0f4fa',
+    stroke: graphtec ? '#cbd5e1' : '#2d5a87',
+    'stroke-width': graphtec ? 2 : 4,
+    rx: graphtec ? 2 : 6
+  }));
+  if(graphtec) drawGraphtecMarks(sv, vbW, vbH);
+}
 function selectedSheetSize(){
   var id=(byId('dgSheet')&&byId('dgSheet').value)||'';
   return SHEET_SIZES.find(function(s){return s.id===id;})||null;
@@ -656,11 +692,12 @@ function renderNest(){
   var title=byId('dgNestSheetTitle');
   var svg=byId('dgNestSheet');
   if(!svg) return;
+  var graphtec=((byId('dgCut')||{}).value||'')==='graphtec';
   if(!sheet){
     if(title) title.textContent='اختر قياس الورق من المخزون';
     clearNestSvg(svg);
     svg.setAttribute('viewBox','0 0 1000 700');
-    svg.appendChild(nestSvgEl('rect',{x:0,y:0,width:1000,height:700,fill:'#f0f4fa',stroke:'#94a3b8','stroke-width':4,rx:8}));
+    nestPageBg(svg, 1000, 700, graphtec);
     setNestStats([['—','اختر قياس الورق أولاً']]);
     NEST.total=1;NEST.sheetIdx=0;NEST.draw=null;updateNestNav();
     return;
@@ -674,18 +711,18 @@ function renderNest(){
   var circle=shape==='circle', pl, pw, pieceTxt;
   if(circle){
     var d=num(byId('dgNestD').value);
-    if(d<=0){clearNestSvg(svg);svg.appendChild(nestSvgEl('rect',{x:0,y:0,width:vbW,height:vbH,fill:'#f0f4fa',stroke:'#2d5a87','stroke-width':4,rx:6}));setNestStats([['—','أدخل قطر القطعة']]);return;}
+    if(d<=0){clearNestSvg(svg);nestPageBg(svg,vbW,vbH,graphtec);setNestStats([['—','أدخل قطر القطعة']]);return;}
     pl=d;pw=d;pieceTxt='دائرة قطر '+d+' سم';
   }else{
     pl=num(byId('dgNestL').value);pw=num(byId('dgNestW').value);
-    if(pl<=0||pw<=0){clearNestSvg(svg);svg.appendChild(nestSvgEl('rect',{x:0,y:0,width:vbW,height:vbH,fill:'#f0f4fa',stroke:'#2d5a87','stroke-width':4,rx:6}));setNestStats([['—','أدخل أبعاد القطعة']]);return;}
+    if(pl<=0||pw<=0){clearNestSvg(svg);nestPageBg(svg,vbW,vbH,graphtec);setNestStats([['—','أدخل أبعاد القطعة']]);return;}
     pieceTxt=pl+' × '+pw+' سم';
   }
   var slots=circle?nestFillSheet(SW,SH,pl,pl,false):nestFillSheet(SW,SH,pl,pw,true);
   var per=slots.length;
   if(per<=0){
     clearNestSvg(svg);
-    svg.appendChild(nestSvgEl('rect',{x:0,y:0,width:vbW,height:vbH,fill:'#f0f4fa',stroke:'#2d5a87','stroke-width':4,rx:6}));
+    nestPageBg(svg,vbW,vbH,graphtec);
     setNestStats([['القطعة',pieceTxt],['تنبيه','القطعة أكبر من الصفحة']]);
     return;
   }
@@ -693,7 +730,7 @@ function renderNest(){
   var mMM=NEST.MARGIN*10;
   NEST.draw=function(idx){
     var sv=byId('dgNestSheet'); clearNestSvg(sv);
-    sv.appendChild(nestSvgEl('rect',{x:0,y:0,width:vbW,height:vbH,fill:'#f0f4fa',stroke:'#2d5a87','stroke-width':4,rx:6}));
+    nestPageBg(sv, vbW, vbH, graphtec);
     var startI=idx*per, count=Math.min(per,n-startI);
     for(var i=0;i<count;i++){
       var sl=slots[i], x=mMM+sl.x*10, y=mMM+sl.y*10, wMM=sl.w*10, hMM=sl.h*10;
@@ -708,13 +745,15 @@ function renderNest(){
     }
   };
   NEST.total=pages; NEST.sheetIdx=0; NEST.draw(0); updateNestNav();
-  setNestStats([
+  var stats=[
     ['القطعة',pieceTxt],
     ['قياس الصفحة',sheet.label],
     ['يتسع الصفحة الواحدة',per+' قطعة'],
     ['عدد القطع المطلوب',n+' قطعة'],
     ['عدد الصفحات اللازمة',pages+' صفحة']
-  ]);
+  ];
+  if(graphtec) stats.push(['علامات القص','Graphtec']);
+  setNestStats(stats);
   var qtyEl=byId('dgQty');
   if(qtyEl && pages>0){
     qtyEl.value=String(pages);
