@@ -13545,7 +13545,7 @@ def _cost_calculator_body_html():
 <img src="/logo.png" alt="Creative Solutions">
 </div>
 <div class="cost-calc-head cc-no-print">
-<h1><i class="fa-solid fa-bolt"></i> حاسبة تكاليف منتجات الأكريليك والخشب</h1>
+<h1><i class="fa-solid fa-layer-group"></i> حاسبة تكاليف منتجات الأكريليك والخشب</h1>
 <div class="cc-actions">
 <a href="/" class="cc-btn cc-btn-clear"><i class="fa-solid fa-arrow-right"></i> رجوع</a>
 <button type="button" class="cc-btn cc-btn-clear" id="ccClearAll"><i class="fa-solid fa-eraser"></i> مسح</button>
@@ -14493,7 +14493,7 @@ def _cost_calculator_hub_page_html():
 <div class="cc-device-picker cc-no-print">
   <div class="cc-device-grid" role="group" aria-label="اختيار نوع الحاسبة">
     <a class="cc-device-btn" href="/cost-calculator/laser">
-      <span class="cc-device-icon" aria-hidden="true"><i class="fa-solid fa-bolt" style="color:#fff;font-size:28px"></i></span>
+      <span class="cc-device-icon" aria-hidden="true"><i class="fa-solid fa-layer-group" style="color:#fff;font-size:26px"></i></span>
       <span class="cc-device-meta">
         <span class="cc-device-title">منتجات الأكريليك والخشب</span>
         <span class="cc-device-sub">Acrylics and Woods</span>
