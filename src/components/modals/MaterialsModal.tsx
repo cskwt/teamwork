@@ -4,6 +4,7 @@ import { useApp } from '../../contexts/AppContext';
 import { useLang } from '../../contexts/LanguageContext';
 import { Material, MaterialKind } from '../../types';
 import { generateId } from '../../utils/helpers';
+import { normalizeAmountInput, toWesternDigits } from '../../utils/helpers';
 import {
   DIGITAL_FACTORY_SHEET,
   digitalPieceCosts,
@@ -349,7 +350,7 @@ const MaterialsModal: React.FC<MaterialsModalProps> = ({ onClose }) => {
                     <span>{tr.rollWidth}</span>
                     <input
                       value={rollWidth}
-                      onChange={(e) => setRollWidth(e.target.value)}
+                      onChange={(e) => setRollWidth(toWesternDigits(e.target.value))}
                       placeholder={tr.rollWidthPlaceholder}
                     />
                   </label>
@@ -357,7 +358,7 @@ const MaterialsModal: React.FC<MaterialsModalProps> = ({ onClose }) => {
                     <span>{tr.rollCostLabel}</span>
                     <input
                       value={rollCostKd}
-                      onChange={(e) => setRollCostKd(e.target.value)}
+                      onChange={(e) => setRollCostKd(normalizeAmountInput(e.target.value))}
                       inputMode="decimal"
                       placeholder="25"
                     />
@@ -366,7 +367,7 @@ const MaterialsModal: React.FC<MaterialsModalProps> = ({ onClose }) => {
                     <span>{tr.rollMetersLabel}</span>
                     <input
                       value={rollMeters}
-                      onChange={(e) => setRollMeters(e.target.value)}
+                      onChange={(e) => setRollMeters(normalizeAmountInput(e.target.value))}
                       inputMode="decimal"
                       placeholder="50"
                     />
@@ -455,7 +456,7 @@ const MaterialsModal: React.FC<MaterialsModalProps> = ({ onClose }) => {
                     <span>Paper Weight</span>
                     <input
                       value={paperWeight}
-                      onChange={(e) => setPaperWeight(e.target.value)}
+                      onChange={(e) => setPaperWeight(toWesternDigits(e.target.value))}
                       placeholder="100 GSM"
                     />
                   </label>
@@ -463,7 +464,7 @@ const MaterialsModal: React.FC<MaterialsModalProps> = ({ onClose }) => {
                     <span>{tr.packCostLabel}</span>
                     <input
                       value={packCostKd}
-                      onChange={(e) => setPackCostKd(e.target.value)}
+                      onChange={(e) => setPackCostKd(normalizeAmountInput(e.target.value))}
                       inputMode="decimal"
                       placeholder="5"
                     />
@@ -472,7 +473,7 @@ const MaterialsModal: React.FC<MaterialsModalProps> = ({ onClose }) => {
                     <span>{tr.sheetsPerPackLabel}</span>
                     <input
                       value={sheetsPerPack}
-                      onChange={(e) => setSheetsPerPack(e.target.value)}
+                      onChange={(e) => setSheetsPerPack(normalizeAmountInput(e.target.value))}
                       inputMode="numeric"
                       placeholder="500"
                     />

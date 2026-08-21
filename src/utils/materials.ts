@@ -1,4 +1,5 @@
 import { Material, MaterialKind } from '../types';
+import { toWesternDigits } from './helpers';
 
 /** قياس ورقة المصنع المستخدمة في Digital */
 export const DIGITAL_FACTORY_SHEET = { widthCm: 100, heightCm: 70 } as const;
@@ -17,7 +18,7 @@ export const DIGITAL_PRINT_SIZES = [
 export type DigitalPrintSizeId = (typeof DIGITAL_PRINT_SIZES)[number]['id'];
 
 export const parseMaterialCost = (v: string | undefined | null): number => {
-  const n = parseFloat(String(v ?? '').replace(/,/g, '').trim());
+  const n = parseFloat(toWesternDigits(String(v ?? '')).trim());
   return Number.isFinite(n) ? n : 0;
 };
 
