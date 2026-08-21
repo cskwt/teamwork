@@ -13616,7 +13616,7 @@ def _cost_calculator_body_html():
 (function(){
 var SHEET_W=120,SHEET_H=80,GAP=0.5,MARGIN=1,CIRCLE_EDGE=1,SVG_NS='http://www.w3.org/2000/svg';
 var mode='flat',LW={total:1,sheetIdx:0,draw:null,sheetsNeeded:0};
-function notifyLaserSheets(n){LW.sheetsNeeded=Math.max(0,Math.floor(n||0));window.LaserNest=window.LaserNest||{};window.LaserNest.sheets=LW.sheetsNeeded;if(typeof window.syncAcrylicFromNest==='function')window.syncAcrylicFromNest();}
+function notifyLaserSheets(n){LW.sheetsNeeded=Math.max(0,Math.floor(n||0));window.LaserNest=window.LaserNest||{};window.LaserNest.sheets=LW.sheetsNeeded;if(typeof window.syncAcrylicFromNest==='function')window.syncAcrylicFromNest();if(typeof window.laserCostRecalc==='function')window.laserCostRecalc();}
 function num(v){var n=parseFloat(v);return isNaN(n)?0:n;}
 function $(id){return document.getElementById(id);}
 function fmt(v){return (Math.round(v*100)/100).toString();}
@@ -14191,7 +14191,7 @@ setMode('flat');
 </tbody></table></div>
 <div class="cc-profit-grid">
 <div class="cc-profit-card highlight" id="ccGrossCard"><div class="cc-profit-label">هامش الربح</div><div class="cc-profit-value" id="ccGrossMargin"></div><div class="cc-hint" style="margin-top:4px">سعر البيع − التكاليف المباشرة</div></div>
-<div class="cc-profit-card" id="ccUnitSellCard"><div class="cc-profit-label">سعر بيع الحبة</div><div class="cc-profit-value" id="ccUnitSellValue"></div><div class="cc-hint" style="margin-top:4px">سعر البيع ÷ الكمية</div></div>
+<div class="cc-profit-card" id="ccUnitSellCard"><div class="cc-profit-label">سعر بيع الحبة</div><div class="cc-profit-value" id="ccUnitSellValue"></div><div class="cc-hint" style="margin-top:4px">إجمالي سعر البيع ÷ عدد القطع</div></div>
 <div class="cc-profit-card" id="ccNetCard"><div class="cc-profit-label">صافي الربح</div><div class="cc-profit-value" id="ccNetProfit"></div><div class="cc-hint" style="margin-top:4px">سعر البيع − مجموع التكاليف</div></div>
 <div class="cc-profit-card" id="ccNetPctCard"><div class="cc-profit-label">نسبة صافي الربح</div><div class="cc-profit-value" id="ccNetPct"></div></div>
 </div>
@@ -14207,6 +14207,13 @@ function fmtDisp(v){var n=num(v);return Math.abs(n)<0.0005?'':n.toFixed(3);}
 function fmtPctDisp(v){var n=num(v);return Math.abs(n)<0.0005?'':n.toFixed(2)+'%';}
 function fmtPct(v){return num(v).toFixed(2)+'%';}
 function qtySafe(){var q=num(document.getElementById('ccQty').value);return q>0?q:1;}
+function laserPiecesCount(){
+  var boxInputs=document.getElementById('lwBoxInputs');
+  var useBox=boxInputs && window.getComputedStyle(boxInputs).display!=='none';
+  var el=document.getElementById(useBox?'lwBoxN':'lwFlatN');
+  var n=Math.floor(num(el&&el.value)||0);
+  return Math.max(0,n);
+}
 var sellManual=false;
 var TW_API='https://www.csapp.io/teamwork-api/api.php';
 var TW_KEY='tw_Cs9kWt2026xTeAmWoRk';
@@ -14323,7 +14330,8 @@ function recalc(){
   var net=Math.round((sell-grand)*1000)/1000;
   var netPct=sell>0?Math.round(net/sell*10000)/100:0;
   document.getElementById('ccGrossMargin').textContent=fmtDisp(gross);
-  var unitSell=(sell>0&&qty>0)?Math.round(sell/qty*1000)/1000:0;
+  var pieces=laserPiecesCount();
+  var unitSell=(sell>0&&pieces>0)?Math.round(sell/pieces*1000)/1000:0;
   document.getElementById('ccUnitSellValue').textContent=fmtDisp(unitSell);
   document.getElementById('ccNetProfit').textContent=fmtDisp(net);
   document.getElementById('ccNetPct').textContent=fmtPctDisp(netPct);
@@ -14335,8 +14343,14 @@ function recalc(){
     else if(v<-0.0005)el.classList.add('neg');
   });
 }
+window.laserCostRecalc=recalc;
 document.querySelectorAll('.cc-direct-val,.cc-hours,#ccQty').forEach(function(el){
   el.addEventListener('input',function(){sellManual=false;recalc();});
+});
+['lwFlatN','lwBoxN'].forEach(function(id){
+  var el=document.getElementById(id); if(!el) return;
+  el.addEventListener('input',function(){sellManual=false;recalc();});
+  el.addEventListener('change',function(){sellManual=false;recalc();});
 });
 ['ccAcrylicMat','ccWoodMat'].forEach(function(id){
   var el=document.getElementById(id);
