@@ -7,12 +7,14 @@ import { generateId } from '../../utils/helpers';
 import {
   DIGITAL_FACTORY_SHEET,
   digitalPieceCosts,
+  effectiveMeterCostKd,
   effectiveSheetCostKd,
   filsToKd,
   formatMaterialCostFils,
   kdToFils,
   materialLabel,
   materialsOfKind,
+  meterCostFromRoll,
   parseMaterialCost,
   sheetCostFromPack,
 } from '../../utils/materials';
@@ -35,6 +37,8 @@ const MaterialsModal: React.FC<MaterialsModalProps> = ({ onClose }) => {
   const [sheetsPerPack, setSheetsPerPack] = useState('');
   const [rollType, setRollType] = useState('');
   const [rollWidth, setRollWidth] = useState('');
+  const [rollCostFils, setRollCostFils] = useState('');
+  const [rollMeters, setRollMeters] = useState('');
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editingKind, setEditingKind] = useState<MaterialKind | null>(null);
   const [expandedIds, setExpandedIds] = useState<Record<string, boolean>>({});
@@ -49,6 +53,8 @@ const MaterialsModal: React.FC<MaterialsModalProps> = ({ onClose }) => {
   const clearLargeForm = () => {
     setRollType('');
     setRollWidth('');
+    setRollCostFils('');
+    setRollMeters('');
   };
 
   const startEdit = (m: Material) => {
@@ -66,6 +72,10 @@ const MaterialsModal: React.FC<MaterialsModalProps> = ({ onClose }) => {
     } else {
       setRollType(m.rollType || m.name || '');
       setRollWidth(m.rollWidth || '');
+      const costFils = kdToFils(parseMaterialCost(m.rollCost));
+      setRollCostFils(costFils > 0 ? String(costFils) : '');
+      const meters = parseMaterialCost(m.rollMeters);
+      setRollMeters(meters > 0 ? String(meters) : '');
       clearDigitalForm();
     }
   };
@@ -88,6 +98,13 @@ const MaterialsModal: React.FC<MaterialsModalProps> = ({ onClose }) => {
     [livePackKd, livePages],
   );
   const livePieceCosts = digitalPieceCosts(liveSheetCostKd > 0 ? liveSheetCostKd : 0);
+
+  const liveRollKd = filsToKd(parseMaterialCost(rollCostFils));
+  const liveMeters = parseMaterialCost(rollMeters);
+  const liveMeterCostKd = useMemo(
+    () => meterCostFromRoll(liveRollKd > 0 ? String(liveRollKd) : '', liveMeters > 0 ? String(liveMeters) : ''),
+    [liveRollKd, liveMeters],
+  );
 
   const saveMaterial = (kind: MaterialKind) => {
     const now = new Date().toISOString();
@@ -157,10 +174,20 @@ const MaterialsModal: React.FC<MaterialsModalProps> = ({ onClose }) => {
 
     const rt = rollType.trim();
     const rw = rollWidth.trim();
+    const costFils = parseMaterialCost(rollCostFils);
+    const meters = parseMaterialCost(rollMeters);
     if (!rt || !rw) {
       alert('Enter roll type and roll width');
       return;
     }
+    if ((rollCostFils.trim() || rollMeters.trim()) && (costFils <= 0 || meters <= 0)) {
+      alert(tr.rollCostInvalid);
+      return;
+    }
+    const rollCostKd = costFils > 0 ? String(filsToKd(costFils)) : '';
+    const metersStr = meters > 0 ? String(meters) : '';
+    const derivedMeter = meterCostFromRoll(rollCostKd, metersStr);
+    const meterCost = derivedMeter > 0 ? String(derivedMeter) : '';
     const exists = largeMaterials.some(
       (m) =>
         m.id !== editingId &&
@@ -180,6 +207,9 @@ const MaterialsModal: React.FC<MaterialsModalProps> = ({ onClose }) => {
           kind: 'large-format',
           rollType: rt,
           rollWidth: rw,
+          rollCost: rollCostKd,
+          rollMeters: metersStr,
+          meterCost: meterCost || prev?.meterCost || '',
           createdAt: prev?.createdAt || now,
           updatedAt: now,
         },
@@ -194,6 +224,9 @@ const MaterialsModal: React.FC<MaterialsModalProps> = ({ onClose }) => {
         kind: 'large-format',
         rollType: rt,
         rollWidth: rw,
+        rollCost: rollCostKd,
+        rollMeters: metersStr,
+        meterCost,
         createdAt: now,
         updatedAt: now,
       },
@@ -270,29 +303,56 @@ const MaterialsModal: React.FC<MaterialsModalProps> = ({ onClose }) => {
         <div className="mat-sections">
           <section className="mat-section" style={{ ['--mat-color' as string]: '#6438E0' }}>
             <h3>Large Format</h3>
+            <p className="mat-sheet-note mat-sheet-note-purple">{tr.largeFormatNote}</p>
             <form
-              className="mat-add-grid"
+              className="mat-add-grid mat-add-grid-pack"
               onSubmit={(e) => {
                 e.preventDefault();
                 saveMaterial('large-format');
               }}
             >
               <label>
-                <span>Roll Type</span>
+                <span>{tr.rollType}</span>
                 <input
                   value={rollType}
                   onChange={(e) => setRollType(e.target.value)}
-                  placeholder="Greyback roll up"
+                  placeholder={tr.rollTypePlaceholder}
                 />
               </label>
               <label>
-                <span>Roll Width</span>
+                <span>{tr.rollWidth}</span>
                 <input
                   value={rollWidth}
                   onChange={(e) => setRollWidth(e.target.value)}
-                  placeholder="120 cm"
+                  placeholder={tr.rollWidthPlaceholder}
                 />
               </label>
+              <label>
+                <span>{tr.rollCostLabel}</span>
+                <input
+                  value={rollCostFils}
+                  onChange={(e) => setRollCostFils(e.target.value)}
+                  inputMode="numeric"
+                  placeholder="25000"
+                />
+              </label>
+              <label>
+                <span>{tr.rollMetersLabel}</span>
+                <input
+                  value={rollMeters}
+                  onChange={(e) => setRollMeters(e.target.value)}
+                  inputMode="decimal"
+                  placeholder="50"
+                />
+              </label>
+              <div className="mat-auto-sheet mat-auto-sheet-purple">
+                <span>{tr.meterCostLabel}</span>
+                <strong>
+                  {liveMeterCostKd > 0
+                    ? `${formatMaterialCostFils(liveMeterCostKd)} ${tr.currencyShort}`
+                    : '—'}
+                </strong>
+              </div>
               <div className="mat-form-actions">
                 {editingLarge && (
                   <button type="button" className="mat-cancel-btn" onClick={cancelEdit}>
@@ -310,11 +370,24 @@ const MaterialsModal: React.FC<MaterialsModalProps> = ({ onClose }) => {
               ) : (
                 largeMaterials.map((m) => {
                   const label = materialLabel(m);
+                  const meterKd = effectiveMeterCostKd(m);
+                  const costFils = kdToFils(parseMaterialCost(m.rollCost));
+                  const meters = parseMaterialCost(m.rollMeters);
                   return (
                     <div key={m.id} className={`mat-item${editingId === m.id ? ' editing' : ''}`}>
                       <div className="mat-item-meta">
                         <strong>{m.rollType || m.name}</strong>
-                        <small>{m.rollWidth}</small>
+                        <small>
+                          {m.rollWidth}
+                          {costFils > 0 && meters > 0
+                            ? ` · ${tr.rollSummary
+                                .replace('{cost}', `${costFils} ${tr.currencyShort}`)
+                                .replace('{meters}', String(meters))}`
+                            : ''}
+                          {meterKd > 0
+                            ? ` · ${tr.meterCostShort}: ${formatMaterialCostFils(meterKd)} ${tr.currencyShort}`
+                            : ''}
+                        </small>
                       </div>
                       {renderActions(m, label)}
                     </div>

@@ -73,6 +73,26 @@ export const digitalPieceCosts = (sheetCost: string | number | undefined) =>
     pieceCost: pieceCostForSize(sheetCost, size.piecesPerSheet),
   }));
 
+/** سعر المتر = سعر الرول ÷ عدد الأمتار */
+export const meterCostFromRoll = (
+  rollCost: string | undefined,
+  rollMeters: string | undefined,
+): number => {
+  const cost = parseMaterialCost(rollCost);
+  const meters = parseMaterialCost(rollMeters);
+  if (cost <= 0 || meters <= 0) return 0;
+  return cost / meters;
+};
+
+/** سعر المتر الفعلي (من الرول إن وُجد، وإلا meterCost المخزّن) */
+export const effectiveMeterCostKd = (
+  m: Pick<Material, 'rollCost' | 'rollMeters' | 'meterCost'>,
+): number => {
+  const fromRoll = meterCostFromRoll(m.rollCost, m.rollMeters);
+  if (fromRoll > 0) return fromRoll;
+  return parseMaterialCost(m.meterCost);
+};
+
 export const materialLabel = (m: Material): string => {
   if (m.kind === 'digital') {
     return [m.paperType, m.paperWeight].filter(Boolean).join(' · ') || m.name || '';

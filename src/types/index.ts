@@ -200,6 +200,14 @@ export interface Material {
   /** Large Format */
   rollType?: string;
   rollWidth?: string;
+  /** سعر الرول بالدينار */
+  rollCost?: string;
+  /** عدد الأمتار في الرول */
+  rollMeters?: string;
+  /**
+   * سعر المتر بالدينار = rollCost ÷ rollMeters (محسوب تلقائياً).
+   */
+  meterCost?: string;
   /** Legacy single-name materials */
   name?: string;
   createdAt: string;
