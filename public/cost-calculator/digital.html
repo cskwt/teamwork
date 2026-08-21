@@ -635,10 +635,10 @@ function drawGraphtecMarks(sv, vbW, vbH){
   mark(m, vbH-m-arm, m, vbH-m, m+arm, vbH-m);             /* أسفل يسار */
   mark(vbW-m-arm, vbH-m, vbW-m, vbH-m, vbW-m, vbH-m-arm); /* أسفل يمين */
   /* مؤشر الأصل أسفل اليسار */
-  var ox=m*0.35, oy=vbH-m*0.35, al=Math.max(8, arm*0.7);
+  var ox=m*0.35, oy=vbH-m*0.35, al=Math.max(16, arm*0.7);
   sv.appendChild(nestSvgEl('line',{x1:ox,y1:oy,x2:ox+al,y2:oy,stroke:'#111827','stroke-width':sw,'stroke-linecap':'round'}));
   sv.appendChild(nestSvgEl('line',{x1:ox,y1:oy,x2:ox,y2:oy-al,stroke:'#111827','stroke-width':sw,'stroke-linecap':'round'}));
-  var ah=Math.max(2.5, sw*1.6);
+  var ah=Math.max(5, sw*1.6);
   sv.appendChild(nestSvgEl('polygon',{points:(ox+al)+','+oy+' '+(ox+al-ah)+','+(oy-ah)+' '+(ox+al-ah)+','+(oy+ah), fill:'#111827'}));
   sv.appendChild(nestSvgEl('polygon',{points:ox+','+(oy-al)+' '+(ox-ah)+','+(oy-al+ah)+' '+(ox+ah)+','+(oy-al+ah), fill:'#111827'}));
 }
