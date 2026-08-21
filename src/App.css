@@ -1257,6 +1257,14 @@ html[data-view="phone"] .tools-cards-grid {
 .mat-auto-sheet-purple strong {
   color: #6d28d9;
 }
+.mat-meter-price {
+  color: #7c3aed !important;
+  font-weight: 800;
+  background: #f5f3ff;
+  border: 1px solid #ddd6fe;
+  border-radius: 6px;
+  padding: 1px 6px;
+}
 .mat-sheet-note {
   margin: 0;
   font-size: 11px;
