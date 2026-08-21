@@ -651,7 +651,7 @@ try{
 
 /* —— حساب عدد القطع على قياس الورق المختار من المخزون —— */
 var SVG_NS='http://www.w3.org/2000/svg';
-var NEST={GAP:0.5,MARGIN:0,total:1,sheetIdx:0,draw:null,zoom:1,baseW:140,vbW:1000,vbH:700};
+var NEST={GAP:0.5,MARGIN:0,fillInner:false,total:1,sheetIdx:0,draw:null,zoom:1,baseW:140,vbW:1000,vbH:700};
 function nestSvgEl(tag,attrs){var e=document.createElementNS(SVG_NS,tag);for(var k in attrs)e.setAttribute(k,attrs[k]);return e;}
 function clearNestSvg(s){while(s.firstChild)s.removeChild(s.firstChild);}
 function drawGraphtecMarks(sv, vbW, vbH){
@@ -659,6 +659,11 @@ function drawGraphtecMarks(sv, vbW, vbH){
   var m=25;
   var arm=Math.max(14, Math.min(vbW, vbH)*0.045);
   var sw=Math.max(2.4, Math.min(vbW, vbH)*0.012);
+  /* إطار منطقة القص بين العلامات */
+  sv.appendChild(nestSvgEl('rect',{
+    x:m,y:m,width:vbW-2*m,height:vbH-2*m,
+    fill:'none', stroke:'#111827', 'stroke-width':Math.max(1.2, sw*0.55)
+  }));
   function mark(x1,y1,x2,y2,x3,y3){
     sv.appendChild(nestSvgEl('path',{
       d:'M '+x1+' '+y1+' L '+x2+' '+y2+' L '+x3+' '+y3,
@@ -670,13 +675,14 @@ function drawGraphtecMarks(sv, vbW, vbH){
   mark(vbW-m-arm, m, vbW-m, m, vbW-m, m+arm);             /* أعلى يمين */
   mark(m, vbH-m-arm, m, vbH-m, m+arm, vbH-m);             /* أسفل يسار */
   mark(vbW-m-arm, vbH-m, vbW-m, vbH-m, vbW-m, vbH-m-arm); /* أسفل يمين */
-  /* مؤشر الأصل أسفل اليسار */
-  var ox=Math.max(4, m*0.2), oy=vbH-Math.max(4, m*0.2), al=Math.max(12, arm*0.65);
-  sv.appendChild(nestSvgEl('line',{x1:ox,y1:oy,x2:ox+al,y2:oy,stroke:'#111827','stroke-width':sw,'stroke-linecap':'round'}));
-  sv.appendChild(nestSvgEl('line',{x1:ox,y1:oy,x2:ox,y2:oy-al,stroke:'#111827','stroke-width':sw,'stroke-linecap':'round'}));
+  /* مؤشر الأصل عند زاوية إطار Graphtec السفلى اليسرى */
+  var ox=m, oy=vbH-m, al=Math.max(12, arm*0.7);
+  sv.appendChild(nestSvgEl('line',{x1:ox,y1:oy,x2:ox+al,y2:oy,stroke:'#2563eb','stroke-width':sw,'stroke-linecap':'round'}));
+  sv.appendChild(nestSvgEl('line',{x1:ox,y1:oy,x2:ox,y2:oy-al,stroke:'#dc2626','stroke-width':sw,'stroke-linecap':'round'}));
   var ah=Math.max(4, sw*1.5);
-  sv.appendChild(nestSvgEl('polygon',{points:(ox+al)+','+oy+' '+(ox+al-ah)+','+(oy-ah)+' '+(ox+al-ah)+','+(oy+ah), fill:'#111827'}));
-  sv.appendChild(nestSvgEl('polygon',{points:ox+','+(oy-al)+' '+(ox-ah)+','+(oy-al+ah)+' '+(ox+ah)+','+(oy-al+ah), fill:'#111827'}));
+  sv.appendChild(nestSvgEl('polygon',{points:(ox+al)+','+oy+' '+(ox+al-ah)+','+(oy-ah)+' '+(ox+al-ah)+','+(oy+ah), fill:'#2563eb'}));
+  sv.appendChild(nestSvgEl('polygon',{points:ox+','+(oy-al)+' '+(ox-ah)+','+(oy-al+ah)+' '+(ox+ah)+','+(oy-al+ah), fill:'#dc2626'}));
+  sv.appendChild(nestSvgEl('circle',{cx:ox,cy:oy,r:Math.max(1.8, sw*0.7), fill:'#111827'}));
 }
 function nestPageBg(sv, vbW, vbH, graphtec){
   sv.appendChild(nestSvgEl('rect',{
@@ -722,19 +728,27 @@ function setNestStats(arr){
   el.innerHTML=h;
 }
 function nestFillSheet(SW,SH,pw,ph,allowRot){
-  var g=NEST.GAP, m=NEST.MARGIN||0;
+  var g=NEST.GAP, m=NEST.MARGIN||0, fill=!!NEST.fillInner;
   var innerW=SW-2*m, innerH=SH-2*m;
   if(innerW<=0||innerH<=0) return [];
   function pack(w,h){
     var cols=Math.floor((innerW+g+1e-9)/(w+g));
     var rows=Math.floor((innerH+g+1e-9)/(h+g));
     if(cols<1||rows<1) return [];
-    var usedW=cols*w+(cols-1)*g;
-    var usedH=rows*h+(rows-1)*g;
-    var ox=m+(innerW-usedW)/2, oy=m+(innerH-usedH)/2;
-    var out=[],i,j;
+    var gapX, gapY, ox, oy, i, j, out=[];
+    if(fill){
+      /* توزيع متساوٍ يملأ إطار Graphtec من الحافة إلى الحافة */
+      gapX = cols>1 ? (innerW-cols*w)/(cols-1) : 0;
+      gapY = rows>1 ? (innerH-rows*h)/(rows-1) : 0;
+      ox = m + (cols===1 ? (innerW-w)/2 : 0);
+      oy = m + (rows===1 ? (innerH-h)/2 : 0);
+    }else{
+      gapX=g; gapY=g;
+      ox=m+(innerW-(cols*w+(cols-1)*g))/2;
+      oy=m+(innerH-(rows*h+(rows-1)*g))/2;
+    }
     for(j=0;j<rows;j++) for(i=0;i<cols;i++){
-      out.push({x:ox+i*(w+g),y:oy+j*(h+g),w:w,h:h,rot:Math.abs(w-pw)>1e-6});
+      out.push({x:ox+i*(w+gapX),y:oy+j*(h+gapY),w:w,h:h,rot:Math.abs(w-pw)>1e-6});
     }
     return out;
   }
@@ -774,6 +788,7 @@ function renderNest(){
   if(!svg) return;
   var graphtec=((byId('dgCut')||{}).value||'')==='graphtec';
   NEST.MARGIN = graphtec ? 2.5 : 0;
+  NEST.fillInner = graphtec;
   if(!sheet){
     if(title) title.textContent='اختر قياس الورق من المخزون';
     clearNestSvg(svg);
@@ -812,7 +827,7 @@ function renderNest(){
     var sv=byId('dgNestSheet'); clearNestSvg(sv);
     nestPageBg(sv, vbW, vbH, graphtec);
     var startI=idx*per, count=Math.min(per,n-startI);
-    var pageSlots=nestCenterSlots(slots.slice(0,count), SW, SH);
+    var pageSlots=NEST.fillInner ? slots.slice(0,count) : nestCenterSlots(slots.slice(0,count), SW, SH);
     for(var i=0;i<count;i++){
       var sl=pageSlots[i], x=sl.x*10, y=sl.y*10, wMM=sl.w*10, hMM=sl.h*10;
       if(circle){
