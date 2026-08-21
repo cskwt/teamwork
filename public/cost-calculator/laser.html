@@ -769,7 +769,7 @@ setMode('flat');
 <tbody>
 <tr data-direct><td class="cc-label">أجور التصميم</td><td><input type="number" class="cc-direct-val" min="0" step="0.001"></td><td><input type="text" class="cc-direct-unit cc-ro" readonly tabindex="-1" value=""></td></tr>
 <tr data-direct data-acrylic><td><div class="cc-label">مواد خام أكريليك</div><select id="ccAcrylicMat" class="cc-acrylic-select"><option value="">-- اختر من المخزون --</option></select><div class="cc-hint" id="ccAcrylicHint">يُحسب تلقائياً: عدد الألواح × سعر القطعة 120×80</div></td><td><input type="number" class="cc-direct-val cc-ro" id="ccAcrylicVal" min="0" step="0.001" readonly tabindex="-1" title="تلقائي من المخزون"></td><td><input type="text" class="cc-direct-unit cc-ro" readonly tabindex="-1" value=""></td></tr>
-<tr data-direct><td class="cc-label">خشب</td><td><input type="number" class="cc-direct-val" min="0" step="0.001"></td><td><input type="text" class="cc-direct-unit cc-ro" readonly tabindex="-1" value=""></td></tr>
+<tr data-direct data-wood><td><div class="cc-label">خشب</div><select id="ccWoodMat" class="cc-acrylic-select"><option value="">-- اختر من مخزون Acrylics --</option></select><div class="cc-hint" id="ccWoodHint">من مخزون Acrylics — يُحسب: عدد الألواح × سعر القطعة 120×80</div></td><td><input type="number" class="cc-direct-val cc-ro" id="ccWoodVal" min="0" step="0.001" readonly tabindex="-1" title="تلقائي من المخزون"></td><td><input type="text" class="cc-direct-unit cc-ro" readonly tabindex="-1" value=""></td></tr>
 <tr data-direct><td class="cc-label">اكسسوارات إضافية</td><td><input type="number" class="cc-direct-val" min="0" step="0.001"></td><td><input type="text" class="cc-direct-unit cc-ro" readonly tabindex="-1" value=""></td></tr>
 <tr data-direct><td class="cc-label">الطباعة</td><td><input type="number" class="cc-direct-val" min="0" step="0.001"></td><td><input type="text" class="cc-direct-unit cc-ro" readonly tabindex="-1" value=""></td></tr>
 <tr class="cc-total"><td class="cc-label">المجموع</td><td><input type="text" id="ccDirectTotal" class="cc-ro" readonly tabindex="-1" value=""></td><td><input type="text" id="ccDirectPerUnit" class="cc-ro" readonly tabindex="-1" value=""></td></tr>
@@ -819,11 +819,11 @@ function toWesternDigits(s){return String(s==null?'':s).replace(/[٠-٩]/g,funct
 function parseCost(v){var n=parseFloat(toWesternDigits(String(v==null?'':v)).trim());return isFinite(n)?n:0;}
 function acrylicPieceCost(m){var board=parseCost(m.acrylicBoardCost);if(board>0)return board/3;return parseCost(m.acrylicPieceCost);}
 function acrylicLabel(m){return [m.acrylicType||m.name,m.acrylicThickness].filter(Boolean).join(' · ')||(m.name||'');}
-function fillAcrylicSelect(){
-  var sel=document.getElementById('ccAcrylicMat'); if(!sel) return;
+function fillAcrylicSelect(selId, emptyText){
+  var sel=document.getElementById(selId); if(!sel) return;
   var prev=sel.value||'';
   sel.innerHTML='';
-  var ph=document.createElement('option'); ph.value=''; ph.textContent=ACRYLIC_MATERIALS.length?'-- اختر من المخزون --':'لا توجد مواد أكريليك في المخزون'; ph.disabled=true; ph.selected=true; sel.appendChild(ph);
+  var ph=document.createElement('option'); ph.value=''; ph.textContent=ACRYLIC_MATERIALS.length?(emptyText||'-- اختر من المخزون --'):'لا توجد مواد في مخزون Acrylics'; ph.disabled=true; ph.selected=true; sel.appendChild(ph);
   ACRYLIC_MATERIALS.forEach(function(m){
     var opt=document.createElement('option');
     opt.value=m.id||acrylicLabel(m);
@@ -832,6 +832,10 @@ function fillAcrylicSelect(){
     sel.appendChild(opt);
   });
   if(prev && ACRYLIC_MATERIALS.some(function(m){return (m.id||acrylicLabel(m))===prev;})){sel.value=prev;ph.selected=false;}
+}
+function fillAllAcrylicSelects(){
+  fillAcrylicSelect('ccAcrylicMat','-- اختر من المخزون --');
+  fillAcrylicSelect('ccWoodMat','-- اختر من مخزون Acrylics --');
 }
 function loadAcrylicInventory(){
   return fetch(TW_API+'?resource=app',{headers:{'X-API-Key':TW_KEY},cache:'no-store'}).then(function(r){
@@ -842,42 +846,47 @@ function loadAcrylicInventory(){
     ACRYLIC_MATERIALS=mats.filter(function(m){return m.kind==='acrylics';}).map(function(m){
       return {id:m.id||'', name:m.name||'', acrylicType:m.acrylicType||'', acrylicThickness:m.acrylicThickness||'', acrylicBoardCost:m.acrylicBoardCost||'', acrylicPieceCost:m.acrylicPieceCost||''};
     }).filter(function(m){return !!acrylicLabel(m);}).sort(function(a,b){return acrylicLabel(a).localeCompare(acrylicLabel(b),'ar',{sensitivity:'base'});});
-    fillAcrylicSelect();
+    fillAllAcrylicSelects();
     syncAcrylicFromNest();
-  }).catch(function(){ACRYLIC_MATERIALS=[];fillAcrylicSelect();});
+  }).catch(function(){ACRYLIC_MATERIALS=[];fillAllAcrylicSelects();});
 }
-window.syncAcrylicFromNest=function syncAcrylicFromNest(){
-  var sel=document.getElementById('ccAcrylicMat');
-  var valEl=document.getElementById('ccAcrylicVal');
-  var hint=document.getElementById('ccAcrylicHint');
-  if(!sel||!valEl) return;
-  var id=sel.value||'';
-  var m=ACRYLIC_MATERIALS.find(function(x){return (x.id||acrylicLabel(x))===id;})||null;
+function laserSheetsCount(){
   var sheets=0;
   try{ if(typeof LW!=='undefined'&&LW&&LW.sheetsNeeded!=null) sheets=Math.max(0,Math.floor(LW.sheetsNeeded||0)); }catch(e){}
   if(!sheets && window.LaserNest && window.LaserNest.sheets) sheets=Math.max(0,Math.floor(window.LaserNest.sheets||0));
+  return sheets;
+}
+function syncSheetMaterialRow(selId, valId, hintId, emptyHint){
+  var sel=document.getElementById(selId);
+  var valEl=document.getElementById(valId);
+  var hint=document.getElementById(hintId);
+  if(!sel||!valEl) return;
+  var id=sel.value||'';
+  var m=ACRYLIC_MATERIALS.find(function(x){return (x.id||acrylicLabel(x))===id;})||null;
+  var sheets=laserSheetsCount();
   if(!m){
     valEl.value='';
-    if(hint) hint.textContent='اختر خامة من المخزون — يُحسب: عدد الألواح × سعر القطعة 120×80';
-    if(typeof recalc==='function') recalc();
+    if(hint) hint.textContent=emptyHint||'اختر خامة من مخزون Acrylics — يُحسب: عدد الألواح × سعر القطعة 120×80';
     return;
   }
   var piece=acrylicPieceCost(m);
   if(!(piece>0)){
     valEl.value='';
     if(hint) hint.textContent='لا يوجد سعر قطعة لهذه الخامة في المخزون';
-    if(typeof recalc==='function') recalc();
     return;
   }
   if(!(sheets>0)){
     valEl.value='';
     if(hint) hint.textContent='أدخل أبعاد العمل أولاً لحساب عدد الألواح (سعر القطعة '+piece.toFixed(3)+' د.ك)';
-    if(typeof recalc==='function') recalc();
     return;
   }
   var total=Math.round(piece*sheets*1000)/1000;
   valEl.value=String(total);
   if(hint) hint.textContent=sheets+' لوح × '+piece.toFixed(3)+' د.ك = '+total.toFixed(3)+' د.ك';
+}
+window.syncAcrylicFromNest=function syncAcrylicFromNest(){
+  syncSheetMaterialRow('ccAcrylicMat','ccAcrylicVal','ccAcrylicHint','اختر خامة من المخزون — يُحسب: عدد الألواح × سعر القطعة 120×80');
+  syncSheetMaterialRow('ccWoodMat','ccWoodVal','ccWoodHint','اختر خامة من مخزون Acrylics — يُحسب: عدد الألواح × سعر القطعة 120×80');
   if(typeof recalc==='function') recalc();
 };
 function recalc(){
@@ -933,8 +942,10 @@ function recalc(){
 document.querySelectorAll('.cc-direct-val,.cc-hours,#ccQty').forEach(function(el){
   el.addEventListener('input',function(){sellManual=false;recalc();});
 });
-var acrylicSel=document.getElementById('ccAcrylicMat');
-if(acrylicSel) acrylicSel.addEventListener('change',function(){sellManual=false;syncAcrylicFromNest();});
+['ccAcrylicMat','ccWoodMat'].forEach(function(id){
+  var el=document.getElementById(id);
+  if(el) el.addEventListener('change',function(){sellManual=false;syncAcrylicFromNest();});
+});
 loadAcrylicInventory();
 document.getElementById('ccProfitPct').addEventListener('input',function(){sellManual=false;recalc();});
 document.getElementById('ccSellPrice').addEventListener('input',function(){sellManual=true;recalc();});
@@ -945,8 +956,12 @@ document.getElementById('ccClearAll').addEventListener('click',function(){
   document.getElementById('ccQty').value='1';
   document.querySelectorAll('.cc-direct-val').forEach(function(el){el.value='';});
   document.querySelectorAll('.cc-hours').forEach(function(el){el.value='';});
-  var aSel=document.getElementById('ccAcrylicMat'); if(aSel){aSel.value=''; var ph=aSel.querySelector('option[value=""]'); if(ph) ph.selected=true;}
+  ['ccAcrylicMat','ccWoodMat'].forEach(function(id){
+    var aSel=document.getElementById(id); if(!aSel) return;
+    aSel.value=''; var ph=aSel.querySelector('option[value=""]'); if(ph) ph.selected=true;
+  });
   var aHint=document.getElementById('ccAcrylicHint'); if(aHint) aHint.textContent='يُحسب تلقائياً: عدد الألواح × سعر القطعة 120×80';
+  var wHint=document.getElementById('ccWoodHint'); if(wHint) wHint.textContent='من مخزون Acrylics — يُحسب: عدد الألواح × سعر القطعة 120×80';
   document.getElementById('ccProfitPct').value='';
   document.getElementById('ccSellPrice').value='';
   sellManual=false;
@@ -978,8 +993,8 @@ function ccCollectPayload(){
   document.querySelectorAll('#ccDirectTable tr[data-direct]').forEach(function(tr){
     var labEl=tr.querySelector('.cc-label');
     var lab=labEl?(labEl.textContent||'').trim():'';
-    if(tr.getAttribute('data-acrylic')!=null){
-      var sel=tr.querySelector('#ccAcrylicMat');
+    if(tr.getAttribute('data-acrylic')!=null || tr.getAttribute('data-wood')!=null){
+      var sel=tr.querySelector('select.cc-acrylic-select');
       if(sel&&sel.value){var opt=sel.options[sel.selectedIndex];lab=lab+(opt&&opt.textContent?(' — '+opt.textContent.split(' — ')[0]):'');}
     }
     payload.direct.push({
