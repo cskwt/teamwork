@@ -121,9 +121,16 @@ const AppInner: React.FC = () => {
 
   return (
     <div className={`app-root${isPhone ? ' phone-view' : ''}`}>
-      <NotificationPopup />
+      <NotificationPopup onOpenOrder={(deptId) => {
+        if (deptId) handleOpenBoard(deptId);
+        else handleNavigate('orders');
+      }} />
       <TopBar
         onNavigate={handleNavigate}
+        onOpenOrder={(deptId) => {
+          if (deptId) handleOpenBoard(deptId);
+          else handleNavigate('orders');
+        }}
         onToggleSidebar={() => setSidebarOpen((v) => !v)}
         sidebarOpen={sidebarOpen}
       />

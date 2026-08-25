@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { Plus, Pencil, Trash2, X, Users, Package } from 'lucide-react';
 import { useApp } from '../../contexts/AppContext';
 import { Department } from '../../types';
-import { generateId } from '../../utils/helpers';
+import { generateId, orderBelongsToDepartment, userDepartmentIds } from '../../utils/helpers';
 import Header from '../layout/Header';
 
 const COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#8b5cf6', '#ef4444', '#06b6d4', '#ec4899', '#84cc16'];
@@ -87,8 +87,8 @@ const DepartmentsPage: React.FC = () => {
         <div className="dept-cards-grid">
           {departments.map((dept) => {
             const manager = users.find((u) => u.id === dept.managerId);
-            const deptOrders = orders.filter((o) => o.departmentId === dept.id && !o.isOrderRequest && !o.digitalPrinting && !o.largeFormat);
-            const deptMembers = users.filter((u) => u.departmentId === dept.id);
+            const deptOrders = orders.filter((o) => orderBelongsToDepartment(o, dept.id) && !o.isOrderRequest && !o.digitalPrinting && !o.largeFormat);
+            const deptMembers = users.filter((u) => userDepartmentIds(u).includes(dept.id));
             return (
               <div key={dept.id} className="dept-card" style={{ '--dept-color': dept.color } as any}>
                 <div className="dept-card-top" style={{ background: dept.color }}>

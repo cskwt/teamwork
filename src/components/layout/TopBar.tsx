@@ -9,17 +9,18 @@ import OrderDetailModal from '../modals/OrderDetailModal';
 
 interface TopBarProps {
   onNavigate: (page: string) => void;
+  onOpenOrder?: (departmentId?: string) => void;
   onToggleSidebar?: () => void;
   sidebarOpen?: boolean;
 }
 
-const TopBar: React.FC<TopBarProps> = ({ onNavigate, onToggleSidebar }) => {
+const TopBar: React.FC<TopBarProps> = ({ onNavigate, onOpenOrder, onToggleSidebar }) => {
   const { state, dispatch, refreshData } = useApp();
   const { lang, toggleLang, tr } = useLang();
   const { isPhone, toggleViewMode } = useViewMode();
   const priorityConfig = getPriorityConfig(lang);
   const [refreshing, setRefreshing] = useState(false);
-  const { orders, departments, currentUser, notifications: allNotifs } = state;
+  const { orders, orderRequests, departments, currentUser, notifications: allNotifs } = state;
   const [showNotif, setShowNotif] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [showSearch, setShowSearch] = useState(false);
@@ -167,7 +168,20 @@ const TopBar: React.FC<TopBarProps> = ({ onNavigate, onToggleSidebar }) => {
               ) : (
                 <div className="notif-list">
                   {[...myNotifs].reverse().map((n) => (
-                    <div key={n.id} className={`notif-item ${n.read ? 'notif-read' : 'notif-unread'}`}>
+                    <div
+                      key={n.id}
+                      className={`notif-item ${n.read ? 'notif-read' : 'notif-unread'}`}
+                      style={{ cursor: 'pointer' }}
+                      onClick={() => {
+                        const deptId =
+                          n.departmentId ||
+                          orders.find((o) => o.id === n.orderId)?.departmentId ||
+                          (orderRequests || []).find((o) => o.id === n.orderId)?.departmentId;
+                        onOpenOrder?.(deptId);
+                        setShowNotif(false);
+                        if (currentUser) dispatch({ type: 'MARK_NOTIFICATIONS_READ', payload: currentUser.id });
+                      }}
+                    >
                       <div className="notif-item-icon">{notifIcon(n.type)}</div>
                       <div className="notif-item-body">
                         <p className="notif-item-title">{n.message}</p>

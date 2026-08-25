@@ -111,6 +111,37 @@ export const normalizeAmountInput = (value: string): string => {
   return out;
 };
 
+/** All department IDs a user belongs to (multi-dept + legacy primary). */
+export const userDepartmentIds = (user?: {
+  departmentId?: string;
+  departmentIds?: string[];
+} | null): string[] => {
+  if (!user) return [];
+  if (user.departmentIds?.length) return user.departmentIds;
+  return user.departmentId ? [user.departmentId] : [];
+};
+
+/** True if order is shown on this department's Kanban. */
+export const orderBelongsToDepartment = (
+  order: { departmentId?: string; departmentIds?: string[] } | null | undefined,
+  deptId: string,
+): boolean => {
+  if (!order || !deptId) return false;
+  if (order.departmentId === deptId) return true;
+  return (order.departmentIds || []).includes(deptId);
+};
+
+/** True if user belongs to any department linked to the order. */
+export const userBelongsToOrderDepartment = (
+  user: { departmentId?: string; departmentIds?: string[] } | null | undefined,
+  order: { departmentId?: string; departmentIds?: string[] } | null | undefined,
+): boolean => {
+  if (!user || !order) return false;
+  const uDepts = userDepartmentIds(user);
+  if (order.departmentId && uDepts.includes(order.departmentId)) return true;
+  return (order.departmentIds || []).some((id) => uDepts.includes(id));
+};
+
 // يعيد اسم ولون العمود الذي تنتمي إليه الطلبية
 export const getColumnStatus = (
   order: Order,

@@ -20,6 +20,7 @@ import OrderCard, { canAcknowledgeNew } from './OrderCard';
 import OrderDetailModal from '../modals/OrderDetailModal';
 import AddOrderModal from '../modals/AddOrderModal';
 import Header from '../layout/Header';
+import { orderBelongsToDepartment } from '../../utils/helpers';
 
 interface KanbanBoardProps {
   department: Department;
@@ -140,7 +141,7 @@ const KanbanBoard: React.FC<KanbanBoardProps> = ({ department, onBack }) => {
 
   const deptOrders = orders.filter(
     (o) =>
-      o.departmentId === department.id &&
+      orderBelongsToDepartment(o, department.id) &&
       !o.deletedAt &&
       !o.archivedAt &&
       !o.isOrderRequest &&

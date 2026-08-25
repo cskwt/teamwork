@@ -10,12 +10,24 @@ const typeIcon: Record<string, string> = {
   updated: '✏️',
 };
 
-const NotificationPopup: React.FC = () => {
+interface NotificationPopupProps {
+  onOpenOrder?: (departmentId?: string) => void;
+}
+
+const NotificationPopup: React.FC<NotificationPopupProps> = ({ onOpenOrder }) => {
   const { state, dispatch } = useApp();
-  const { currentUser, notifications } = state;
+  const { currentUser, notifications, orders, orderRequests } = state;
   const [popups, setPopups] = useState<AppNotification[]>([]);
   const knownIdsRef = useRef<Set<string>>(new Set());
   const initializedRef = useRef(false);
+
+  const resolveDeptId = (n: AppNotification): string | undefined => {
+    if (n.departmentId) return n.departmentId;
+    const order =
+      orders.find((o) => o.id === n.orderId) ||
+      (orderRequests || []).find((o) => o.id === n.orderId);
+    return order?.departmentId;
+  };
 
   useEffect(() => {
     if (!currentUser) return;
@@ -41,13 +53,18 @@ const NotificationPopup: React.FC = () => {
     if (currentUser) dispatch({ type: 'MARK_NOTIFICATIONS_READ', payload: currentUser.id });
   };
 
+  const handleOpen = (n: AppNotification) => {
+    onOpenOrder?.(resolveDeptId(n));
+    handleDismiss();
+  };
+
   if (popups.length === 0) return null;
 
   const single = popups.length === 1 ? popups[0] : null;
 
   return (
     <div className="notif-popup-overlay">
-      <div className="notif-popup">
+    <div className="notif-popup">
         <div className="notif-popup-header">
           <Bell size={16} color="#6366f1" />
           <span>{single ? 'إشعار جديد' : `${popups.length} إشعارات جديدة`}</span>
@@ -81,7 +98,12 @@ const NotificationPopup: React.FC = () => {
               </thead>
               <tbody>
                 {popups.map((n) => (
-                  <tr key={n.id}>
+                  <tr
+                    key={n.id}
+                    className="notif-popup-row-clickable"
+                    onClick={() => handleOpen(n)}
+                    style={{ cursor: 'pointer' }}
+                  >
                     <td className="notif-popup-table-icon">{typeIcon[n.type] || '🔔'}</td>
                     <td className="notif-popup-table-order">
                       {n.orderNumber ? `#${n.orderNumber}` : '—'}
@@ -100,7 +122,16 @@ const NotificationPopup: React.FC = () => {
           </div>
         )}
 
-        <button className="notif-popup-btn" onClick={handleDismiss}>تم</button>
+        <div style={{ display: 'flex', gap: 8 }}>
+          {single && (
+            <button className="notif-popup-btn" onClick={() => handleOpen(single)} style={{ flex: 1 }}>
+              فتح القسم
+            </button>
+          )}
+          <button className="notif-popup-btn" onClick={handleDismiss} style={{ flex: 1, opacity: single ? 0.85 : 1 }}>
+            تم
+          </button>
+        </div>
       </div>
     </div>
   );

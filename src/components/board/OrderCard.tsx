@@ -57,7 +57,8 @@ export const canAcknowledgeNew = (
     : user.departmentId
       ? [user.departmentId]
       : [];
-  return deptIds.includes(order.departmentId);
+  if (deptIds.includes(order.departmentId)) return true;
+  return (order.departmentIds || []).some((id) => deptIds.includes(id));
 };
 
 const useCardViewModel = (order: Order) => {

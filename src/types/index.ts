@@ -155,6 +155,8 @@ export interface AppNotification {
   orderId: string;
   orderNumber: string;
   clientName: string;
+  /** Department board to open when the user taps the notification */
+  departmentId?: string;
   message: string;
   commentText?: string;
   createdAt: string;

@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { Search, Filter, Trash2, Archive } from 'lucide-react';
 import { useApp } from '../../contexts/AppContext';
 import { OrderStatus, OrderPriority } from '../../types';
-import { formatDate, isOverdue } from '../../utils/helpers';
+import { formatDate, isOverdue, orderBelongsToDepartment, userBelongsToOrderDepartment } from '../../utils/helpers';
 import Header from '../layout/Header';
 import AddOrderModal from '../modals/AddOrderModal';
 import OrderDetailModal from '../modals/OrderDetailModal';
@@ -45,13 +45,16 @@ const OrdersPage: React.FC<OrdersPageProps> = ({ archiveMode = false }) => {
   });
   const baseOrders = isAdmin
     ? activeOrders
-    : activeOrders.filter((o) => o.departmentId === currentUser?.departmentId || o.assignedUsers?.includes(currentUser?.id || ""));
+    : activeOrders.filter((o) =>
+        userBelongsToOrderDepartment(currentUser, o) ||
+        o.assignedUsers?.includes(currentUser?.id || '')
+      );
 
   const filtered = baseOrders.filter((o) => {
     const matchSearch = !search || o.title.toLowerCase().includes(search.toLowerCase()) || o.description.toLowerCase().includes(search.toLowerCase());
     const matchStatus = !filterStatus || o.status === filterStatus;
     const matchPriority = !filterPriority || o.priority === filterPriority;
-    const matchDept = !filterDept || o.departmentId === filterDept;
+    const matchDept = !filterDept || orderBelongsToDepartment(o, filterDept);
     return matchSearch && matchStatus && matchPriority && matchDept;
   });
 

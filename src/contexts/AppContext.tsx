@@ -3,7 +3,7 @@ import localforage from 'localforage';
 import { AppState, User, Department, Order, OrderComment, OrderHistoryEntry, KanbanColumn, AppNotification, OpsRow, Material, OrderCostRow } from '../types';
 import { loadLocalState, loadLocalUsers, saveState, saveSession, loadSession, touchSession, clearSession, serverLoad, repairServerIfCorrupt, mergeOpsRows, resolveOpsRowsForSave, mergeUsers } from '../utils/storage';
 import { ensureAttachmentUrl } from '../utils/files';
-import { generateId } from '../utils/helpers';
+import { generateId, userBelongsToOrderDepartment, userDepartmentIds } from '../utils/helpers';
 import { INITIAL_USERS, INITIAL_DEPARTMENTS, INITIAL_ORDERS, INITIAL_MATERIALS } from '../data/initialData';
 import { splitOrdersAndRequests } from '../utils/orderRequests';
 
@@ -54,10 +54,44 @@ const makeNotif = (
   orderId: order.id,
   orderNumber: order.orderNumber || '',
   clientName: order.clientName,
+  departmentId: order.departmentId,
   message,
   createdAt: new Date().toISOString(),
   read: false,
 });
+
+/** Prefer unread when the same notification id appears on both sides. */
+const mergeNotificationsById = (
+  a: AppNotification[] = [],
+  b: AppNotification[] = [],
+): AppNotification[] => {
+  const map = new Map<string, AppNotification>();
+  [...a, ...b].forEach((n) => {
+    if (!n?.id) return;
+    const prev = map.get(n.id);
+    if (!prev) {
+      map.set(n.id, n);
+      return;
+    }
+    // Keep unread if either side has unread; otherwise keep newer
+    if (!prev.read && n.read) map.set(n.id, prev);
+    else if (prev.read && !n.read) map.set(n.id, n);
+    else if ((n.createdAt || '') >= (prev.createdAt || '')) map.set(n.id, n);
+  });
+  return Array.from(map.values());
+};
+
+const pruneOrphanNotifications = (
+  notifications: AppNotification[],
+  orders: Order[],
+  orderRequests: Order[],
+): AppNotification[] => {
+  const liveIds = new Set<string>([
+    ...orders.map((o) => o.id),
+    ...orderRequests.map((o) => o.id),
+  ]);
+  return notifications.filter((n) => !n.orderId || liveIds.has(n.orderId));
+};
 
 type Action =
   | { type: 'LOGIN'; payload: User }
@@ -375,12 +409,11 @@ const reducer = (state: AppState, action: Action): AppState => {
           }
           return { opsRows: ops.opsRows, opsUpdatedAt: ops.opsUpdatedAt };
         })(),
-        notifications: [
-          ...state.notifications,
-          ...(action.payload.notifications || []).filter(
-            (n: AppNotification) => !state.notifications.find((existing) => existing.id === n.id)
-          ),
-        ],
+        notifications: pruneOrphanNotifications(
+          mergeNotificationsById(state.notifications, action.payload.notifications || []),
+          mergedOrders,
+          mergedOrderRequests,
+        ),
       };
     }
     case 'LOGIN':
@@ -403,7 +436,7 @@ const reducer = (state: AppState, action: Action): AppState => {
       const order = { ...action.payload, isNew: action.payload.isNew !== false, isOrderRequest: false };
       const newNotifs: AppNotification[] = state.users
         .filter((u) => !u.deletedAt && u.id !== action.triggerUserId && (
-          u.departmentId === order.departmentId ||
+          userBelongsToOrderDepartment(u, order) ||
           order.assignedUsers?.includes(u.id)
         ))
         .map((u) => makeNotif('new_order', u.id, order, `طلبية جديدة: ${order.clientName} — رقم ${order.orderNumber}`));
@@ -449,7 +482,9 @@ const reducer = (state: AppState, action: Action): AppState => {
         (uid) => !(action.prevAssignedUsers || []).includes(uid) && uid !== action.triggerUserId
       );
       const notifReceivers = new Set<string>([
-        ...state.users.filter((u) => u.departmentId === updated.departmentId && u.id !== action.triggerUserId).map((u) => u.id),
+        ...state.users
+          .filter((u) => !u.deletedAt && userBelongsToOrderDepartment(u, updated) && u.id !== action.triggerUserId)
+          .map((u) => u.id),
         ...(updated.assignedUsers || []).filter((uid) => uid !== action.triggerUserId),
       ]);
       const updateNotifs: AppNotification[] = Array.from(notifReceivers).map((uid) => {
@@ -545,7 +580,13 @@ const reducer = (state: AppState, action: Action): AppState => {
           : `تغيير عمود: ${movedOrder.clientName} من ${oldCol?.title || movedOrder.status} إلى ${newCol?.title || action.payload.status}`;
         const triggerUid = action.payload.triggerUserId;
         const receivers = new Set<string>([
-          ...state.users.filter((u) => (u.departmentId === movedOrder.departmentId || u.departmentId === targetDeptId) && u.id !== triggerUid).map((u) => u.id),
+          ...state.users
+            .filter((u) => {
+              if (u.deletedAt || u.id === triggerUid) return false;
+              const depts = userDepartmentIds(u);
+              return depts.includes(movedOrder.departmentId) || depts.includes(targetDeptId);
+            })
+            .map((u) => u.id),
           ...(movedOrder.assignedUsers || []).filter((uid) => uid !== triggerUid),
         ]);
         return Array.from(receivers).map((uid) => makeNotif('updated', uid, movedOrder, msg));
@@ -589,7 +630,9 @@ const reducer = (state: AppState, action: Action): AppState => {
       const commentOrder = state.orders.find((o) => o.id === action.payload.orderId);
       const chatNotifs: AppNotification[] = commentOrder ? (() => {
         const chatReceivers = new Set<string>([
-          ...state.users.filter((u) => u.departmentId === commentOrder.departmentId && u.id !== action.triggerUserId).map((u) => u.id),
+          ...state.users
+            .filter((u) => !u.deletedAt && userBelongsToOrderDepartment(u, commentOrder) && u.id !== action.triggerUserId)
+            .map((u) => u.id),
           ...(commentOrder.assignedUsers || []).filter((uid) => uid !== action.triggerUserId),
         ]);
         return Array.from(chatReceivers).map((uid) => ({

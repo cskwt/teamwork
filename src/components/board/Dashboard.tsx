@@ -5,7 +5,7 @@ import {
 } from 'recharts';
 import { Package, CheckCircle, Clock, AlertTriangle, TrendingUp } from 'lucide-react';
 import { useApp } from '../../contexts/AppContext';
-import { getPriorityConfig, getColumnStatus, formatDate, isOverdue } from '../../utils/helpers';
+import { getPriorityConfig, getColumnStatus, formatDate, isOverdue, userBelongsToOrderDepartment } from '../../utils/helpers';
 import { useLang } from '../../contexts/LanguageContext';
 import Header from '../layout/Header';
 
@@ -36,7 +36,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onNavigate, onSelectDept }) => {
   const isAdmin = currentUser?.role === 'admin';
   const activeOrders = orders.filter((o) => !o.deletedAt && !o.archivedAt && !o.isOrderRequest && !o.digitalPrinting && !o.largeFormat);
   const myOrders = isAdmin ? activeOrders : activeOrders.filter((o) =>
-    o.assignedUsers?.includes(currentUser?.id || '') || o.departmentId === currentUser?.departmentId
+    o.assignedUsers?.includes(currentUser?.id || '') || userBelongsToOrderDepartment(currentUser, o)
   );
 
   const recentOrders = [...myOrders]

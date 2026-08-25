@@ -1,7 +1,38 @@
 import localforage from 'localforage';
-import { AppState, OpsRow, User } from '../types';
+import { AppState, AppNotification, OpsRow, User, Order } from '../types';
 import { INITIAL_USERS, INITIAL_DEPARTMENTS, INITIAL_ORDERS, INITIAL_MATERIALS } from '../data/initialData';
 import { splitOrdersAndRequests } from './orderRequests';
+
+const mergeNotificationsForSave = (
+  a: AppNotification[] = [],
+  b: AppNotification[] = [],
+): AppNotification[] => {
+  const map = new Map<string, AppNotification>();
+  [...a, ...b].forEach((n) => {
+    if (!n?.id) return;
+    const prev = map.get(n.id);
+    if (!prev) {
+      map.set(n.id, n);
+      return;
+    }
+    if (!prev.read && n.read) map.set(n.id, prev);
+    else if (prev.read && !n.read) map.set(n.id, n);
+    else if ((n.createdAt || '') >= (prev.createdAt || '')) map.set(n.id, n);
+  });
+  return Array.from(map.values());
+};
+
+const pruneNotificationsAgainstOrders = (
+  notifications: AppNotification[],
+  orders: Order[],
+  orderRequests: Order[],
+): AppNotification[] => {
+  const liveIds = new Set<string>([
+    ...(orders || []).map((o) => o.id),
+    ...(orderRequests || []).map((o) => o.id),
+  ]);
+  return (notifications || []).filter((n) => !n.orderId || liveIds.has(n.orderId));
+};
 
 /** How many text fields are filled — used to prefer richer ops rows over empty ones */
 export const opsRowScore = (r: OpsRow): number =>
@@ -803,7 +834,11 @@ export const loadState = async (): Promise<AppState> => {
       orders: split.orders,
       orderRequests: split.orderRequests,
       currentUser: null,
-      notifications: fromServer.notifications || local?.notifications || [],
+      notifications: pruneNotificationsAgainstOrders(
+        mergeNotificationsForSave(fromServer.notifications || [], local?.notifications || []),
+        split.orders,
+        split.orderRequests,
+      ),
       ...resolveOpsRowsForSave(
         fromServer.opsRows || [],
         local?.opsRows || [],
@@ -1016,7 +1051,11 @@ export const saveState = async (state: AppState): Promise<void> => {
       orderCostsUpdatedAt: mergedCostAt,
       orders: splitSave.orders,
       orderRequests: splitSave.orderRequests,
-      notifications: snapshot.notifications || serverCurrent.notifications || [],
+      notifications: pruneNotificationsAgainstOrders(
+        mergeNotificationsForSave(snapshot.notifications || [], serverCurrent.notifications || []),
+        splitSave.orders,
+        splitSave.orderRequests,
+      ),
     });
     if (!ok) {
       console.warn('[sync] serverSave failed — will retry on next change');
