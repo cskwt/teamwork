@@ -213,39 +213,84 @@ export const ensureAttachmentUrl = async (
   return url ? { ...file, url } : file;
 };
 
-/** Best source for viewing: local dataUrl or shared url */
+const VERCEL_DOWNLOAD_ORIGIN = 'https://teamwork.csapp.io';
+
+export const extFromFileMeta = (name?: string, type?: string): string => {
+  const fromName = (name || '').split('?')[0].split('#')[0];
+  const dot = fromName.lastIndexOf('.');
+  const ext = dot >= 0 ? fromName.slice(dot + 1).toLowerCase() : '';
+  if (ext && /^[a-z0-9]{1,8}$/.test(ext)) return ext;
+  const mime = (type || '').toLowerCase();
+  if (mime.includes('pdf')) return 'pdf';
+  if (mime.includes('jpeg') || mime.includes('jpg')) return 'jpg';
+  if (mime.includes('png')) return 'png';
+  if (mime.includes('webp')) return 'webp';
+  if (mime.includes('gif')) return 'gif';
+  return '';
+};
+
+/** Keep a filesystem-safe name and always restore .pdf for invoice PDFs. */
+export const safeDownloadName = (fileName: string, src?: string, mime?: string): string => {
+  let name = (fileName || 'download').trim() || 'download';
+  name = name.replace(/[\r\n"\\]/g, '_');
+  const ext = extFromFileMeta(name, mime) || extFromFileMeta(src, mime);
+  if (ext && !name.toLowerCase().endsWith(`.${ext}`)) name = `${name}.${ext}`;
+  return name;
+};
+
+/** Best source for viewing/downloading: local dataUrl or shared url */
 export const getFileSource = (file?: FileAttachment | null): string | undefined => {
   if (!file) return undefined;
   return file.dataUrl || file.url || undefined;
 };
 
-const triggerBrowserDownload = (blob: Blob, fileName: string) => {
-  // octet-stream forces "Save as" instead of opening images/PDFs inline
-  const downloadBlob = new Blob([blob], { type: 'application/octet-stream' });
-  const url = URL.createObjectURL(downloadBlob);
+export const isHostingerUploadUrl = (src?: string): boolean =>
+  !!src && /\/teamwork-api\/uploads\/[^/?#]+/i.test(src);
+
+export const downloadProxyHref = (src: string, fileName: string, absolute = true): string => {
+  const name = safeDownloadName(fileName, src);
+  const qs = `url=${encodeURIComponent(src)}&name=${encodeURIComponent(name)}`;
+  return absolute ? `${VERCEL_DOWNLOAD_ORIGIN}/api/download?${qs}` : `/api/download?${qs}`;
+};
+
+const clickAnchor = (href: string, opts?: { download?: string; target?: string }) => {
   const link = document.createElement('a');
-  link.href = url;
-  link.download = fileName || 'download';
+  link.href = href;
+  if (opts?.download) link.download = opts.download;
+  if (opts?.target) link.target = opts.target;
   link.rel = 'noopener';
   link.style.display = 'none';
   document.body.appendChild(link);
   link.click();
   document.body.removeChild(link);
+};
+
+const triggerBrowserDownload = (blob: Blob, fileName: string) => {
+  const isPdf =
+    fileName.toLowerCase().endsWith('.pdf') ||
+    (blob.type || '').toLowerCase().includes('pdf');
+  // Keep PDF mime so the saved invoice opens; octet-stream for images so
+  // mobile browsers don't preview instead of saving.
+  const type = isPdf ? (blob.type || 'application/pdf') : 'application/octet-stream';
+  const downloadBlob = blob.type === type ? blob : new Blob([blob], { type });
+  const url = URL.createObjectURL(downloadBlob);
+  clickAnchor(url, { download: fileName || 'download' });
   setTimeout(() => URL.revokeObjectURL(url), 4000);
 };
 
 /** Reject JSON/HTML error bodies that browsers would save as a fake image. */
 const assertRealFileBlob = async (blob: Blob): Promise<Blob> => {
   const type = (blob.type || '').toLowerCase();
-  if (type.includes('json') || type.includes('text/html') || type.includes('text/plain')) {
+  const head = blob.size < 512 ? (await blob.slice(0, 120).text()).trim() : '';
+  if (head.startsWith('%PDF')) return blob;
+  if (type.includes('json') || type.includes('text/html')) {
     throw new Error('not a binary file');
   }
-  // Health/error JSON from files-api is typically ~40–120 bytes
-  if (blob.size < 512) {
-    const head = (await blob.slice(0, 120).text()).trim();
-    if (head.startsWith('{') || head.startsWith('<') || head.startsWith('[')) {
-      throw new Error('error payload');
-    }
+  if (type.includes('text/plain') && !head.startsWith('%PDF')) {
+    throw new Error('not a binary file');
+  }
+  if (blob.size < 512 && (head.startsWith('{') || head.startsWith('<') || head.startsWith('['))) {
+    throw new Error('error payload');
   }
   if (blob.size < 32) throw new Error('file too small');
   return blob;
@@ -263,14 +308,16 @@ const fetchBlobValidated = async (url: string, init?: RequestInit): Promise<Blob
 
 /**
  * Download a file to the device (does not open a preview tab).
- * Prefers same-origin Vercel proxy for Hostinger uploads (avoids CORS + fake JSON saves).
+ * Hostinger invoice PDFs have no CORS headers, and files-api.php on production
+ * does not yet expose action=download. Navigate to the Vercel attachment proxy
+ * so the browser saves the file without a CORS fetch (keeps the click gesture).
  */
 export const downloadFileToDevice = async (
   src: string | undefined,
   fileName: string,
 ): Promise<void> => {
   if (!src) throw new Error('missing file');
-  const name = (fileName || 'download').trim() || 'download';
+  const name = safeDownloadName(fileName, src);
 
   if (src.startsWith('data:')) {
     triggerBrowserDownload(await assertRealFileBlob(dataUrlToBlob(src)), name);
@@ -282,50 +329,17 @@ export const downloadFileToDevice = async (
     return;
   }
 
-  const uploadsMatch = src.match(/\/teamwork-api\/uploads\/([^/?#]+)/i);
-  const errors: string[] = [];
-
-  // 1) Same-origin Vercel proxy — works without Hostinger files-api update
-  if (uploadsMatch) {
-    try {
-      const proxy =
-        `/api/download?url=${encodeURIComponent(src)}` +
-        `&name=${encodeURIComponent(name)}`;
-      triggerBrowserDownload(await fetchBlobValidated(proxy), name);
-      return;
-    } catch (e: any) {
-      errors.push(`vercel-proxy: ${e?.message || e}`);
-    }
-  }
-
-  // 2) Direct fetch (needs CORS on uploads)
-  try {
-    triggerBrowserDownload(
-      await fetchBlobValidated(src, { mode: 'cors' }),
-      name,
-    );
+  if (isHostingerUploadUrl(src)) {
+    // Content-Disposition: attachment on the proxy forces a save.
+    // Do not set <a download> here — a JSON/HTML error would be saved as "Invoice.pdf".
+    clickAnchor(downloadProxyHref(src, name, true));
     return;
-  } catch (e: any) {
-    errors.push(`direct: ${e?.message || e}`);
   }
 
-  // 3) Hostinger files-api download action (if updated on server)
-  if (uploadsMatch?.[1]) {
-    try {
-      const apiUrl =
-        `${FILES_API_URL}?action=download` +
-        `&file=${encodeURIComponent(uploadsMatch[1])}` +
-        `&name=${encodeURIComponent(name)}`;
-      triggerBrowserDownload(
-        await fetchBlobValidated(apiUrl, { headers: { 'X-API-Key': API_KEY } }),
-        name,
-      );
-      return;
-    } catch (e: any) {
-      errors.push(`files-api: ${e?.message || e}`);
-    }
+  try {
+    triggerBrowserDownload(await fetchBlobValidated(src, { mode: 'cors' }), name);
+  } catch (err) {
+    clickAnchor(src, { download: name, target: '_blank' });
+    throw err;
   }
-
-  console.warn('[download] all strategies failed', errors);
-  throw new Error('download failed');
 };

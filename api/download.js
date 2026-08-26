@@ -24,6 +24,15 @@ const safeFileName = (name, fallback) => {
   return raw.replace(/[\r\n"\\]/g, '_').slice(0, 180);
 };
 
+const sendErrorPage = (res, status, message) => {
+  res.statusCode = status;
+  res.setHeader('Content-Type', 'text/html; charset=utf-8');
+  res.end(
+    `<!doctype html><meta charset="utf-8"><title>Download failed</title>` +
+      `<p style="font-family:sans-serif;padding:24px">${message}</p>`,
+  );
+};
+
 module.exports = async (req, res) => {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
@@ -37,9 +46,7 @@ module.exports = async (req, res) => {
   }
 
   if (req.method !== 'GET') {
-    res.statusCode = 405;
-    res.setHeader('Content-Type', 'application/json');
-    res.end(JSON.stringify({ error: 'Method not allowed' }));
+    sendErrorPage(res, 405, 'Method not allowed');
     return;
   }
 
@@ -47,66 +54,62 @@ module.exports = async (req, res) => {
     const q = req.query || {};
     const urlParam = typeof q.url === 'string' ? q.url : '';
     const fileParam = typeof q.file === 'string' ? q.file : '';
-    const downloadName = safeFileName(q.name, fileParam || 'download');
+    let downloadName = safeFileName(q.name, fileParam || 'download');
 
     let upstreamUrl = '';
     if (urlParam) {
       if (!isAllowedUploadUrl(urlParam)) {
-        res.statusCode = 400;
-        res.setHeader('Content-Type', 'application/json');
-        res.end(JSON.stringify({ error: 'Invalid url' }));
+        sendErrorPage(res, 400, 'Invalid file url');
         return;
       }
       upstreamUrl = urlParam;
     } else if (fileParam) {
       const safe = fileParam.replace(/[^a-zA-Z0-9._-]/g, '');
       if (!safe) {
-        res.statusCode = 400;
-        res.setHeader('Content-Type', 'application/json');
-        res.end(JSON.stringify({ error: 'Invalid file' }));
+        sendErrorPage(res, 400, 'Invalid file');
         return;
       }
       upstreamUrl = UPLOADS_PREFIX + safe;
     } else {
-      res.statusCode = 400;
-      res.setHeader('Content-Type', 'application/json');
-      res.end(JSON.stringify({ error: 'Missing url or file' }));
+      sendErrorPage(res, 400, 'Missing url or file');
       return;
     }
 
     const upstream = await fetch(upstreamUrl, { redirect: 'follow' });
     if (!upstream.ok) {
-      res.statusCode = upstream.status === 404 ? 404 : 502;
-      res.setHeader('Content-Type', 'application/json');
-      res.end(JSON.stringify({ error: 'Upstream fetch failed', status: upstream.status }));
+      sendErrorPage(
+        res,
+        upstream.status === 404 ? 404 : 502,
+        upstream.status === 404 ? 'File not found' : 'Could not fetch file',
+      );
       return;
     }
 
     const buf = Buffer.from(await upstream.arrayBuffer());
     const upstreamType = (upstream.headers.get('content-type') || '').toLowerCase();
     const head = buf.slice(0, Math.min(buf.length, 80)).toString('utf8').trim();
+    const isPdf = head.startsWith('%PDF') || downloadName.toLowerCase().endsWith('.pdf') || upstreamType.includes('pdf');
 
-    // Reject JSON/HTML error bodies that would be saved as a fake "image"
     if (
       upstreamType.includes('json') ||
       upstreamType.includes('text/html') ||
       (buf.length < 512 && (head.startsWith('{') || head.startsWith('<')))
     ) {
-      res.statusCode = 502;
-      res.setHeader('Content-Type', 'application/json');
-      res.end(JSON.stringify({ error: 'Upstream did not return a file', size: buf.length }));
+      sendErrorPage(res, 502, 'Upstream did not return a file');
       return;
     }
 
     if (buf.length < 32) {
-      res.statusCode = 502;
-      res.setHeader('Content-Type', 'application/json');
-      res.end(JSON.stringify({ error: 'File too small', size: buf.length }));
+      sendErrorPage(res, 502, 'File too small');
       return;
     }
 
+    if (isPdf && !downloadName.toLowerCase().endsWith('.pdf')) {
+      downloadName += '.pdf';
+    }
+
     res.statusCode = 200;
-    res.setHeader('Content-Type', 'application/octet-stream');
+    res.setHeader('Content-Type', isPdf ? 'application/pdf' : 'application/octet-stream');
     res.setHeader('Content-Length', String(buf.length));
     res.setHeader(
       'Content-Disposition',
@@ -115,13 +118,6 @@ module.exports = async (req, res) => {
     res.setHeader('X-Content-Type-Options', 'nosniff');
     res.end(buf);
   } catch (err) {
-    res.statusCode = 502;
-    res.setHeader('Content-Type', 'application/json');
-    res.end(
-      JSON.stringify({
-        error: 'Download proxy failed',
-        detail: String(err && err.message),
-      }),
-    );
+    sendErrorPage(res, 502, 'Download proxy failed');
   }
 };
