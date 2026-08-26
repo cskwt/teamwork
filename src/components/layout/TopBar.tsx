@@ -6,6 +6,7 @@ import { useViewMode } from '../../contexts/ViewModeContext';
 import { formatDate, getPriorityConfig, getColumnStatus } from '../../utils/helpers';
 import { Order } from '../../types';
 import OrderDetailModal from '../modals/OrderDetailModal';
+import NotifActorAvatar, { resolveNotifActor } from './NotifActorAvatar';
 
 interface TopBarProps {
   onNavigate: (page: string) => void;
@@ -20,7 +21,7 @@ const TopBar: React.FC<TopBarProps> = ({ onNavigate, onOpenOrder, onToggleSideba
   const { isPhone, toggleViewMode } = useViewMode();
   const priorityConfig = getPriorityConfig(lang);
   const [refreshing, setRefreshing] = useState(false);
-  const { orders, orderRequests, departments, currentUser, notifications: allNotifs } = state;
+  const { orders, orderRequests, departments, currentUser, notifications: allNotifs, users } = state;
   const [showNotif, setShowNotif] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [showSearch, setShowSearch] = useState(false);
@@ -167,7 +168,9 @@ const TopBar: React.FC<TopBarProps> = ({ onNavigate, onOpenOrder, onToggleSideba
                 </div>
               ) : (
                 <div className="notif-list">
-                  {[...myNotifs].reverse().map((n) => (
+                  {[...myNotifs].reverse().map((n) => {
+                    const actor = resolveNotifActor(n, users);
+                    return (
                     <div
                       key={n.id}
                       className={`notif-item ${n.read ? 'notif-read' : 'notif-unread'}`}
@@ -182,13 +185,20 @@ const TopBar: React.FC<TopBarProps> = ({ onNavigate, onOpenOrder, onToggleSideba
                         if (currentUser) dispatch({ type: 'MARK_NOTIFICATIONS_READ', payload: currentUser.id });
                       }}
                     >
-                      <div className="notif-item-icon">{notifIcon(n.type)}</div>
+                      <div className="notif-item-avatar">
+                        <NotifActorAvatar notification={n} users={users} size={36} />
+                        {!actor.name && !actor.avatar && (
+                          <div className="notif-item-icon">{notifIcon(n.type)}</div>
+                        )}
+                      </div>
                       <div className="notif-item-body">
+                        {actor.name && <p className="notif-item-sub">{actor.name}</p>}
                         <p className="notif-item-title">{n.message}</p>
                         <p className="notif-item-date">{formatDate(n.createdAt)}</p>
                       </div>
                     </div>
-                  ))}
+                    );
+                  })}
                 </div>
               )}
             </div>

@@ -157,6 +157,10 @@ export interface AppNotification {
   clientName: string;
   /** Department board to open when the user taps the notification */
   departmentId?: string;
+  /** User who triggered the notification (add / edit / comment) */
+  actorId?: string;
+  actorName?: string;
+  actorAvatar?: string;
   message: string;
   commentText?: string;
   createdAt: string;

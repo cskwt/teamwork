@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { Bell, X } from 'lucide-react';
 import { useApp } from '../../contexts/AppContext';
 import { AppNotification } from '../../types';
+import NotifActorAvatar, { resolveNotifActor } from './NotifActorAvatar';
 
 const typeIcon: Record<string, string> = {
   new_order: '🆕',
@@ -16,7 +17,7 @@ interface NotificationPopupProps {
 
 const NotificationPopup: React.FC<NotificationPopupProps> = ({ onOpenOrder }) => {
   const { state, dispatch } = useApp();
-  const { currentUser, notifications, orders, orderRequests } = state;
+  const { currentUser, notifications, orders, orderRequests, users } = state;
   const [popups, setPopups] = useState<AppNotification[]>([]);
   const knownIdsRef = useRef<Set<string>>(new Set());
   const initializedRef = useRef(false);
@@ -61,6 +62,7 @@ const NotificationPopup: React.FC<NotificationPopupProps> = ({ onOpenOrder }) =>
   if (popups.length === 0) return null;
 
   const single = popups.length === 1 ? popups[0] : null;
+  const singleActor = single ? resolveNotifActor(single, users) : null;
 
   return (
     <div className="notif-popup-overlay">
@@ -73,6 +75,12 @@ const NotificationPopup: React.FC<NotificationPopupProps> = ({ onOpenOrder }) =>
 
         {single ? (
           <>
+            {(singleActor?.name || singleActor?.avatar) && (
+              <div className="notif-popup-actor-row">
+                <NotifActorAvatar notification={single} users={users} size={40} />
+                {singleActor?.name && <p className="notif-popup-actor-name">{singleActor.name}</p>}
+              </div>
+            )}
             {single.clientName && (
               <p className="notif-popup-client">#{single.orderNumber} — {single.clientName}</p>
             )}
@@ -91,32 +99,43 @@ const NotificationPopup: React.FC<NotificationPopupProps> = ({ onOpenOrder }) =>
             <table className="notif-popup-table">
               <thead>
                 <tr>
-                  <th>النوع</th>
+                  <th>المستخدم</th>
                   <th>الطلبية</th>
                   <th>التفاصيل</th>
                 </tr>
               </thead>
               <tbody>
-                {popups.map((n) => (
-                  <tr
-                    key={n.id}
-                    className="notif-popup-row-clickable"
-                    onClick={() => handleOpen(n)}
-                    style={{ cursor: 'pointer' }}
-                  >
-                    <td className="notif-popup-table-icon">{typeIcon[n.type] || '🔔'}</td>
-                    <td className="notif-popup-table-order">
-                      {n.orderNumber ? `#${n.orderNumber}` : '—'}
-                      {n.clientName && <span className="notif-popup-table-client">{n.clientName}</span>}
-                    </td>
-                    <td className="notif-popup-table-msg">
-                      {n.message}
-                      {n.commentText && (
-                        <span className="notif-popup-table-comment">"{n.commentText}"</span>
-                      )}
-                    </td>
-                  </tr>
-                ))}
+                {popups.map((n) => {
+                  const actor = resolveNotifActor(n, users);
+                  return (
+                    <tr
+                      key={n.id}
+                      className="notif-popup-row-clickable"
+                      onClick={() => handleOpen(n)}
+                      style={{ cursor: 'pointer' }}
+                    >
+                      <td className="notif-popup-table-actor">
+                        <NotifActorAvatar notification={n} users={users} size={32} />
+                        {!actor.name && !actor.avatar && (
+                          <span className="notif-popup-table-icon">{typeIcon[n.type] || '🔔'}</span>
+                        )}
+                      </td>
+                      <td className="notif-popup-table-order">
+                        {n.orderNumber ? `#${n.orderNumber}` : '—'}
+                        {n.clientName && <span className="notif-popup-table-client">{n.clientName}</span>}
+                      </td>
+                      <td className="notif-popup-table-msg">
+                        {actor.name && (
+                          <span className="notif-popup-table-client" style={{ marginBottom: 2 }}>{actor.name}</span>
+                        )}
+                        {n.message}
+                        {n.commentText && (
+                          <span className="notif-popup-table-comment">"{n.commentText}"</span>
+                        )}
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>

@@ -46,7 +46,8 @@ const makeNotif = (
   type: AppNotification['type'],
   userId: string,
   order: Order,
-  message: string
+  message: string,
+  actor?: User | null,
 ): AppNotification => ({
   id: generateId(),
   type,
@@ -55,10 +56,24 @@ const makeNotif = (
   orderNumber: order.orderNumber || '',
   clientName: order.clientName,
   departmentId: order.departmentId,
+  actorId: actor?.id,
+  actorName: actor?.fullName,
+  // Prefer URL avatars; skip huge data: URLs so sync stays lean
+  actorAvatar:
+    actor?.avatar && !actor.avatar.startsWith('data:')
+      ? actor.avatar
+      : actor?.avatar && actor.avatar.length < 8000
+        ? actor.avatar
+        : undefined,
   message,
   createdAt: new Date().toISOString(),
   read: false,
 });
+
+const resolveActor = (state: AppState, actorId?: string | null): User | null => {
+  if (!actorId) return null;
+  return state.users.find((u) => u.id === actorId && !u.deletedAt) || null;
+};
 
 /** Prefer unread when the same notification id appears on both sides. */
 const mergeNotificationsById = (
@@ -434,12 +449,13 @@ const reducer = (state: AppState, action: Action): AppState => {
         return { ...state, orderRequests: [...(state.orderRequests || []), req] };
       }
       const order = { ...action.payload, isNew: action.payload.isNew !== false, isOrderRequest: false };
+      const actor = resolveActor(state, action.triggerUserId || order.createdBy);
       const newNotifs: AppNotification[] = state.users
         .filter((u) => !u.deletedAt && u.id !== action.triggerUserId && (
           userBelongsToOrderDepartment(u, order) ||
           order.assignedUsers?.includes(u.id)
         ))
-        .map((u) => makeNotif('new_order', u.id, order, `طلبية جديدة: ${order.clientName} — رقم ${order.orderNumber}`));
+        .map((u) => makeNotif('new_order', u.id, order, `طلبية جديدة: ${order.clientName} — رقم ${order.orderNumber}`, actor));
       return { ...state, orders: [...state.orders, order], notifications: [...state.notifications, ...newNotifs] };
     }
     case 'ADD_ORDER_REQUEST': {
@@ -481,6 +497,7 @@ const reducer = (state: AppState, action: Action): AppState => {
       const newlyAssigned = (updated.assignedUsers || []).filter(
         (uid) => !(action.prevAssignedUsers || []).includes(uid) && uid !== action.triggerUserId
       );
+      const actor = resolveActor(state, action.triggerUserId);
       const notifReceivers = new Set<string>([
         ...state.users
           .filter((u) => !u.deletedAt && userBelongsToOrderDepartment(u, updated) && u.id !== action.triggerUserId)
@@ -489,8 +506,8 @@ const reducer = (state: AppState, action: Action): AppState => {
       ]);
       const updateNotifs: AppNotification[] = Array.from(notifReceivers).map((uid) => {
         if (newlyAssigned.includes(uid))
-          return makeNotif('assigned', uid, updated, `تم تعيينك في طلبية: ${updated.clientName} — رقم ${updated.orderNumber}`);
-        return makeNotif('updated', uid, updated, `تم تعديل طلبية: ${updated.clientName} — رقم ${updated.orderNumber}`);
+          return makeNotif('assigned', uid, updated, `تم تعيينك في طلبية: ${updated.clientName} — رقم ${updated.orderNumber}`, actor);
+        return makeNotif('updated', uid, updated, `تم تعديل طلبية: ${updated.clientName} — رقم ${updated.orderNumber}`, actor);
       });
       return {
         ...state,
@@ -579,6 +596,7 @@ const reducer = (state: AppState, action: Action): AppState => {
           ? `نُقلت طلبية: ${movedOrder.clientName} إلى قسم ${newDept?.name || targetDeptId}`
           : `تغيير عمود: ${movedOrder.clientName} من ${oldCol?.title || movedOrder.status} إلى ${newCol?.title || action.payload.status}`;
         const triggerUid = action.payload.triggerUserId;
+        const actor = resolveActor(state, triggerUid);
         const receivers = new Set<string>([
           ...state.users
             .filter((u) => {
@@ -589,7 +607,7 @@ const reducer = (state: AppState, action: Action): AppState => {
             .map((u) => u.id),
           ...(movedOrder.assignedUsers || []).filter((uid) => uid !== triggerUid),
         ]);
-        return Array.from(receivers).map((uid) => makeNotif('updated', uid, movedOrder, msg));
+        return Array.from(receivers).map((uid) => makeNotif('updated', uid, movedOrder, msg, actor));
       })() : [];
       return {
         ...state,
@@ -629,6 +647,7 @@ const reducer = (state: AppState, action: Action): AppState => {
     case 'ADD_COMMENT': {
       const commentOrder = state.orders.find((o) => o.id === action.payload.orderId);
       const chatNotifs: AppNotification[] = commentOrder ? (() => {
+        const actor = resolveActor(state, action.triggerUserId || action.payload.comment.userId);
         const chatReceivers = new Set<string>([
           ...state.users
             .filter((u) => !u.deletedAt && userBelongsToOrderDepartment(u, commentOrder) && u.id !== action.triggerUserId)
@@ -637,7 +656,7 @@ const reducer = (state: AppState, action: Action): AppState => {
         ]);
         return Array.from(chatReceivers).map((uid) => ({
           ...makeNotif('chat', uid, commentOrder,
-            `رسالة جديدة في طلبية: ${commentOrder.clientName} — رقم ${commentOrder.orderNumber}`),
+            `رسالة جديدة في طلبية: ${commentOrder.clientName} — رقم ${commentOrder.orderNumber}`, actor),
           commentText: action.payload.comment.text,
         }));
       })() : [];
