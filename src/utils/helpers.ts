@@ -77,9 +77,42 @@ export const getInitials = (name: string): string => {
   return name
     .split(' ')
     .map((n) => n[0])
+    .filter(Boolean)
     .join('')
     .slice(0, 2)
     .toUpperCase();
+};
+
+/** True when a stored avatar can actually render as an image. */
+export const isUsableAvatar = (avatar?: string | null): avatar is string => {
+  if (!avatar || typeof avatar !== 'string') return false;
+  const value = avatar.trim();
+  if (value.length < 8) return false;
+  return (
+    value.startsWith('data:image') ||
+    value.startsWith('http://') ||
+    value.startsWith('https://') ||
+    value.startsWith('blob:')
+  );
+};
+
+/** First usable profile photo among the given candidates. */
+export const pickAvatar = (...candidates: (string | undefined | null)[]): string | undefined => {
+  for (const candidate of candidates) {
+    if (isUsableAvatar(candidate)) return candidate.trim();
+  }
+  return undefined;
+};
+
+/** Keep profile photos on sync payloads unless they are huge data URLs. */
+export const snapshotAvatar = (
+  avatar?: string | null,
+  maxDataUrlLength = 200000,
+): string | undefined => {
+  const picked = pickAvatar(avatar);
+  if (!picked) return undefined;
+  if (picked.startsWith('data:') && picked.length > maxDataUrlLength) return undefined;
+  return picked;
 };
 
 export const isOverdue = (dueDate?: string): boolean => {

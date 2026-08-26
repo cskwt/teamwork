@@ -3,7 +3,7 @@ import localforage from 'localforage';
 import { AppState, User, Department, Order, OrderComment, OrderHistoryEntry, KanbanColumn, AppNotification, OpsRow, Material, OrderCostRow } from '../types';
 import { loadLocalState, loadLocalUsers, saveState, saveSession, loadSession, touchSession, clearSession, serverLoad, repairServerIfCorrupt, mergeOpsRows, resolveOpsRowsForSave, mergeUsers } from '../utils/storage';
 import { ensureAttachmentUrl } from '../utils/files';
-import { generateId, userBelongsToOrderDepartment, userDepartmentIds } from '../utils/helpers';
+import { generateId, pickAvatar, snapshotAvatar, userBelongsToOrderDepartment, userDepartmentIds } from '../utils/helpers';
 import { INITIAL_USERS, INITIAL_DEPARTMENTS, INITIAL_ORDERS, INITIAL_MATERIALS } from '../data/initialData';
 import { splitOrdersAndRequests } from '../utils/orderRequests';
 
@@ -58,27 +58,49 @@ const makeNotif = (
   departmentId: order.departmentId,
   actorId: actor?.id,
   actorName: actor?.fullName,
-  // Keep profile photos on notifications when reasonably sized so other devices
-  // can show them even if the live users list stripped a huge data: URL.
-  actorAvatar:
-    actor?.avatar && (!actor.avatar.startsWith('data:') || actor.avatar.length < 120000)
-      ? actor.avatar
-      : undefined,
+  actorAvatar: snapshotAvatar(actor?.avatar),
   message,
   createdAt: new Date().toISOString(),
   read: false,
 });
 
 const resolveActor = (state: AppState, actorId?: string | null): User | null => {
-  if (!actorId) return null;
-  const fromList = state.users.find((u) => u.id === actorId && !u.deletedAt);
-  if (fromList) return fromList;
-  // currentUser may not be in users[] yet after login — still attach their profile
-  if (state.currentUser?.id === actorId && !state.currentUser.deletedAt) {
-    return state.currentUser;
+  const id = actorId || undefined;
+  const fromList = id
+    ? state.users.find((u) => u.id === id && !u.deletedAt)
+    : undefined;
+  const fromSession =
+    state.currentUser &&
+    !state.currentUser.deletedAt &&
+    (!id || state.currentUser.id === id)
+      ? state.currentUser
+      : null;
+  const base = fromList || fromSession;
+  if (!base) {
+    if (!id) return null;
+    return {
+      id,
+      fullName: 'مستخدم',
+      avatar: undefined,
+      username: '',
+      password: '',
+      role: 'member' as const,
+      createdAt: new Date().toISOString(),
+    };
   }
-  return null;
+  return {
+    ...base,
+    fullName: base.fullName || fromSession?.fullName || 'مستخدم',
+    avatar: pickAvatar(fromSession?.avatar, fromList?.avatar, base.avatar),
+  };
 };
+
+const enrichNotifActor = (chosen: AppNotification, other: AppNotification): AppNotification => ({
+  ...chosen,
+  actorId: chosen.actorId || other.actorId,
+  actorName: chosen.actorName || other.actorName,
+  actorAvatar: pickAvatar(chosen.actorAvatar, other.actorAvatar),
+});
 
 /** Prefer unread when the same notification id appears on both sides. */
 const mergeNotificationsById = (
@@ -94,9 +116,11 @@ const mergeNotificationsById = (
       return;
     }
     // Keep unread if either side has unread; otherwise keep newer
-    if (!prev.read && n.read) map.set(n.id, prev);
-    else if (prev.read && !n.read) map.set(n.id, n);
-    else if ((n.createdAt || '') >= (prev.createdAt || '')) map.set(n.id, n);
+    let chosen = prev;
+    if (!prev.read && n.read) chosen = prev;
+    else if (prev.read && !n.read) chosen = n;
+    else if ((n.createdAt || '') >= (prev.createdAt || '')) chosen = n;
+    map.set(n.id, enrichNotifActor(chosen, chosen === prev ? n : prev));
   });
   return Array.from(map.values());
 };
@@ -454,24 +478,7 @@ const reducer = (state: AppState, action: Action): AppState => {
         return { ...state, orderRequests: [...(state.orderRequests || []), req] };
       }
       const order = { ...action.payload, isNew: action.payload.isNew !== false, isOrderRequest: false };
-      const actorId = action.triggerUserId || order.createdBy;
-      const actor =
-        resolveActor(state, actorId) ||
-        (actorId
-          ? ({
-              id: actorId,
-              fullName:
-                state.currentUser?.id === actorId
-                  ? state.currentUser.fullName
-                  : state.users.find((u) => u.id === actorId)?.fullName || 'مستخدم',
-              avatar:
-                state.currentUser?.id === actorId ? state.currentUser.avatar : undefined,
-              username: '',
-              password: '',
-              role: 'member' as const,
-              createdAt: new Date().toISOString(),
-            } satisfies User)
-          : null);
+      const actor = resolveActor(state, action.triggerUserId || order.createdBy);
       const newNotifs: AppNotification[] = state.users
         .filter((u) => !u.deletedAt && u.id !== action.triggerUserId && (
           userBelongsToOrderDepartment(u, order) ||
@@ -519,7 +526,7 @@ const reducer = (state: AppState, action: Action): AppState => {
       const newlyAssigned = (updated.assignedUsers || []).filter(
         (uid) => !(action.prevAssignedUsers || []).includes(uid) && uid !== action.triggerUserId
       );
-      const actor = resolveActor(state, action.triggerUserId);
+      const actor = resolveActor(state, action.triggerUserId || state.currentUser?.id);
       const notifReceivers = new Set<string>([
         ...state.users
           .filter((u) => !u.deletedAt && userBelongsToOrderDepartment(u, updated) && u.id !== action.triggerUserId)
@@ -617,7 +624,7 @@ const reducer = (state: AppState, action: Action): AppState => {
         const msg = isDeptChange
           ? `نُقلت طلبية: ${movedOrder.clientName} إلى قسم ${newDept?.name || targetDeptId}`
           : `تغيير عمود: ${movedOrder.clientName} من ${oldCol?.title || movedOrder.status} إلى ${newCol?.title || action.payload.status}`;
-        const triggerUid = action.payload.triggerUserId;
+        const triggerUid = action.payload.triggerUserId || state.currentUser?.id;
         const actor = resolveActor(state, triggerUid);
         const receivers = new Set<string>([
           ...state.users
@@ -629,7 +636,8 @@ const reducer = (state: AppState, action: Action): AppState => {
             .map((u) => u.id),
           ...(movedOrder.assignedUsers || []).filter((uid) => uid !== triggerUid),
         ]);
-        return Array.from(receivers).map((uid) => makeNotif('updated', uid, movedOrder, msg, actor));
+        const notifOrder = { ...movedOrder, departmentId: targetDeptId };
+        return Array.from(receivers).map((uid) => makeNotif('updated', uid, notifOrder, msg, actor));
       })() : [];
       return {
         ...state,

@@ -2,6 +2,7 @@ import localforage from 'localforage';
 import { AppState, AppNotification, OpsRow, User, Order } from '../types';
 import { INITIAL_USERS, INITIAL_DEPARTMENTS, INITIAL_ORDERS, INITIAL_MATERIALS } from '../data/initialData';
 import { splitOrdersAndRequests } from './orderRequests';
+import { pickAvatar, snapshotAvatar } from './helpers';
 
 const mergeNotificationsForSave = (
   a: AppNotification[] = [],
@@ -15,9 +16,17 @@ const mergeNotificationsForSave = (
       map.set(n.id, n);
       return;
     }
-    if (!prev.read && n.read) map.set(n.id, prev);
-    else if (prev.read && !n.read) map.set(n.id, n);
-    else if ((n.createdAt || '') >= (prev.createdAt || '')) map.set(n.id, n);
+    let chosen = prev;
+    if (!prev.read && n.read) chosen = prev;
+    else if (prev.read && !n.read) chosen = n;
+    else if ((n.createdAt || '') >= (prev.createdAt || '')) chosen = n;
+    const other = chosen === prev ? n : prev;
+    map.set(n.id, {
+      ...chosen,
+      actorId: chosen.actorId || other.actorId,
+      actorName: chosen.actorName || other.actorName,
+      actorAvatar: pickAvatar(chosen.actorAvatar, other.actorAvatar),
+    });
   });
   return Array.from(map.values());
 };
@@ -358,7 +367,7 @@ const stripAllDataUrls = (state: AppState): AppState => {
     ...state,
     users: (state.users || []).map((u) => ({
       ...u,
-      avatar: (u.avatar && u.avatar.startsWith('data:') && u.avatar.length > 50000) ? '' : u.avatar,
+      avatar: snapshotAvatar(u.avatar) || '',
     })),
     orders: (state.orders || []).map((o) => ({
       ...o,
@@ -369,6 +378,10 @@ const stripAllDataUrls = (state: AppState): AppState => {
     opsRows: (state.opsRows || []).map((r) => ({
       ...r,
       jobImage: (r.jobImage || '').startsWith('http') ? r.jobImage : '',
+    })),
+    notifications: (state.notifications || []).map((n) => ({
+      ...n,
+      actorAvatar: snapshotAvatar(n.actorAvatar),
     })),
   };
 };
@@ -919,6 +932,7 @@ export const mergeUsers = (server: AppState['users'], local: AppState['users']):
       return;
     }
     // Both active — prefer local profile edits when they differ
+    let winner = prev;
     if (
       u.password !== prev.password ||
       u.avatar !== prev.avatar ||
@@ -929,10 +943,10 @@ export const mergeUsers = (server: AppState['users'], local: AppState['users']):
       JSON.stringify(u.departmentIds || []) !== JSON.stringify(prev.departmentIds || [])
     ) {
       // Prefer the one that looks like a local edit: keep whichever was passed later (local is added second)
-      map.set(u.id, u);
-      return;
+      winner = u;
     }
-    map.set(u.id, prev);
+    const avatar = pickAvatar(winner.avatar, prev.avatar, u.avatar);
+    map.set(u.id, avatar && avatar !== winner.avatar ? { ...winner, avatar } : winner);
   };
   (server || []).forEach(add);
   (local || []).forEach(add);
