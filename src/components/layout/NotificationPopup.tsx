@@ -59,7 +59,7 @@ const NotificationPopup: React.FC<NotificationPopupProps> = ({ onOpenOrder }) =>
 
   return (
     <div className="notif-popup-overlay">
-    <div className="notif-popup">
+    <div className={`notif-popup${popups.length > 1 ? ' notif-popup--wide' : ''}`}>
         <div className="notif-popup-header">
           <Bell size={16} color="#6366f1" />
           <span>{single ? 'إشعار جديد' : `${popups.length} إشعارات جديدة`}</span>
