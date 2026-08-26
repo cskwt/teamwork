@@ -513,32 +513,37 @@ const OrderDetailModal: React.FC<OrderDetailModalProps> = ({ order, onClose, dep
     }
   };
 
-  /** Preview only — open in a new browser tab */
+  /** Preview only — open in a new browser tab (no false popup-blocker alerts) */
   const handlePreviewFile = (src: string | undefined, _name: string) => {
     if (!src) { alert('الملف غير متاح — يرجى رفع الملف مجدداً'); return; }
-    if (src.startsWith('http') || src.startsWith('blob:') || src.startsWith('data:')) {
-      if (src.startsWith('data:')) {
-        try {
-          const blob = dataUrlToBlob(src);
-          const url = URL.createObjectURL(blob);
-          const newTab = window.open(url, '_blank', 'noopener,noreferrer');
-          if (!newTab) {
-            alert('المتصفح منع فتح نافذة المعاينة. اسمح بالنوافذ المنبثقة ثم حاول مرة أخرى.');
-          }
-          setTimeout(() => URL.revokeObjectURL(url), 60000);
-          return;
-        } catch {
-          window.open(src, '_blank', 'noopener,noreferrer');
-          return;
-        }
+
+    let href = src;
+    let revokeLater: string | null = null;
+
+    if (src.startsWith('data:')) {
+      try {
+        const blob = dataUrlToBlob(src);
+        href = URL.createObjectURL(blob);
+        revokeLater = href;
+      } catch {
+        href = src;
       }
-      const newTab = window.open(src, '_blank', 'noopener,noreferrer');
-      if (!newTab) {
-        alert('المتصفح منع فتح نافذة المعاينة. اسمح بالنوافذ المنبثقة ثم حاول مرة أخرى.');
-      }
-      return;
     }
-    window.open(src, '_blank', 'noopener,noreferrer');
+
+    // <a target=_blank> is treated as a user navigation — avoids popup blockers
+    // and the false "blocked" alert from window.open(..., 'noopener') returning null.
+    const a = document.createElement('a');
+    a.href = href;
+    a.target = '_blank';
+    a.rel = 'noopener noreferrer';
+    a.style.display = 'none';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+
+    if (revokeLater) {
+      setTimeout(() => URL.revokeObjectURL(revokeLater!), 120000);
+    }
   };
 
   // All logged-in users get full order actions (edit, delete, transfer, archive, files)
