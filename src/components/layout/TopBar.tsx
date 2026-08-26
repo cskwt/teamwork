@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Home, Bell, Search, X, MessageSquare, Plus, Pencil, UserCheck, RefreshCw, Languages, Smartphone, Monitor, Menu } from 'lucide-react';
+import { Home, Bell, Search, X, RefreshCw, Languages, Smartphone, Monitor, Menu } from 'lucide-react';
 import { useApp } from '../../contexts/AppContext';
 import { useLang } from '../../contexts/LanguageContext';
 import { useViewMode } from '../../contexts/ViewModeContext';
@@ -45,13 +45,6 @@ const TopBar: React.FC<TopBarProps> = ({ onNavigate, onOpenOrder, onToggleSideba
         )
       )
     : [];
-
-  const notifIcon = (type: string) => {
-    if (type === 'new_order') return <Plus size={14} color="#6366f1" />;
-    if (type === 'assigned') return <UserCheck size={14} color="#10b981" />;
-    if (type === 'chat') return <MessageSquare size={14} color="#f59e0b" />;
-    return <Pencil size={14} color="#3b82f6" />;
-  };
 
   const handleOpenNotif = () => {
     setShowNotif((v) => !v);
@@ -169,7 +162,7 @@ const TopBar: React.FC<TopBarProps> = ({ onNavigate, onOpenOrder, onToggleSideba
               ) : (
                 <div className="notif-list">
                   {[...myNotifs].reverse().map((n) => {
-                    const actor = resolveNotifActor(n, users);
+                    const actor = resolveNotifActor(n, users, orders);
                     return (
                     <div
                       key={n.id}
@@ -186,10 +179,13 @@ const TopBar: React.FC<TopBarProps> = ({ onNavigate, onOpenOrder, onToggleSideba
                       }}
                     >
                       <div className="notif-item-avatar">
-                        <NotifActorAvatar notification={n} users={users} size={36} />
-                        {!actor.name && !actor.avatar && (
-                          <div className="notif-item-icon">{notifIcon(n.type)}</div>
-                        )}
+                        <NotifActorAvatar
+                          notification={n}
+                          users={users}
+                          orders={orders}
+                          size={36}
+                          force
+                        />
                       </div>
                       <div className="notif-item-body">
                         {actor.name && <p className="notif-item-sub">{actor.name}</p>}

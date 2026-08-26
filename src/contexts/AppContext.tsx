@@ -58,13 +58,12 @@ const makeNotif = (
   departmentId: order.departmentId,
   actorId: actor?.id,
   actorName: actor?.fullName,
-  // Prefer URL avatars; skip huge data: URLs so sync stays lean
+  // Keep profile photos on notifications when reasonably sized so other devices
+  // can show them even if the live users list stripped a huge data: URL.
   actorAvatar:
-    actor?.avatar && !actor.avatar.startsWith('data:')
+    actor?.avatar && (!actor.avatar.startsWith('data:') || actor.avatar.length < 120000)
       ? actor.avatar
-      : actor?.avatar && actor.avatar.length < 8000
-        ? actor.avatar
-        : undefined,
+      : undefined,
   message,
   createdAt: new Date().toISOString(),
   read: false,
@@ -72,7 +71,13 @@ const makeNotif = (
 
 const resolveActor = (state: AppState, actorId?: string | null): User | null => {
   if (!actorId) return null;
-  return state.users.find((u) => u.id === actorId && !u.deletedAt) || null;
+  const fromList = state.users.find((u) => u.id === actorId && !u.deletedAt);
+  if (fromList) return fromList;
+  // currentUser may not be in users[] yet after login — still attach their profile
+  if (state.currentUser?.id === actorId && !state.currentUser.deletedAt) {
+    return state.currentUser;
+  }
+  return null;
 };
 
 /** Prefer unread when the same notification id appears on both sides. */
@@ -449,7 +454,24 @@ const reducer = (state: AppState, action: Action): AppState => {
         return { ...state, orderRequests: [...(state.orderRequests || []), req] };
       }
       const order = { ...action.payload, isNew: action.payload.isNew !== false, isOrderRequest: false };
-      const actor = resolveActor(state, action.triggerUserId || order.createdBy);
+      const actorId = action.triggerUserId || order.createdBy;
+      const actor =
+        resolveActor(state, actorId) ||
+        (actorId
+          ? ({
+              id: actorId,
+              fullName:
+                state.currentUser?.id === actorId
+                  ? state.currentUser.fullName
+                  : state.users.find((u) => u.id === actorId)?.fullName || 'مستخدم',
+              avatar:
+                state.currentUser?.id === actorId ? state.currentUser.avatar : undefined,
+              username: '',
+              password: '',
+              role: 'member' as const,
+              createdAt: new Date().toISOString(),
+            } satisfies User)
+          : null);
       const newNotifs: AppNotification[] = state.users
         .filter((u) => !u.deletedAt && u.id !== action.triggerUserId && (
           userBelongsToOrderDepartment(u, order) ||

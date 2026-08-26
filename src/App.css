@@ -2308,8 +2308,9 @@ html[data-view="phone"] .tools-cards-grid {
 .notif-popup-header span { font-size: 16px; font-weight: 700; color: #111827; flex: 1; }
 .notif-popup-close { background: none; border: none; cursor: pointer; color: #9ca3af; padding: 2px; display: flex; }
 .notif-popup-close:hover { color: #374151; }
-.notif-popup-body { display: flex; align-items: flex-start; gap: 10px; margin-bottom: 10px; }
+.notif-popup-body { display: flex; align-items: flex-start; gap: 12px; margin-bottom: 10px; }
 .notif-popup-icon { font-size: 22px; flex-shrink: 0; }
+.notif-popup-msg-wrap { flex: 1; min-width: 0; }
 .notif-popup-msg { font-size: 16px; color: #374151; margin: 0; line-height: 1.6; }
 .notif-popup-client { font-size: 15px; font-weight: 700; color: #111827; margin: 0 0 14px; }
 .notif-popup-actor-row {
@@ -2320,9 +2321,9 @@ html[data-view="phone"] .tools-cards-grid {
 }
 .notif-popup-actor-name {
   font-size: 13px;
-  font-weight: 600;
+  font-weight: 700;
   color: #4b5563;
-  margin: 0;
+  margin: 0 0 4px;
 }
 .notif-actor-avatar {
   border-radius: 50%;

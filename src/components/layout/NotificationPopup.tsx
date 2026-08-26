@@ -4,13 +4,6 @@ import { useApp } from '../../contexts/AppContext';
 import { AppNotification } from '../../types';
 import NotifActorAvatar, { resolveNotifActor } from './NotifActorAvatar';
 
-const typeIcon: Record<string, string> = {
-  new_order: '🆕',
-  assigned: '👤',
-  chat: '💬',
-  updated: '✏️',
-};
-
 interface NotificationPopupProps {
   onOpenOrder?: (departmentId?: string) => void;
 }
@@ -62,7 +55,7 @@ const NotificationPopup: React.FC<NotificationPopupProps> = ({ onOpenOrder }) =>
   if (popups.length === 0) return null;
 
   const single = popups.length === 1 ? popups[0] : null;
-  const singleActor = single ? resolveNotifActor(single, users) : null;
+  const singleActor = single ? resolveNotifActor(single, users, orders) : null;
 
   return (
     <div className="notif-popup-overlay">
@@ -75,18 +68,23 @@ const NotificationPopup: React.FC<NotificationPopupProps> = ({ onOpenOrder }) =>
 
         {single ? (
           <>
-            {(singleActor?.name || singleActor?.avatar) && (
-              <div className="notif-popup-actor-row">
-                <NotifActorAvatar notification={single} users={users} size={40} />
-                {singleActor?.name && <p className="notif-popup-actor-name">{singleActor.name}</p>}
-              </div>
-            )}
             {single.clientName && (
               <p className="notif-popup-client">#{single.orderNumber} — {single.clientName}</p>
             )}
             <div className="notif-popup-body">
-              <span className="notif-popup-icon">{typeIcon[single.type] || '🔔'}</span>
-              <p className="notif-popup-msg">{single.message}</p>
+              <NotifActorAvatar
+                notification={single}
+                users={users}
+                orders={orders}
+                size={48}
+                force
+              />
+              <div className="notif-popup-msg-wrap">
+                {singleActor?.name && (
+                  <p className="notif-popup-actor-name">{singleActor.name}</p>
+                )}
+                <p className="notif-popup-msg">{single.message}</p>
+              </div>
             </div>
             {single.commentText && (
               <div className="notif-popup-comment">
@@ -106,7 +104,7 @@ const NotificationPopup: React.FC<NotificationPopupProps> = ({ onOpenOrder }) =>
               </thead>
               <tbody>
                 {popups.map((n) => {
-                  const actor = resolveNotifActor(n, users);
+                  const actor = resolveNotifActor(n, users, orders);
                   return (
                     <tr
                       key={n.id}
@@ -115,10 +113,13 @@ const NotificationPopup: React.FC<NotificationPopupProps> = ({ onOpenOrder }) =>
                       style={{ cursor: 'pointer' }}
                     >
                       <td className="notif-popup-table-actor">
-                        <NotifActorAvatar notification={n} users={users} size={32} />
-                        {!actor.name && !actor.avatar && (
-                          <span className="notif-popup-table-icon">{typeIcon[n.type] || '🔔'}</span>
-                        )}
+                        <NotifActorAvatar
+                          notification={n}
+                          users={users}
+                          orders={orders}
+                          size={36}
+                          force
+                        />
                       </td>
                       <td className="notif-popup-table-order">
                         {n.orderNumber ? `#${n.orderNumber}` : '—'}
