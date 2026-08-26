@@ -234,9 +234,36 @@ const triggerBrowserDownload = (blob: Blob, fileName: string) => {
   setTimeout(() => URL.revokeObjectURL(url), 4000);
 };
 
+/** Reject JSON/HTML error bodies that browsers would save as a fake image. */
+const assertRealFileBlob = async (blob: Blob): Promise<Blob> => {
+  const type = (blob.type || '').toLowerCase();
+  if (type.includes('json') || type.includes('text/html') || type.includes('text/plain')) {
+    throw new Error('not a binary file');
+  }
+  // Health/error JSON from files-api is typically ~40–120 bytes
+  if (blob.size < 512) {
+    const head = (await blob.slice(0, 120).text()).trim();
+    if (head.startsWith('{') || head.startsWith('<') || head.startsWith('[')) {
+      throw new Error('error payload');
+    }
+  }
+  if (blob.size < 32) throw new Error('file too small');
+  return blob;
+};
+
+const fetchBlobValidated = async (url: string, init?: RequestInit): Promise<Blob> => {
+  const res = await fetch(url, { cache: 'no-store', credentials: 'omit', ...init });
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  const ct = (res.headers.get('content-type') || '').toLowerCase();
+  if (ct.includes('json') || ct.includes('text/html')) {
+    throw new Error(`bad content-type ${ct}`);
+  }
+  return assertRealFileBlob(await res.blob());
+};
+
 /**
  * Download a file to the device (does not open a preview tab).
- * Uses blob download; falls back to files-api proxy for Hostinger uploads.
+ * Prefers same-origin Vercel proxy for Hostinger uploads (avoids CORS + fake JSON saves).
  */
 export const downloadFileToDevice = async (
   src: string | undefined,
@@ -246,44 +273,59 @@ export const downloadFileToDevice = async (
   const name = (fileName || 'download').trim() || 'download';
 
   if (src.startsWith('data:')) {
-    triggerBrowserDownload(dataUrlToBlob(src), name);
+    triggerBrowserDownload(await assertRealFileBlob(dataUrlToBlob(src)), name);
     return;
   }
 
   if (src.startsWith('blob:')) {
-    const res = await fetch(src);
-    if (!res.ok) throw new Error(`blob HTTP ${res.status}`);
-    triggerBrowserDownload(await res.blob(), name);
+    triggerBrowserDownload(await fetchBlobValidated(src), name);
     return;
   }
 
-  // Direct fetch (works when CORS allows — e.g. after uploads/.htaccess CORS)
-  try {
-    const res = await fetch(src, { mode: 'cors', cache: 'no-store', credentials: 'omit' });
-    if (res.ok) {
-      triggerBrowserDownload(await res.blob(), name);
-      return;
-    }
-  } catch {
-    /* try proxy */
-  }
-
-  // Proxy through files-api for teamwork uploads (has CORS + attachment headers)
   const uploadsMatch = src.match(/\/teamwork-api\/uploads\/([^/?#]+)/i);
-  if (uploadsMatch?.[1]) {
-    const apiUrl =
-      `${FILES_API_URL}?action=download` +
-      `&file=${encodeURIComponent(uploadsMatch[1])}` +
-      `&name=${encodeURIComponent(name)}`;
-    const res = await fetch(apiUrl, {
-      headers: { 'X-API-Key': API_KEY },
-      cache: 'no-store',
-      credentials: 'omit',
-    });
-    if (!res.ok) throw new Error(`proxy HTTP ${res.status}`);
-    triggerBrowserDownload(await res.blob(), name);
-    return;
+  const errors: string[] = [];
+
+  // 1) Same-origin Vercel proxy — works without Hostinger files-api update
+  if (uploadsMatch) {
+    try {
+      const proxy =
+        `/api/download?url=${encodeURIComponent(src)}` +
+        `&name=${encodeURIComponent(name)}`;
+      triggerBrowserDownload(await fetchBlobValidated(proxy), name);
+      return;
+    } catch (e: any) {
+      errors.push(`vercel-proxy: ${e?.message || e}`);
+    }
   }
 
+  // 2) Direct fetch (needs CORS on uploads)
+  try {
+    triggerBrowserDownload(
+      await fetchBlobValidated(src, { mode: 'cors' }),
+      name,
+    );
+    return;
+  } catch (e: any) {
+    errors.push(`direct: ${e?.message || e}`);
+  }
+
+  // 3) Hostinger files-api download action (if updated on server)
+  if (uploadsMatch?.[1]) {
+    try {
+      const apiUrl =
+        `${FILES_API_URL}?action=download` +
+        `&file=${encodeURIComponent(uploadsMatch[1])}` +
+        `&name=${encodeURIComponent(name)}`;
+      triggerBrowserDownload(
+        await fetchBlobValidated(apiUrl, { headers: { 'X-API-Key': API_KEY } }),
+        name,
+      );
+      return;
+    } catch (e: any) {
+      errors.push(`files-api: ${e?.message || e}`);
+    }
+  }
+
+  console.warn('[download] all strategies failed', errors);
   throw new Error('download failed');
 };
