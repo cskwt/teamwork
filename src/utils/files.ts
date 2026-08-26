@@ -218,3 +218,72 @@ export const getFileSource = (file?: FileAttachment | null): string | undefined 
   if (!file) return undefined;
   return file.dataUrl || file.url || undefined;
 };
+
+const triggerBrowserDownload = (blob: Blob, fileName: string) => {
+  // octet-stream forces "Save as" instead of opening images/PDFs inline
+  const downloadBlob = new Blob([blob], { type: 'application/octet-stream' });
+  const url = URL.createObjectURL(downloadBlob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = fileName || 'download';
+  link.rel = 'noopener';
+  link.style.display = 'none';
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  setTimeout(() => URL.revokeObjectURL(url), 4000);
+};
+
+/**
+ * Download a file to the device (does not open a preview tab).
+ * Uses blob download; falls back to files-api proxy for Hostinger uploads.
+ */
+export const downloadFileToDevice = async (
+  src: string | undefined,
+  fileName: string,
+): Promise<void> => {
+  if (!src) throw new Error('missing file');
+  const name = (fileName || 'download').trim() || 'download';
+
+  if (src.startsWith('data:')) {
+    triggerBrowserDownload(dataUrlToBlob(src), name);
+    return;
+  }
+
+  if (src.startsWith('blob:')) {
+    const res = await fetch(src);
+    if (!res.ok) throw new Error(`blob HTTP ${res.status}`);
+    triggerBrowserDownload(await res.blob(), name);
+    return;
+  }
+
+  // Direct fetch (works when CORS allows — e.g. after uploads/.htaccess CORS)
+  try {
+    const res = await fetch(src, { mode: 'cors', cache: 'no-store', credentials: 'omit' });
+    if (res.ok) {
+      triggerBrowserDownload(await res.blob(), name);
+      return;
+    }
+  } catch {
+    /* try proxy */
+  }
+
+  // Proxy through files-api for teamwork uploads (has CORS + attachment headers)
+  const uploadsMatch = src.match(/\/teamwork-api\/uploads\/([^/?#]+)/i);
+  if (uploadsMatch?.[1]) {
+    const apiUrl =
+      `${FILES_API_URL}?action=download` +
+      `&file=${encodeURIComponent(uploadsMatch[1])}` +
+      `&name=${encodeURIComponent(name)}`;
+    const res = await fetch(apiUrl, {
+      headers: { 'X-API-Key': API_KEY },
+      cache: 'no-store',
+      credentials: 'omit',
+    });
+    if (!res.ok) throw new Error(`proxy HTTP ${res.status}`);
+    triggerBrowserDownload(await res.blob(), name);
+    return;
+  }
+
+  throw new Error('download failed');
+};

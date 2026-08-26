@@ -8,7 +8,7 @@ import { Order, Department, OrderPriority, OrderStatus } from '../../types';
 import { useApp } from '../../contexts/AppContext';
 import { useLang } from '../../contexts/LanguageContext';
 import { getPriorityConfig, getColumnStatus, formatDate, generateId } from '../../utils/helpers';
-import { getFileSource, uploadRawFileWithLocalFallback } from '../../utils/files';
+import { getFileSource, uploadRawFileWithLocalFallback, downloadFileToDevice } from '../../utils/files';
 
 const COL_NAME_MAP: Record<string, string> = {
   'الطلبيات الجديدة': 'New Orders',
@@ -503,59 +503,42 @@ const OrderDetailModal: React.FC<OrderDetailModalProps> = ({ order, onClose, dep
     return new Blob([bytes], { type: mime });
   };
 
-  const handleOpenFile = (src: string | undefined, name: string) => {
+  /** Download to device — never open a browser tab */
+  const handleOpenFile = async (src: string | undefined, name: string) => {
     if (!src) { alert('الملف غير متاح — يرجى رفع الملف مجدداً'); return; }
-    if (src.startsWith('http')) {
-      const link = document.createElement('a');
-      link.href = src;
-      link.download = name;
-      link.target = '_blank';
-      link.rel = 'noopener';
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      return;
-    }
     try {
-      const blob = dataUrlToBlob(src);
-      const url = URL.createObjectURL(blob);
-      const link = document.createElement('a');
-      link.href = url;
-      link.download = name;
-      link.style.display = 'none';
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      setTimeout(() => URL.revokeObjectURL(url), 2000);
+      await downloadFileToDevice(src, name);
     } catch {
-      const link = document.createElement('a');
-      link.href = src;
-      link.download = name;
-      link.style.display = 'none';
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
+      alert('تعذر تحميل الملف مباشرة. تأكد من الاتصال وحاول مرة أخرى.');
     }
   };
 
-  const handlePreviewFile = (src: string | undefined, name: string) => {
+  /** Preview only — open in a new browser tab */
+  const handlePreviewFile = (src: string | undefined, _name: string) => {
     if (!src) { alert('الملف غير متاح — يرجى رفع الملف مجدداً'); return; }
-    if (src.startsWith('http')) {
-      const newTab = window.open(src, '_blank');
-      if (!newTab) handleOpenFile(src, name);
+    if (src.startsWith('http') || src.startsWith('blob:') || src.startsWith('data:')) {
+      if (src.startsWith('data:')) {
+        try {
+          const blob = dataUrlToBlob(src);
+          const url = URL.createObjectURL(blob);
+          const newTab = window.open(url, '_blank', 'noopener,noreferrer');
+          if (!newTab) {
+            alert('المتصفح منع فتح نافذة المعاينة. اسمح بالنوافذ المنبثقة ثم حاول مرة أخرى.');
+          }
+          setTimeout(() => URL.revokeObjectURL(url), 60000);
+          return;
+        } catch {
+          window.open(src, '_blank', 'noopener,noreferrer');
+          return;
+        }
+      }
+      const newTab = window.open(src, '_blank', 'noopener,noreferrer');
+      if (!newTab) {
+        alert('المتصفح منع فتح نافذة المعاينة. اسمح بالنوافذ المنبثقة ثم حاول مرة أخرى.');
+      }
       return;
     }
-    try {
-      const blob = dataUrlToBlob(src);
-      const url = URL.createObjectURL(blob);
-      const newTab = window.open(url, '_blank');
-      if (!newTab) {
-        handleOpenFile(src, name);
-      }
-      setTimeout(() => URL.revokeObjectURL(url), 10000);
-    } catch {
-      window.open(src, '_blank');
-    }
+    window.open(src, '_blank', 'noopener,noreferrer');
   };
 
   // All logged-in users get full order actions (edit, delete, transfer, archive, files)

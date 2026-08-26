@@ -1,0 +1,12 @@
+# Allow direct access to uploaded invoices / forms
+<IfModule mod_authz_core.c>
+  Require all granted
+</IfModule>
+Options -Indexes
+
+# Allow browser fetch() for direct downloads from teamwork.csapp.io
+<IfModule mod_headers.c>
+  Header set Access-Control-Allow-Origin "*"
+  Header set Access-Control-Allow-Methods "GET, OPTIONS"
+  Header set Access-Control-Allow-Headers "Content-Type, X-API-Key"
+</IfModule>
