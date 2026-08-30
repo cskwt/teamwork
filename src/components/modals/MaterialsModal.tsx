@@ -1,12 +1,10 @@
 import React, { useMemo, useState } from 'react';
-import { X, Plus, Trash2, Package, Pencil, Check, ChevronDown, Layers } from 'lucide-react';
+import { X, Plus, Trash2, Package, Pencil, Check, ChevronDown, Layers, FileStack, ScrollText } from 'lucide-react';
 import { useApp } from '../../contexts/AppContext';
 import { useLang } from '../../contexts/LanguageContext';
 import { Material, MaterialKind } from '../../types';
 import { generateId } from '../../utils/helpers';
 import { normalizeAmountInput, toWesternDigits } from '../../utils/helpers';
-import digitalPrintingImg from '../../assets/digital-printing.png';
-import largeFormatImg from '../../assets/large-format-printing.png';
 import {
   ACRYLIC_CUT_PIECE,
   ACRYLIC_FACTORY_BOARD,
@@ -429,9 +427,9 @@ const MaterialsModal: React.FC<MaterialsModalProps> = ({ onClose }) => {
           <section className="mat-section" style={{ ['--mat-color' as string]: '#6438E0' }}>
             <h3 className="mat-section-title">
               <span className="mat-section-icon" aria-hidden>
-                <img src={largeFormatImg} alt="" />
+                <ScrollText size={26} color="#fff" strokeWidth={2} />
               </span>
-              Large Format
+              {tr.sectionRolls}
             </h3>
             {!showLargeForm && !editingLarge ? (
               <button type="button" className="mat-add-btn mat-add-trigger" onClick={openLargeForm}>
@@ -541,9 +539,9 @@ const MaterialsModal: React.FC<MaterialsModalProps> = ({ onClose }) => {
           <section className="mat-section" style={{ ['--mat-color' as string]: '#16a34a' }}>
             <h3 className="mat-section-title">
               <span className="mat-section-icon" aria-hidden>
-                <img src={digitalPrintingImg} alt="" />
+                <FileStack size={26} color="#fff" strokeWidth={2} />
               </span>
-              Digital
+              {tr.sectionSheets}
             </h3>
             {!showDigitalForm && !editingDigital ? (
               <button type="button" className="mat-add-btn mat-add-trigger" onClick={openDigitalForm}>
@@ -789,21 +787,22 @@ const MaterialsModal: React.FC<MaterialsModalProps> = ({ onClose }) => {
                     >
                       <div className="mat-item-meta">
                         <strong>{label}</strong>
-                        {(boardKd > 0 || m.acrylicThickness) && (
-                          <small>
-                            {tr.acrylicSummary
-                              .replace(
-                                '{board}',
-                                boardKd > 0 ? `${formatMaterialCostKd(boardKd)} ${tr.currencyKd}` : '—',
-                              )
-                              .replace('{thickness}', m.acrylicThickness || '—')}
+                        {(boardKd > 0 || m.acrylicThickness || pieceKd > 0) && (
+                          <small className="mat-item-subline">
+                            {(boardKd > 0 || m.acrylicThickness) && (
+                              <span className="mat-item-subline-text">
+                                {tr.acrylicSummary
+                                  .replace(
+                                    '{board}',
+                                    boardKd > 0 ? `${formatMaterialCostKd(boardKd)} ${tr.currencyKd}` : '—',
+                                  )
+                                  .replace('{thickness}', m.acrylicThickness || '—')}
+                              </span>
+                            )}
                             {pieceKd > 0 ? (
-                              <>
-                                {' · '}
-                                <span className="mat-meter-price mat-acrylic-piece-price">
-                                  {tr.acrylicPieceCostShort}: {formatMaterialCostKd(pieceKd)} {tr.currencyKd}
-                                </span>
-                              </>
+                              <span className="mat-meter-price mat-acrylic-piece-price">
+                                {tr.acrylicPieceCostShort}: {formatMaterialCostKd(pieceKd)} {tr.currencyKd}
+                              </span>
                             ) : null}
                           </small>
                         )}

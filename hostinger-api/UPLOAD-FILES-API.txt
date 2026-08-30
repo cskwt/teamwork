@@ -1,0 +1,52 @@
+REQUIRED — Fix file uploads + restore app data (Hostinger)
+==========================================================
+
+ROOT CAUSE (Aug 2026)
+---------------------
+Live files-api.php rejects POST (HTTP 405 / Method not allowed).
+The app then fell back to posting the file JSON to:
+  api.php?resource=file
+
+Old Hostinger api.php IGNORED ?resource=file and saved that body into
+app_state — wiping all orders/users and replacing them with one PDF
+({id, name, type, dataUrl}). After that:
+  • server sync returns null (no departments)
+  • each employee only sees their own local device
+  • new orders / moves never appear for other departments
+  • shared file URLs never work
+
+Upload ALL of these via Hostinger File Manager → public_html/teamwork-api/
+
+1) hostinger-api/files-api.php
+   → files-api.php   (replace)
+
+2) hostinger-api/api.php
+   → api.php         (replace — ?resource=file + rejects file-shaped POSTs)
+
+3) Ensure folder:
+   uploads/
+   Permissions: 755
+   Keep uploads/.htaccess from this repo
+
+After upload, test files-api:
+  curl -X POST "https://www.csapp.io/teamwork-api/files-api.php" \
+    -H "X-API-Key: tw_Cs9kWt2026xTeAmWoRk" \
+    -F "id=test1" -F "name=t.jpg" -F "type=image/jpeg" \
+    -F "file=@/path/to/small.jpg"
+
+Should return: {"success":true,"url":"https://www.csapp.io/teamwork-api/uploads/test1.jpg",...}
+
+Test app state is valid again:
+  curl -s "https://www.csapp.io/teamwork-api/api.php" \
+    -H "X-API-Key: tw_Cs9kWt2026xTeAmWoRk" | head -c 200
+  → must start with {"users":... or {"departments":...  NOT {"id":"...pdf
+
+RESTORE DATA
+------------
+After deploying the new frontend (repair path):
+1. Open https://teamwork.csapp.io as Admin (device that has the most complete data)
+2. Make any small change (edit a note) OR refresh — local state will re-upload
+   and repair the corrupted server
+3. Other devices: refresh — they will merge their local orders into the server
+
+Do this ASAP so Hassan’s and others’ local orders are not lost.

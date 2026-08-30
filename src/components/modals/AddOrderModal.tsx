@@ -227,9 +227,105 @@ const AddOrderModal: React.FC<AddOrderModalProps> = ({ departmentId, onClose, pr
         <form onSubmit={handleSubmit} className={isPhone ? 'add-order-form--phone' : undefined}>
           <div className={`add-order-body ${isPhone ? 'add-order-body--phone' : ''}`}>
 
-            {/* Phone: essentials first in one tall column */}
-            <div className="add-order-col add-order-col--fields">
+            {/* Files & Users — first in DOM so it sits on the right in RTL (classic layout) */}
+            {!isPhone && (
+            <div className="add-order-col add-order-col--files">
+              <div className="form-group">
+                <label className="form-label"><Image size={13} /> نماذج الطلبية</label>
+                <div className="upload-zone" onClick={() => formsRef.current?.click()}>
+                  <Upload size={22} />
+                  <span>اضغط لرفع الملفات</span>
+                  <span className="upload-hint">JPG, PNG, PDF, AI, CDR وغيرها</span>
+                  <input
+                    ref={formsRef}
+                    type="file"
+                    multiple
+                    accept="image/*,.pdf,.ai,.cdr,.eps,.svg,.psd"
+                    onChange={handleFormsUpload}
+                    hidden
+                  />
+                </div>
+                {orderForms.length > 0 && (
+                  <div className="file-list">
+                    {orderForms.map((f) => (
+                      <div key={f.id} className="file-item">
+                        {f.dataUrl ? (
+                          <img src={f.dataUrl} alt={f.name} className="file-thumb" />
+                        ) : (
+                          <div className="file-icon-box"><FileText size={18} /></div>
+                        )}
+                        <div className="file-info">
+                          <span className="file-name">{f.name}</span>
+                          <span className="file-size">{formatFileSize(f.size)}</span>
+                        </div>
+                        <button type="button" className="file-remove" onClick={() => removeForm(f.id)}>
+                          <Trash2 size={13} />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
 
+              <div className="form-group">
+                <label className="form-label"><FileText size={13} /> رفع الفاتورة (PDF)</label>
+                {invoices.length > 0 && (
+                  <div className="file-list">
+                    {invoices.map((inv) => (
+                      <div key={inv.id} className="file-item">
+                        <div className="file-icon-box invoice-icon"><FileText size={18} /></div>
+                        <div className="file-info">
+                          <span className="file-name">{inv.name}</span>
+                          <span className="file-size">{formatFileSize(inv.size)}</span>
+                        </div>
+                        <button type="button" className="file-remove" onClick={() => removeInvoice(inv.id)}>
+                          <Trash2 size={13} />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                <div className="upload-zone upload-zone-sm" onClick={() => invoiceRef.current?.click()}>
+                  <Upload size={18} />
+                  <span>{invoices.length > 0 ? 'إضافة فاتورة أخرى' : 'رفع الفاتورة'}</span>
+                  <input ref={invoiceRef} type="file" accept=".pdf" multiple onChange={handleInvoiceUpload} hidden />
+                </div>
+              </div>
+
+              <div className="form-group">
+                <label className="form-label"><Users size={13} /> المستخدمون المسؤولون</label>
+                <div className="users-picker">
+                  {users.map((u) => {
+                    const dept = departments.find((d) => d.id === u.departmentId);
+                    const selected = assignedUsers.includes(u.id);
+                    return (
+                      <button
+                        key={u.id}
+                        type="button"
+                        className={`user-pick-btn ${selected ? 'user-selected' : ''}`}
+                        onClick={() => toggleUser(u.id)}
+                      >
+                        {u.avatar ? (
+                          <img src={u.avatar} alt={u.fullName} className="user-pick-avatar user-pick-avatar-img" />
+                        ) : (
+                          <div className="user-pick-avatar" style={{ background: dept?.color || '#6366f1' }}>
+                            {u.fullName.charAt(0)}
+                          </div>
+                        )}
+                        <div className="user-pick-info">
+                          <span className="user-pick-name">{u.fullName}</span>
+                          <span className="user-pick-dept">{dept?.name || 'بدون قسم'}</span>
+                        </div>
+                        {selected && <div className="user-pick-check">✓</div>}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            </div>
+            )}
+
+            <div className="add-order-col add-order-col--fields">
               <div className={`form-row ${isPhone ? 'form-row--stack' : ''}`}>
                 <div className="form-group">
                   <label className="form-label">رقم الطلبية *</label>
@@ -277,28 +373,6 @@ const AddOrderModal: React.FC<AddOrderModalProps> = ({ departmentId, onClose, pr
               </div>
 
               <div className="form-group">
-                <label className="form-label">الأولوية</label>
-                <div className={`priority-picker ${isPhone ? 'priority-picker--phone' : ''}`}>
-                  {PRIORITY_OPTIONS.map((p) => (
-                    <button
-                      key={p.value}
-                      type="button"
-                      className={`priority-opt ${priority === p.value ? 'priority-active' : ''}`}
-                      style={{
-                        background: priority === p.value ? p.bg : '#f9fafb',
-                        color: p.color,
-                        borderColor: priority === p.value ? p.color : '#e5e7eb',
-                        fontWeight: priority === p.value ? 700 : 500,
-                      }}
-                      onClick={() => setPriority(p.value)}
-                    >
-                      {p.label}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              <div className="form-group">
                 <label className="form-label"><Building2 size={13} /> القسم المختص</label>
                 <div className={`dept-picker-grid ${isPhone ? 'dept-picker-grid--phone' : ''}`}>
                   {departments.filter((d) => d.name !== 'قسم التسليم').map((d) => {
@@ -323,34 +397,58 @@ const AddOrderModal: React.FC<AddOrderModalProps> = ({ departmentId, onClose, pr
                 </div>
               </div>
 
-              {!isPhone && (
-                <>
-                  <div className="form-row">
-                    <div className="form-group">
-                      <label className="form-label">امتداد الملفات المطلوبة</label>
-                      <textarea
-                        className="form-input"
-                        value={fileExtensions}
-                        onChange={(e) => setFileExtensions(e.target.value)}
-                        placeholder="مثال: PDF, AI, CDR, PNG"
-                        style={{ resize: 'none', flex: 1, minHeight: 80 }}
-                      />
-                    </div>
+              <div className={`form-row ${isPhone ? 'form-row--stack' : ''}`}>
+                <div className="form-group">
+                  <label className="form-label">الأولوية</label>
+                  <div className={`priority-picker ${isPhone ? 'priority-picker--phone' : ''}`}>
+                    {PRIORITY_OPTIONS.map((p) => (
+                      <button
+                        key={p.value}
+                        type="button"
+                        className={`priority-opt ${priority === p.value ? 'priority-active' : ''}`}
+                        style={{
+                          background: priority === p.value ? p.bg : '#f9fafb',
+                          color: p.color,
+                          borderColor: priority === p.value ? p.color : '#e5e7eb',
+                          fontWeight: priority === p.value ? 700 : 500,
+                        }}
+                        onClick={() => setPriority(p.value)}
+                      >
+                        {p.label}
+                      </button>
+                    ))}
                   </div>
+                </div>
+                {!isPhone && (
                   <div className="form-group">
-                    <label className="form-label">الملاحظات</label>
+                    <label className="form-label">امتداد الملفات المطلوبة</label>
                     <textarea
                       className="form-input"
-                      value={notes}
-                      onChange={(e) => setNotes(e.target.value)}
-                      placeholder="أضف ملاحظات إضافية للطلبية..."
-                      style={{ resize: 'none', minHeight: 72 }}
+                      value={fileExtensions}
+                      onChange={(e) => setFileExtensions(e.target.value)}
+                      placeholder="مثال: PDF, AI, CDR, PNG"
+                      style={{ resize: 'none', flex: 1, minHeight: 80 }}
                     />
                   </div>
-                </>
+                )}
+              </div>
+
+              {!isPhone && (
+                <div className="form-group">
+                  <label className="form-label">الملاحظات</label>
+                  <textarea
+                    className="form-input"
+                    value={notes}
+                    onChange={(e) => setNotes(e.target.value)}
+                    placeholder="أضف ملاحظات إضافية للطلبية..."
+                    style={{ resize: 'none', minHeight: 72 }}
+                  />
+                </div>
               )}
             </div>
 
+            {/* Phone: files after fields */}
+            {isPhone && (
             <div className="add-order-col add-order-col--files">
               <div className="form-group">
                 <label className="form-label"><Image size={13} /> نماذج الطلبية</label>
@@ -445,31 +543,28 @@ const AddOrderModal: React.FC<AddOrderModalProps> = ({ departmentId, onClose, pr
                 </div>
               </div>
 
-              {isPhone && (
-                <>
-                  <div className="form-group">
-                    <label className="form-label">امتداد الملفات المطلوبة</label>
-                    <textarea
-                      className="form-input"
-                      value={fileExtensions}
-                      onChange={(e) => setFileExtensions(e.target.value)}
-                      placeholder="مثال: PDF, AI, CDR, PNG"
-                      rows={3}
-                    />
-                  </div>
-                  <div className="form-group">
-                    <label className="form-label">الملاحظات</label>
-                    <textarea
-                      className="form-input"
-                      value={notes}
-                      onChange={(e) => setNotes(e.target.value)}
-                      placeholder="أضف ملاحظات إضافية للطلبية..."
-                      rows={3}
-                    />
-                  </div>
-                </>
-              )}
+              <div className="form-group">
+                <label className="form-label">امتداد الملفات المطلوبة</label>
+                <textarea
+                  className="form-input"
+                  value={fileExtensions}
+                  onChange={(e) => setFileExtensions(e.target.value)}
+                  placeholder="مثال: PDF, AI, CDR, PNG"
+                  rows={3}
+                />
+              </div>
+              <div className="form-group">
+                <label className="form-label">الملاحظات</label>
+                <textarea
+                  className="form-input"
+                  value={notes}
+                  onChange={(e) => setNotes(e.target.value)}
+                  placeholder="أضف ملاحظات إضافية للطلبية..."
+                  rows={3}
+                />
+              </div>
             </div>
+            )}
           </div>
 
           <div className={`modal-footer add-order-footer ${isPhone ? 'add-order-footer--phone' : ''}`}>

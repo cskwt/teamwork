@@ -43,7 +43,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         exit();
     }
     foreach ($data['rows'] as &$r) {
-        if (isset($r['jobImage']) && is_string($r['jobImage']) && strlen($r['jobImage']) > 200) {
+        // Strip only embedded data URLs — keep shared http(s) image links
+        if (isset($r['jobImage']) && is_string($r['jobImage']) && strpos($r['jobImage'], 'data:') === 0) {
             $r['jobImage'] = '';
         }
     }
