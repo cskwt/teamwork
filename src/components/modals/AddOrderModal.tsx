@@ -39,10 +39,12 @@ const AddOrderModal: React.FC<AddOrderModalProps> = ({ departmentId, onClose, pr
   const [orderForms, setOrderForms] = useState<FileAttachment[]>([]);
   const [invoices, setInvoices] = useState<FileAttachment[]>([]);
   const [uploading, setUploading] = useState(false);
+  const [uploadStatus, setUploadStatus] = useState('');
   const [dupWarning, setDupWarning] = useState<{ deptName: string; clientName: string } | null>(null);
 
   const formsRef = useRef<HTMLInputElement>(null);
   const invoiceRef = useRef<HTMLInputElement>(null);
+  const uploadingRef = useRef(false);
 
   const toggleUser = (userId: string) => {
     setAssignedUsers((prev) =>
@@ -53,18 +55,39 @@ const AddOrderModal: React.FC<AddOrderModalProps> = ({ departmentId, onClose, pr
   const handleFormsUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files || []);
     e.target.value = '';
-    if (!files.length) return;
+    if (!files.length || uploadingRef.current) return;
+    uploadingRef.current = true;
     setUploading(true);
+    setUploadStatus(`جاري رفع ${files.length} ملف...`);
     const results: FileAttachment[] = [];
     let localOnly = 0;
-    for (const file of files) {
-      const id = generateId();
-      const attached = await uploadRawFileWithLocalFallback(id, file);
-      if (!attached.url) localOnly += 1;
-      results.push(attached);
+    let failed = 0;
+    try {
+      for (let i = 0; i < files.length; i++) {
+        const file = files[i];
+        setUploadStatus(`جاري الرفع ${i + 1}/${files.length}: ${file.name}`);
+        try {
+          const id = generateId();
+          const attached = await uploadRawFileWithLocalFallback(id, file);
+          if (!attached.url && !attached.dataUrl) {
+            failed += 1;
+            continue;
+          }
+          if (!attached.url) localOnly += 1;
+          results.push(attached);
+        } catch {
+          failed += 1;
+        }
+      }
+      if (results.length) setOrderForms((prev) => [...prev, ...results]);
+    } finally {
+      uploadingRef.current = false;
+      setUploading(false);
+      setUploadStatus('');
     }
-    setOrderForms((prev) => [...prev, ...results]);
-    setUploading(false);
+    if (failed > 0) {
+      alert(`تعذر رفع ${failed} ملف. حاول مرة أخرى.`);
+    }
     if (localOnly > 0) {
       alert(
         `تم حفظ ${localOnly} ملف محلياً لأن رفع الخادم فشل مؤقتاً.\n` +
@@ -76,16 +99,37 @@ const AddOrderModal: React.FC<AddOrderModalProps> = ({ departmentId, onClose, pr
   const handleInvoiceUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files || []);
     e.target.value = '';
-    if (!files.length) return;
+    if (!files.length || uploadingRef.current) return;
+    uploadingRef.current = true;
     setUploading(true);
+    setUploadStatus(`جاري رفع ${files.length} فاتورة...`);
     let localOnly = 0;
-    for (const file of files) {
-      const id = generateId();
-      const attached = await uploadRawFileWithLocalFallback(id, file);
-      if (!attached.url) localOnly += 1;
-      setInvoices((prev) => [...prev, attached]);
+    let failed = 0;
+    try {
+      for (let i = 0; i < files.length; i++) {
+        const file = files[i];
+        setUploadStatus(`جاري الرفع ${i + 1}/${files.length}: ${file.name}`);
+        try {
+          const id = generateId();
+          const attached = await uploadRawFileWithLocalFallback(id, file);
+          if (!attached.url && !attached.dataUrl) {
+            failed += 1;
+            continue;
+          }
+          if (!attached.url) localOnly += 1;
+          setInvoices((prev) => [...prev, attached]);
+        } catch {
+          failed += 1;
+        }
+      }
+    } finally {
+      uploadingRef.current = false;
+      setUploading(false);
+      setUploadStatus('');
     }
-    setUploading(false);
+    if (failed > 0) {
+      alert(`تعذر رفع ${failed} فاتورة. حاول مرة أخرى.`);
+    }
     if (localOnly > 0) {
       alert(
         `تم حفظ ${localOnly} فاتورة محلياً لأن رفع الخادم فشل مؤقتاً.\n` +
@@ -171,6 +215,104 @@ const AddOrderModal: React.FC<AddOrderModalProps> = ({ departmentId, onClose, pr
   const formatFileSize = (bytes: number) =>
     bytes < 1024 * 1024 ? `${(bytes / 1024).toFixed(0)} KB` : `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 
+  const openFormsPicker = () => {
+    if (uploadingRef.current) return;
+    formsRef.current?.click();
+  };
+  const openInvoicePicker = () => {
+    if (uploadingRef.current) return;
+    invoiceRef.current?.click();
+  };
+
+  const formsUploadZone = (
+    <div className="form-group">
+      <label className="form-label"><Image size={13} /> نماذج الطلبية</label>
+      <div
+        className={`upload-zone${uploading ? ' upload-zone--busy' : ''}`}
+        onClick={openFormsPicker}
+        aria-busy={uploading}
+      >
+        <Upload size={22} />
+        <span>{uploading ? (uploadStatus || 'جاري الرفع...') : 'اضغط لرفع الملفات'}</span>
+        {!uploading && <span className="upload-hint">JPG, PNG, PDF, AI, CDR وغيرها</span>}
+        <input
+          ref={formsRef}
+          type="file"
+          multiple
+          accept="image/*,.pdf,.ai,.cdr,.eps,.svg,.psd"
+          onChange={handleFormsUpload}
+          disabled={uploading}
+          hidden
+        />
+      </div>
+      {orderForms.length > 0 && (
+        <div className="file-list">
+          {orderForms.map((f) => (
+            <div key={f.id} className="file-item">
+              {f.dataUrl ? (
+                <img src={f.dataUrl} alt={f.name} className="file-thumb" />
+              ) : (
+                <div className="file-icon-box"><FileText size={18} /></div>
+              )}
+              <div className="file-info">
+                <span className="file-name">{f.name}</span>
+                <span className="file-size">{formatFileSize(f.size)}</span>
+              </div>
+              <button type="button" className="file-remove" onClick={() => removeForm(f.id)} disabled={uploading}>
+                <Trash2 size={13} />
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+
+  const invoiceUploadZone = (
+    <div className="form-group">
+      <label className="form-label"><FileText size={13} /> رفع الفاتورة (PDF)</label>
+      {invoices.length > 0 && (
+        <div className="file-list">
+          {invoices.map((inv) => (
+            <div key={inv.id} className="file-item">
+              <div className="file-icon-box invoice-icon"><FileText size={18} /></div>
+              <div className="file-info">
+                <span className="file-name">{inv.name}</span>
+                <span className="file-size">{formatFileSize(inv.size)}</span>
+              </div>
+              <button type="button" className="file-remove" onClick={() => removeInvoice(inv.id)} disabled={uploading}>
+                <Trash2 size={13} />
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+      <div
+        className={`upload-zone upload-zone-sm${uploading ? ' upload-zone--busy' : ''}`}
+        onClick={openInvoicePicker}
+        aria-busy={uploading}
+      >
+        <Upload size={18} />
+        <span>
+          {uploading
+            ? (uploadStatus || 'جاري الرفع...')
+            : invoices.length > 0
+              ? 'إضافة فاتورة أخرى'
+              : 'رفع الفاتورة'}
+        </span>
+        <input
+          ref={invoiceRef}
+          type="file"
+          accept=".pdf"
+          multiple
+          onChange={handleInvoiceUpload}
+          disabled={uploading}
+          hidden
+        />
+      </div>
+    </div>
+  );
+
   return (
     <div className="modal-overlay" onClick={onClose}>
       <div
@@ -230,67 +372,8 @@ const AddOrderModal: React.FC<AddOrderModalProps> = ({ departmentId, onClose, pr
             {/* Files & Users — first in DOM so it sits on the right in RTL (classic layout) */}
             {!isPhone && (
             <div className="add-order-col add-order-col--files">
-              <div className="form-group">
-                <label className="form-label"><Image size={13} /> نماذج الطلبية</label>
-                <div className="upload-zone" onClick={() => formsRef.current?.click()}>
-                  <Upload size={22} />
-                  <span>اضغط لرفع الملفات</span>
-                  <span className="upload-hint">JPG, PNG, PDF, AI, CDR وغيرها</span>
-                  <input
-                    ref={formsRef}
-                    type="file"
-                    multiple
-                    accept="image/*,.pdf,.ai,.cdr,.eps,.svg,.psd"
-                    onChange={handleFormsUpload}
-                    hidden
-                  />
-                </div>
-                {orderForms.length > 0 && (
-                  <div className="file-list">
-                    {orderForms.map((f) => (
-                      <div key={f.id} className="file-item">
-                        {f.dataUrl ? (
-                          <img src={f.dataUrl} alt={f.name} className="file-thumb" />
-                        ) : (
-                          <div className="file-icon-box"><FileText size={18} /></div>
-                        )}
-                        <div className="file-info">
-                          <span className="file-name">{f.name}</span>
-                          <span className="file-size">{formatFileSize(f.size)}</span>
-                        </div>
-                        <button type="button" className="file-remove" onClick={() => removeForm(f.id)}>
-                          <Trash2 size={13} />
-                        </button>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-
-              <div className="form-group">
-                <label className="form-label"><FileText size={13} /> رفع الفاتورة (PDF)</label>
-                {invoices.length > 0 && (
-                  <div className="file-list">
-                    {invoices.map((inv) => (
-                      <div key={inv.id} className="file-item">
-                        <div className="file-icon-box invoice-icon"><FileText size={18} /></div>
-                        <div className="file-info">
-                          <span className="file-name">{inv.name}</span>
-                          <span className="file-size">{formatFileSize(inv.size)}</span>
-                        </div>
-                        <button type="button" className="file-remove" onClick={() => removeInvoice(inv.id)}>
-                          <Trash2 size={13} />
-                        </button>
-                      </div>
-                    ))}
-                  </div>
-                )}
-                <div className="upload-zone upload-zone-sm" onClick={() => invoiceRef.current?.click()}>
-                  <Upload size={18} />
-                  <span>{invoices.length > 0 ? 'إضافة فاتورة أخرى' : 'رفع الفاتورة'}</span>
-                  <input ref={invoiceRef} type="file" accept=".pdf" multiple onChange={handleInvoiceUpload} hidden />
-                </div>
-              </div>
+              {formsUploadZone}
+              {invoiceUploadZone}
 
               <div className="form-group">
                 <label className="form-label"><Users size={13} /> المستخدمون المسؤولون</label>
@@ -450,67 +533,8 @@ const AddOrderModal: React.FC<AddOrderModalProps> = ({ departmentId, onClose, pr
             {/* Phone: files after fields */}
             {isPhone && (
             <div className="add-order-col add-order-col--files">
-              <div className="form-group">
-                <label className="form-label"><Image size={13} /> نماذج الطلبية</label>
-                <div className="upload-zone" onClick={() => formsRef.current?.click()}>
-                  <Upload size={22} />
-                  <span>اضغط لرفع الملفات</span>
-                  <span className="upload-hint">JPG, PNG, PDF, AI, CDR وغيرها</span>
-                  <input
-                    ref={formsRef}
-                    type="file"
-                    multiple
-                    accept="image/*,.pdf,.ai,.cdr,.eps,.svg,.psd"
-                    onChange={handleFormsUpload}
-                    hidden
-                  />
-                </div>
-                {orderForms.length > 0 && (
-                  <div className="file-list">
-                    {orderForms.map((f) => (
-                      <div key={f.id} className="file-item">
-                        {f.dataUrl ? (
-                          <img src={f.dataUrl} alt={f.name} className="file-thumb" />
-                        ) : (
-                          <div className="file-icon-box"><FileText size={18} /></div>
-                        )}
-                        <div className="file-info">
-                          <span className="file-name">{f.name}</span>
-                          <span className="file-size">{formatFileSize(f.size)}</span>
-                        </div>
-                        <button type="button" className="file-remove" onClick={() => removeForm(f.id)}>
-                          <Trash2 size={13} />
-                        </button>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-
-              <div className="form-group">
-                <label className="form-label"><FileText size={13} /> رفع الفاتورة (PDF)</label>
-                {invoices.length > 0 && (
-                  <div className="file-list">
-                    {invoices.map((inv) => (
-                      <div key={inv.id} className="file-item">
-                        <div className="file-icon-box invoice-icon"><FileText size={18} /></div>
-                        <div className="file-info">
-                          <span className="file-name">{inv.name}</span>
-                          <span className="file-size">{formatFileSize(inv.size)}</span>
-                        </div>
-                        <button type="button" className="file-remove" onClick={() => removeInvoice(inv.id)}>
-                          <Trash2 size={13} />
-                        </button>
-                      </div>
-                    ))}
-                  </div>
-                )}
-                <div className="upload-zone upload-zone-sm" onClick={() => invoiceRef.current?.click()}>
-                  <Upload size={18} />
-                  <span>{invoices.length > 0 ? 'إضافة فاتورة أخرى' : 'رفع الفاتورة'}</span>
-                  <input ref={invoiceRef} type="file" accept=".pdf" multiple onChange={handleInvoiceUpload} hidden />
-                </div>
-              </div>
+              {formsUploadZone}
+              {invoiceUploadZone}
 
               <div className="form-group">
                 <label className="form-label"><Users size={13} /> المستخدمون المسؤولون</label>
@@ -571,10 +595,11 @@ const AddOrderModal: React.FC<AddOrderModalProps> = ({ departmentId, onClose, pr
             <button type="button" className="btn-secondary" onClick={onClose}>إلغاء</button>
             <button
               type="submit"
-              className="btn-primary"
+              className="btn-primary add-order-submit"
               disabled={!orderNumber.trim() || !clientName.trim() || uploading}
+              aria-busy={uploading}
             >
-              {uploading ? 'جاري الرفع...' : 'إضافة الطلبية'}
+              <span className="add-order-submit-label">إضافة الطلبية</span>
             </button>
           </div>
         </form>

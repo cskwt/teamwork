@@ -2015,7 +2015,13 @@ html[data-view="phone"] .tools-cards-grid {
 }
 .upload-zone:hover { border-color: var(--primary); color: var(--primary); background: #eef2ff; }
 .upload-zone-sm { padding: 12px; }
+.upload-zone--busy {
+  pointer-events: none; cursor: wait; opacity: .75;
+  border-color: #a5b4fc; color: #4f46e5; background: #eef2ff;
+}
 .upload-hint { font-size: 10px; color: #555; }
+.add-order-submit { min-width: 148px; justify-content: center; }
+.add-order-submit-label { display: inline-block; white-space: nowrap; }
 
 /* File List */
 .file-list { display: flex; flex-direction: column; gap: 6px; margin-top: 8px; }
@@ -3506,7 +3512,7 @@ html[data-view="phone"] .add-order-footer--phone .btn-secondary {
   min-height: 52px;
   border-radius: 14px;
   font-size: 16px;
-  font-weight: 800;
+  font-weight: 700;
 }
 html[data-view="phone"] .form-row,
 html[data-view="phone"] .detail-row,

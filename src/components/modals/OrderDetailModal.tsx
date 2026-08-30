@@ -343,24 +343,31 @@ const OrderDetailModal: React.FC<OrderDetailModalProps> = ({ order, onClose, dep
     setUploadingFiles(true);
     let latest = state.orders.find((o) => o.id === order.id) || currentOrder;
     let localOnly = 0;
-    for (const file of files) {
-      try {
-        const id = generateId();
-        const newFile = await uploadRawFileWithLocalFallback(id, file);
-        if (!newFile.url) localOnly += 1;
-        latest = state.orders.find((o) => o.id === order.id) || latest;
-        latest = {
-          ...latest,
-          orderForms: [...(latest.orderForms || []), newFile],
-          deletedAttachmentIds: (latest.deletedAttachmentIds || []).filter((x) => x !== id),
-          updatedAt: new Date().toISOString(),
-        };
-        dispatch({ type: 'UPDATE_ORDER', payload: latest, silent: true } as any);
-      } catch {
-        alert(`تعذر رفع الملف: ${file.name}`);
+    try {
+      for (const file of files) {
+        try {
+          const id = generateId();
+          const newFile = await uploadRawFileWithLocalFallback(id, file);
+          if (!newFile.url && !newFile.dataUrl) {
+            alert(`تعذر رفع الملف: ${file.name}`);
+            continue;
+          }
+          if (!newFile.url) localOnly += 1;
+          latest = state.orders.find((o) => o.id === order.id) || latest;
+          latest = {
+            ...latest,
+            orderForms: [...(latest.orderForms || []), newFile],
+            deletedAttachmentIds: (latest.deletedAttachmentIds || []).filter((x) => x !== id),
+            updatedAt: new Date().toISOString(),
+          };
+          dispatch({ type: 'UPDATE_ORDER', payload: latest, silent: true } as any);
+        } catch {
+          alert(`تعذر رفع الملف: ${file.name}`);
+        }
       }
+    } finally {
+      setUploadingFiles(false);
     }
-    setUploadingFiles(false);
     if (localOnly > 0) {
       alert(
         `تم حفظ ${localOnly} ملف محلياً لأن رفع الخادم فشل.\n` +
@@ -376,24 +383,31 @@ const OrderDetailModal: React.FC<OrderDetailModalProps> = ({ order, onClose, dep
     setUploadingFiles(true);
     let latest = state.orders.find((o) => o.id === order.id) || currentOrder;
     let localOnly = 0;
-    for (const file of files) {
-      try {
-        const id = generateId();
-        const newInv = await uploadRawFileWithLocalFallback(id, file);
-        if (!newInv.url) localOnly += 1;
-        latest = state.orders.find((o) => o.id === order.id) || latest;
-        latest = {
-          ...latest,
-          invoices: [...(latest.invoices || []), newInv],
-          deletedAttachmentIds: (latest.deletedAttachmentIds || []).filter((x) => x !== id),
-          updatedAt: new Date().toISOString(),
-        };
-        dispatch({ type: 'UPDATE_ORDER', payload: latest, silent: true } as any);
-      } catch {
-        alert(`تعذر رفع الملف: ${file.name}`);
+    try {
+      for (const file of files) {
+        try {
+          const id = generateId();
+          const newInv = await uploadRawFileWithLocalFallback(id, file);
+          if (!newInv.url && !newInv.dataUrl) {
+            alert(`تعذر رفع الملف: ${file.name}`);
+            continue;
+          }
+          if (!newInv.url) localOnly += 1;
+          latest = state.orders.find((o) => o.id === order.id) || latest;
+          latest = {
+            ...latest,
+            invoices: [...(latest.invoices || []), newInv],
+            deletedAttachmentIds: (latest.deletedAttachmentIds || []).filter((x) => x !== id),
+            updatedAt: new Date().toISOString(),
+          };
+          dispatch({ type: 'UPDATE_ORDER', payload: latest, silent: true } as any);
+        } catch {
+          alert(`تعذر رفع الملف: ${file.name}`);
+        }
       }
+    } finally {
+      setUploadingFiles(false);
     }
-    setUploadingFiles(false);
     if (localOnly > 0) {
       alert(
         `تم حفظ ${localOnly} فاتورة محلياً لأن رفع الخادم فشل.\n` +

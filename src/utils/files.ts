@@ -123,12 +123,20 @@ export const uploadRawFileWithLocalFallback = async (
   id: string,
   file: File,
 ): Promise<FileAttachment> => {
-  const url = await uploadRawFileToServer(id, file);
-  if (url) {
-    return { id, name: file.name, type: file.type, size: file.size, url };
+  const base = { id, name: file.name, type: file.type, size: file.size };
+  try {
+    const url = await uploadRawFileToServer(id, file);
+    if (url) return { ...base, url };
+  } catch (err) {
+    console.warn('[upload] server upload failed', err);
   }
-  const dataUrl = await readFileAsDataUrl(file);
-  return { id, name: file.name, type: file.type, size: file.size, dataUrl };
+  try {
+    const dataUrl = await readFileAsDataUrl(file);
+    return { ...base, dataUrl };
+  } catch (err) {
+    console.warn('[upload] local read failed', err);
+    return base;
+  }
 };
 
 const postJson = async (file: FileAttachment, signal: AbortSignal): Promise<string | null> => {
