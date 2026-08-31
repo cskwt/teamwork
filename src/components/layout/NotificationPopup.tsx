@@ -68,18 +68,18 @@ const NotificationPopup: React.FC<NotificationPopupProps> = ({ onOpenOrder }) =>
 
         {single ? (
           <>
-            {single.clientName && (
-              <p className="notif-popup-client">#{single.orderNumber} — {single.clientName}</p>
-            )}
-            <div className="notif-popup-body">
+            <div className="notif-popup-main">
               <NotifActorAvatar
                 notification={single}
                 users={users}
                 orders={orders}
-                size={48}
+                size={56}
                 force
               />
-              <div className="notif-popup-msg-wrap">
+              <div className="notif-popup-copy">
+                {single.clientName && (
+                  <p className="notif-popup-client">#{single.orderNumber} — {single.clientName}</p>
+                )}
                 {singleActor?.name && (
                   <p className="notif-popup-actor-name">{singleActor.name}</p>
                 )}

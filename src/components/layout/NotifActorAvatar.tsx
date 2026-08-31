@@ -1,8 +1,8 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { AppNotification, Order, User } from '../../types';
-import { getInitials } from '../../utils/helpers';
+import { getInitials, pickAvatar } from '../../utils/helpers';
 
-/** Resolve actor avatar from notification snapshot, live users, or order creator. */
+/** Resolve actor avatar from notification snapshot, live users, or (for new orders) creator. */
 export const resolveNotifActor = (
   n: AppNotification,
   users: User[] = [],
@@ -12,13 +12,6 @@ export const resolveNotifActor = (
     ? users.find((u) => u.id === n.actorId && !u.deletedAt)
     : undefined;
 
-  if (!live && n.orderId) {
-    const order = orders.find((o) => o.id === n.orderId);
-    if (order?.createdBy) {
-      live = users.find((u) => u.id === order.createdBy && !u.deletedAt);
-    }
-  }
-
   if (!live && n.actorName) {
     const byName = users.find(
       (u) => !u.deletedAt && u.fullName === n.actorName,
@@ -26,10 +19,18 @@ export const resolveNotifActor = (
     if (byName) live = byName;
   }
 
+  // Creator is only a reasonable stand-in for brand-new orders, not moves/edits.
+  if (!live && n.type === 'new_order' && n.orderId) {
+    const order = orders.find((o) => o.id === n.orderId);
+    if (order?.createdBy) {
+      live = users.find((u) => u.id === order.createdBy && !u.deletedAt);
+    }
+  }
+
   return {
     id: live?.id || n.actorId,
     name: live?.fullName || n.actorName || '',
-    avatar: live?.avatar || n.actorAvatar,
+    avatar: pickAvatar(live?.avatar, n.actorAvatar),
   };
 };
 
@@ -52,18 +53,33 @@ const NotifActorAvatar: React.FC<NotifActorAvatarProps> = ({
   force = false,
 }) => {
   const { name, avatar } = resolveNotifActor(notification, users, orders);
+  const [imgFailed, setImgFailed] = useState(false);
+
+  useEffect(() => {
+    setImgFailed(false);
+  }, [avatar]);
+
   if (!force && !name && !avatar) return null;
+
+  const showPhoto = !!avatar && !imgFailed;
+  const initials = getInitials(name || '?') || '?';
 
   return (
     <div
       className={`notif-actor-avatar ${className}`.trim()}
       title={name || undefined}
-      style={{ width: size, height: size, minWidth: size }}
+      aria-label={name || 'مستخدم'}
+      data-testid="notif-actor-avatar"
+      style={{ width: size, height: size, minWidth: size, minHeight: size }}
     >
-      {avatar ? (
-        <img src={avatar} alt={name || ''} />
+      {showPhoto ? (
+        <img
+          src={avatar}
+          alt={name || ''}
+          onError={() => setImgFailed(true)}
+        />
       ) : (
-        <span>{getInitials(name || '?')}</span>
+        <span>{initials}</span>
       )}
     </div>
   );
