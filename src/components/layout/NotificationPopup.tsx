@@ -5,7 +5,7 @@ import { AppNotification } from '../../types';
 import NotifActorAvatar, { resolveNotifActor } from './NotifActorAvatar';
 
 interface NotificationPopupProps {
-  onOpenOrder?: (departmentId?: string) => void;
+  onOpenOrder?: (departmentId?: string, orderId?: string) => void;
 }
 
 const NotificationPopup: React.FC<NotificationPopupProps> = ({ onOpenOrder }) => {
@@ -48,7 +48,7 @@ const NotificationPopup: React.FC<NotificationPopupProps> = ({ onOpenOrder }) =>
   };
 
   const handleOpen = (n: AppNotification) => {
-    onOpenOrder?.(resolveDeptId(n));
+    onOpenOrder?.(resolveDeptId(n), n.orderId);
     handleDismiss();
   };
 

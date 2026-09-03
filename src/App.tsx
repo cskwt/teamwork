@@ -19,6 +19,7 @@ import RevenueSplitPage from './components/board/RevenueSplitPage';
 import OrderRequestPage from './components/board/OrderRequestPage';
 import OrderCostsPage from './components/board/OrderCostsPage';
 import NotificationPopup from './components/layout/NotificationPopup';
+import { setOpenOrderIntent } from './utils/openOrderIntent';
 import './App.css';
 
 const AppInner: React.FC = () => {
@@ -121,13 +122,15 @@ const AppInner: React.FC = () => {
 
   return (
     <div className={`app-root${isPhone ? ' phone-view' : ''}`}>
-      <NotificationPopup onOpenOrder={(deptId) => {
+      <NotificationPopup onOpenOrder={(deptId, orderId) => {
+        if (orderId) setOpenOrderIntent({ orderId, departmentId: deptId, tab: 'approval' });
         if (deptId) handleOpenBoard(deptId);
         else handleNavigate('orders');
       }} />
       <TopBar
         onNavigate={handleNavigate}
-        onOpenOrder={(deptId) => {
+        onOpenOrder={(deptId, orderId) => {
+          if (orderId) setOpenOrderIntent({ orderId, departmentId: deptId, tab: 'approval' });
           if (deptId) handleOpenBoard(deptId);
           else handleNavigate('orders');
         }}

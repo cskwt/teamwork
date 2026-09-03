@@ -58,6 +58,7 @@ export const canAcknowledgeNew = (
       ? [user.departmentId]
       : [];
   if (deptIds.includes(order.departmentId)) return true;
+  if (order.departmentId) return false;
   return (order.departmentIds || []).some((id) => deptIds.includes(id));
 };
 
@@ -82,7 +83,15 @@ const OrderCardBody: React.FC<{
   showNew: boolean;
 }> = ({ order, assignedList, priority, overdue, showNew }) => (
   <>
-    {showNew && <span className="card-new-badge">NEW</span>}
+      {showNew && <span className="card-new-badge">NEW</span>}
+    {(() => {
+      const latest = [...(order.artworkApprovals || [])].sort((a, b) => (b.sentAt || '').localeCompare(a.sentAt || ''))[0];
+      if (!latest || latest.status === 'approved') return null;
+      if (latest.status === 'rejected') {
+        return <span className="card-approval-badge card-approval-badge--edit">تعديل مطلوب</span>;
+      }
+      return <span className="card-approval-badge">بانتظار اعتماد</span>;
+    })()}
 
     {overdue && (
       <div className="card-overdue-banner">

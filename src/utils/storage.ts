@@ -1,5 +1,5 @@
 import localforage from 'localforage';
-import { AppState, AppNotification, OpsRow, User, Order } from '../types';
+import { AppState, AppNotification, OpsRow, User, Order, ArtworkApproval } from '../types';
 import { INITIAL_USERS, INITIAL_DEPARTMENTS, INITIAL_ORDERS, INITIAL_MATERIALS } from '../data/initialData';
 import { splitOrdersAndRequests } from './orderRequests';
 
@@ -397,25 +397,107 @@ const serverSave = async (state: AppState): Promise<boolean> => {
   } catch { return false; }
 };
 
-/** Merge local + server orders for a safe write — never drop either side's orders */
+const RECENT_LOCAL_MS = 2 * 60 * 1000;
+
+export const locationStamp = (o?: { locationAt?: string } | null): string =>
+  (o?.locationAt || '');
+
+/** Compact stub so permanent deletes stay deleted across devices without bloating JSON. */
+export const toOrderTombstone = (o: Order): Order => ({
+  id: o.id,
+  orderNumber: o.orderNumber || '',
+  clientName: o.clientName || '',
+  title: o.title || '',
+  description: '',
+  status: o.status,
+  priority: o.priority || 'medium',
+  departmentId: o.departmentId,
+  departmentIds: o.departmentId ? [o.departmentId] : (o.departmentIds || []),
+  originDepartmentId: o.originDepartmentId,
+  assignedUsers: [],
+  createdBy: o.createdBy || '',
+  createdAt: o.createdAt,
+  orderDate: o.orderDate || o.createdAt,
+  updatedAt: o.updatedAt,
+  locationAt: o.locationAt,
+  deletedAt: o.deletedAt,
+  archivedAt: o.archivedAt,
+  purgedAt: o.purgedAt,
+  completedAt: o.completedAt,
+  orderForms: [],
+  invoices: [],
+  comments: [],
+  history: [],
+  tags: o.tags || [],
+  fileExtensions: '',
+  isNew: false,
+});
+
+const isRecentLocalCreate = (o: Order, windowMs = RECENT_LOCAL_MS): boolean => {
+  const stamp = o.createdAt || o.updatedAt || '';
+  if (!stamp) return false;
+  return stamp >= new Date(Date.now() - windowMs).toISOString();
+};
+
+const orderLocationKey = (o: Order): string =>
+  `${o.departmentId || ''}|${o.status || ''}|${o.deletedAt || ''}|${o.archivedAt || ''}|${o.purgedAt || ''}`;
+
+/** True when this device's recent location edits are present on the server copy. */
+export const locationsMatchRemote = (intended: Order[], remote: Order[]): boolean => {
+  const remoteMap = new Map((remote || []).map((o) => [o.id, o]));
+  const cutoff = new Date(Date.now() - 90 * 1000).toISOString();
+  return (intended || []).every((loc) => {
+    const stamp = loc.locationAt || '';
+    const created = loc.createdAt || '';
+    const isRecentLocation = !!stamp && stamp >= cutoff;
+    const isRecentCreate = !loc.deletedAt && !loc.purgedAt && created >= cutoff;
+    if (!isRecentLocation && !isRecentCreate) return true;
+    const srv = remoteMap.get(loc.id);
+    if (loc.purgedAt) return !!srv?.purgedAt;
+    if (isRecentCreate && !srv) return false;
+    if (!srv) return !!loc.deletedAt;
+    if ((srv.locationAt || '') > stamp) return true;
+    return orderLocationKey(srv) === orderLocationKey(loc);
+  });
+};
+
+/** Merge local + server orders for a safe write — never resurrect deleted/purged orders. */
 const mergeOrdersForSave = (
   serverOrders: AppState['orders'],
   localOrders: AppState['orders'],
 ): AppState['orders'] => {
   const srvMap = new Map((serverOrders || []).map((o) => [o.id, o]));
   const result: AppState['orders'] = [];
+  const seen = new Set<string>();
   (localOrders || []).forEach((loc) => {
     const srv = srvMap.get(loc.id);
     if (!srv) {
-      if (!loc.deletedAt) result.push(loc);
+      if (loc.purgedAt) {
+        result.push(toOrderTombstone(loc));
+        seen.add(loc.id);
+        return;
+      }
+      if (loc.deletedAt) {
+        result.push(loc);
+        seen.add(loc.id);
+        return;
+      }
+      // Local-only live order: keep only if it looks like an in-flight create.
+      // Otherwise it was removed on the server (delete/transfer copies) and must stay gone.
+      if (isRecentLocalCreate(loc, 5 * 60 * 1000)) {
+        result.push(loc);
+        seen.add(loc.id);
+      }
       return;
     }
     result.push(mergeOrder(srv, loc));
+    seen.add(loc.id);
   });
   (serverOrders || []).forEach((srv) => {
-    if (!result.find((o) => o.id === srv.id)) result.push(srv);
+    if (seen.has(srv.id)) return;
+    result.push(srv);
   });
-  return result;
+  return result.map((o) => (o.purgedAt ? toOrderTombstone(o) : o));
 };
 
 // Serialize server writes — concurrent saveState calls were racing and wiping orders
@@ -557,6 +639,28 @@ const getMaxUpdatedAt = (orders: AppState['orders']): string => {
 
 // Smart merge: deletion and archive flags take priority over generic updatedAt comparisons.
 // This prevents a slower server-save from overwriting a locally applied archive/delete.
+const mergeArtworkApprovals = (
+  a: ArtworkApproval[] = [],
+  b: ArtworkApproval[] = [],
+): ArtworkApproval[] => {
+  const rank = (s?: string) => (s === 'approved' || s === 'rejected' ? 2 : s === 'sent' ? 1 : 0);
+  const map = new Map<string, ArtworkApproval>();
+  [...(a || []), ...(b || [])].forEach((item) => {
+    if (!item?.id) return;
+    const prev = map.get(item.id);
+    if (!prev) {
+      map.set(item.id, item);
+      return;
+    }
+    const prevT = prev.repliedAt || prev.sentAt || prev.createdAt || '';
+    const itemT = item.repliedAt || item.sentAt || item.createdAt || '';
+    if (rank(item.status) > rank(prev.status)) map.set(item.id, item);
+    else if (rank(item.status) < rank(prev.status)) return;
+    else map.set(item.id, itemT >= prevT ? item : prev);
+  });
+  return Array.from(map.values()).sort((x, y) => (x.createdAt || '').localeCompare(y.createdAt || ''));
+};
+
 const mergeById = <T extends { id: string; createdAt?: string }>(
   a: T[] = [],
   b: T[] = [],
@@ -570,30 +674,45 @@ const mergeById = <T extends { id: string; createdAt?: string }>(
   );
 };
 
-const mergeOrder = (srv: AppState['orders'][0], loc: AppState['orders'][0]) => {
-  // --- Deletion priority ---
-  const srvDel = !!srv.deletedAt;
-  const locDel = !!loc.deletedAt;
-  let base: AppState['orders'][0];
-  if (srvDel && !locDel) {
-    base = (loc.updatedAt || '') > (srv.deletedAt || '') ? loc : srv;
-  } else if (!srvDel && locDel) {
-    base = (srv.updatedAt || '') > (loc.deletedAt || '') ? srv : loc;
-  } else {
-    // --- Archive priority ---
-    const srvArc = !!srv.archivedAt;
-    const locArc = !!loc.archivedAt;
-    if (locArc && !srvArc) {
-      base = (srv.updatedAt || '') > (loc.archivedAt || '') ? srv : loc;
-    } else if (srvArc && !locArc) {
-      base = srv;
-    } else {
-      // Same state → newer wins (server wins on tie)
-      base = (srv.updatedAt || '') >= (loc.updatedAt || '') ? srv : loc;
-    }
+/**
+ * Merge one order from server + local.
+ * Location fields (department, column, delete, archive) use locationAt and
+ * prefer the server when neither side has it — that heals devices that still
+ * show a transferred/deleted order because they opened the card (updatedAt).
+ */
+export const mergeOrder = (srv: Order, loc: Order): Order => {
+  const srvLoc = locationStamp(srv);
+  const locLoc = locationStamp(loc);
+  let locationWinner: Order;
+  if (locLoc && srvLoc) locationWinner = locLoc > srvLoc ? loc : srv;
+  else if (locLoc) locationWinner = loc;
+  else if (srvLoc) locationWinner = srv;
+  else locationWinner = srv;
+
+  const contentWinner = (srv.updatedAt || '') >= (loc.updatedAt || '') ? srv : loc;
+  const purgedAt = [srv.purgedAt, loc.purgedAt].filter(Boolean).sort().pop();
+  if (purgedAt) {
+    const src = (srv.purgedAt || '') >= (loc.purgedAt || '') ? srv : loc;
+    return toOrderTombstone({
+      ...src,
+      purgedAt,
+      deletedAt: src.deletedAt || srv.deletedAt || loc.deletedAt || purgedAt,
+      locationAt: locationWinner.locationAt || srvLoc || locLoc || purgedAt,
+      updatedAt: [srv.updatedAt, loc.updatedAt, purgedAt].sort().pop() || purgedAt,
+    });
   }
+
+  const departmentId = locationWinner.departmentId;
+  const sameDept =
+    srv.departmentId === loc.departmentId && locationWinner.departmentId === srv.departmentId;
+  const isNew = (() => {
+    if (locationWinner.deletedAt || locationWinner.archivedAt) return false;
+    if (sameDept && (srv.isNew === false || loc.isNew === false)) return false;
+    return locationWinner.isNew;
+  })();
+
   const deletedIds = new Set<string>([
-    ...(base.deletedAttachmentIds || []),
+    ...(contentWinner.deletedAttachmentIds || []),
     ...(srv.deletedAttachmentIds || []),
     ...(loc.deletedAttachmentIds || []),
   ]);
@@ -614,24 +733,42 @@ const mergeOrder = (srv: AppState['orders'][0], loc: AppState['orders'][0]) => {
     return Array.from(map.values());
   };
   const legacyInvoice = (() => {
-    const inv = mergeFile(base.invoice, srv.invoice, loc.invoice);
+    const inv = mergeFile(contentWinner.invoice, srv.invoice, loc.invoice);
     if (!inv) return undefined;
     if (inv.id && deletedIds.has(inv.id)) return undefined;
-    if (!base.invoice && (base.updatedAt || '') >= (loc.updatedAt || '') && (base.updatedAt || '') >= (srv.updatedAt || '')) {
+    if (
+      !contentWinner.invoice &&
+      (contentWinner.updatedAt || '') >= (loc.updatedAt || '') &&
+      (contentWinner.updatedAt || '') >= (srv.updatedAt || '')
+    ) {
       return undefined;
     }
     return inv;
   })();
-  // Always keep the union of chat + history + attachments from both sides
-  // sortOrder is cosmetic and uses its own timestamp so sync doesn't wipe reorders
   const sortOrderAt =
-    (loc.sortOrderAt || '') >= (srv.sortOrderAt || '') ? (loc.sortOrderAt || srv.sortOrderAt) : (srv.sortOrderAt || loc.sortOrderAt);
+    (loc.sortOrderAt || '') >= (srv.sortOrderAt || '')
+      ? (loc.sortOrderAt || srv.sortOrderAt)
+      : (srv.sortOrderAt || loc.sortOrderAt);
   const sortOrder =
     (loc.sortOrderAt || '') >= (srv.sortOrderAt || '')
       ? (loc.sortOrder ?? srv.sortOrder)
       : (srv.sortOrder ?? loc.sortOrder);
+  const updatedAt =
+    (srv.updatedAt || '') >= (loc.updatedAt || '') ? srv.updatedAt || loc.updatedAt : loc.updatedAt;
+
   return {
-    ...base,
+    ...contentWinner,
+    departmentId,
+    departmentIds: departmentId ? [departmentId] : (locationWinner.departmentIds || []),
+    originDepartmentId: locationWinner.originDepartmentId || contentWinner.originDepartmentId,
+    status: locationWinner.status,
+    deletedAt: locationWinner.deletedAt,
+    archivedAt: locationWinner.archivedAt,
+    completedAt: locationWinner.completedAt,
+    purgedAt: locationWinner.purgedAt,
+    isNew,
+    locationAt: locationWinner.locationAt || srvLoc || locLoc || undefined,
+    updatedAt,
     sortOrder,
     sortOrderAt,
     deletedAttachmentIds: Array.from(deletedIds),
@@ -640,28 +777,31 @@ const mergeOrder = (srv: AppState['orders'][0], loc: AppState['orders'][0]) => {
     orderForms: unionList(srv.orderForms, loc.orderForms),
     comments: mergeById(srv.comments, loc.comments),
     history: mergeById(srv.history, loc.history),
+    clientPhone: (() => {
+      const locP = (loc.clientPhone || '').trim();
+      const srvP = (srv.clientPhone || '').trim();
+      if (locP && srvP) return (loc.updatedAt || '') >= (srv.updatedAt || '') ? locP : srvP;
+      return locP || srvP || undefined;
+    })(),
+    artworkApprovals: mergeArtworkApprovals(srv.artworkApprovals, loc.artworkApprovals),
   };
 };
 
-const mergeOrders = (server: AppState['orders'], local: AppState['orders']): AppState['orders'] => {
-  const srvMap = new Map(server.map((o) => [o.id, o]));
-  const locMap = new Map(local.map((o) => [o.id, o]));
+export const mergeOrders = (server: AppState['orders'], local: AppState['orders']): AppState['orders'] => {
+  const srvMap = new Map((server || []).map((o) => [o.id, o]));
+  const locMap = new Map((local || []).map((o) => [o.id, o]));
 
-  // Start with all server orders (server is authoritative)
-  const result: AppState['orders'][0][] = server.map((srv) => {
+  const result: Order[] = (server || []).map((srv) => {
     const loc = locMap.get(srv.id);
     return loc ? mergeOrder(srv, loc) : srv;
   });
-  // Keep local-only orders that look like recent offline creates (15 min),
-  // or newer than the server's newest order. Never resurrect soft-deleted ones.
-  const recentThreshold = new Date(Date.now() - 15 * 60 * 1000).toISOString();
-  const srvMaxUpdated = getMaxUpdatedAt(server);
-  local.forEach((loc) => {
-    if (srvMap.has(loc.id) || loc.deletedAt) return;
-    const stamp = loc.updatedAt || loc.createdAt || '';
-    if (stamp > srvMaxUpdated || stamp >= recentThreshold) {
-      result.push(loc);
-    }
+  // Keep local-only creates while save is in flight. Do NOT keep stale local
+  // copies that the server already dropped (deleted / replaced on transfer).
+  const recentThreshold = new Date(Date.now() - RECENT_LOCAL_MS).toISOString();
+  (local || []).forEach((loc) => {
+    if (srvMap.has(loc.id) || loc.deletedAt || loc.archivedAt || loc.purgedAt) return;
+    const stamp = loc.createdAt || loc.updatedAt || '';
+    if (stamp >= recentThreshold) result.push(loc);
   });
   return result;
 };
@@ -981,84 +1121,97 @@ export const saveState = async (state: AppState): Promise<void> => {
       return;
     }
 
-    // Re-load once more right before merge to shrink TOCTOU races between devices
-    const latest = await serverLoad();
-    if (latest) serverCurrent = latest;
+    let wrote = false;
+    for (let writeAttempt = 0; writeAttempt < 3; writeAttempt++) {
+      // Re-load right before merge to shrink TOCTOU races between devices
+      const latest = await serverLoad();
+      if (latest) serverCurrent = latest;
 
-    const mergedOrders = mergeOrdersForSave(serverCurrent.orders || [], snapshot.orders || []);
-    const mergedUsers = mergeUsers(serverCurrent.users || [], snapshot.users || []);
-    // Departments: prefer newer by updatedAt, union by id
-    const deptMap = new Map<string, AppState['departments'][0]>();
-    [...(serverCurrent.departments || []), ...(snapshot.departments || [])].forEach((d) => {
-      const prev = deptMap.get(d.id);
-      if (!prev) deptMap.set(d.id, d);
-      else deptMap.set(d.id, (d.updatedAt || '') >= (prev.updatedAt || '') ? d : prev);
-    });
-    const mergedDepts: AppState['departments'] = [];
-    deptMap.forEach((d) => { mergedDepts.push(d); });
+      const mergedOrders = mergeOrdersForSave(serverCurrent.orders || [], snapshot.orders || []);
+      const mergedUsers = mergeUsers(serverCurrent.users || [], snapshot.users || []);
+      const deptMap = new Map<string, AppState['departments'][0]>();
+      [...(serverCurrent.departments || []), ...(snapshot.departments || [])].forEach((d) => {
+        const prev = deptMap.get(d.id);
+        if (!prev) deptMap.set(d.id, d);
+        else deptMap.set(d.id, (d.updatedAt || '') >= (prev.updatedAt || '') ? d : prev);
+      });
+      const mergedDepts: AppState['departments'] = [];
+      deptMap.forEach((d) => { mergedDepts.push(d); });
 
-    // Materials / cost rows: union by id, prefer newer
-    const matMap = new Map<string, AppState['materials'][0]>();
-    [...(serverCurrent.materials || []), ...(snapshot.materials || [])].forEach((m) => {
-      if (!m?.id) return;
-      const prev = matMap.get(m.id);
-      if (!prev) matMap.set(m.id, m);
-      else {
-        const pt = prev.updatedAt || prev.createdAt || '';
-        const mt = m.updatedAt || m.createdAt || '';
-        matMap.set(m.id, mt >= pt ? m : prev);
+      const matMap = new Map<string, AppState['materials'][0]>();
+      [...(serverCurrent.materials || []), ...(snapshot.materials || [])].forEach((m) => {
+        if (!m?.id) return;
+        const prev = matMap.get(m.id);
+        if (!prev) matMap.set(m.id, m);
+        else {
+          const pt = prev.updatedAt || prev.createdAt || '';
+          const mt = m.updatedAt || m.createdAt || '';
+          matMap.set(m.id, mt >= pt ? m : prev);
+        }
+      });
+      const snapCosts = snapshot.orderCostRows || [];
+      const srvCosts = serverCurrent.orderCostRows || [];
+      const costStamp = (rows: AppState['orderCostRows'], at?: string) =>
+        at || rows.reduce((m, r) => ((r.updatedAt || '') > m ? (r.updatedAt || '') : m), '');
+      const localCostAt = costStamp(snapCosts, snapshot.orderCostsUpdatedAt);
+      const serverCostAt = costStamp(srvCosts, serverCurrent.orderCostsUpdatedAt);
+
+      let mergedCostRows: AppState['orderCostRows'];
+      let mergedCostAt = snapshot.orderCostsUpdatedAt || serverCurrent.orderCostsUpdatedAt;
+      if ((localCostAt || '') >= (serverCostAt || '')) {
+        mergedCostRows = snapCosts.map((loc) => {
+          const srv = srvCosts.find((s) => s.id === loc.id);
+          if (!srv) return loc;
+          return (loc.updatedAt || '') >= (srv.updatedAt || '') ? loc : srv;
+        });
+        mergedCostAt = snapshot.orderCostsUpdatedAt || localCostAt;
+      } else {
+        mergedCostRows = srvCosts.map((srv) => {
+          const loc = snapCosts.find((s) => s.id === srv.id);
+          if (!loc) return srv;
+          return (srv.updatedAt || '') >= (loc.updatedAt || '') ? srv : loc;
+        });
+        mergedCostAt = serverCurrent.orderCostsUpdatedAt || serverCostAt;
       }
-    });
-    const snapCosts = snapshot.orderCostRows || [];
-    const srvCosts = serverCurrent.orderCostRows || [];
-    const costStamp = (rows: AppState['orderCostRows'], at?: string) =>
-      at || rows.reduce((m, r) => ((r.updatedAt || '') > m ? (r.updatedAt || '') : m), '');
-    const localCostAt = costStamp(snapCosts, snapshot.orderCostsUpdatedAt);
-    const serverCostAt = costStamp(srvCosts, serverCurrent.orderCostsUpdatedAt);
 
-    let mergedCostRows: AppState['orderCostRows'];
-    let mergedCostAt = snapshot.orderCostsUpdatedAt || serverCurrent.orderCostsUpdatedAt;
-    if ((localCostAt || '') >= (serverCostAt || '')) {
-      // Local sheet wins membership (deletes stick; empty sheet is valid)
-      mergedCostRows = snapCosts.map((loc) => {
-        const srv = srvCosts.find((s) => s.id === loc.id);
-        if (!srv) return loc;
-        return (loc.updatedAt || '') >= (srv.updatedAt || '') ? loc : srv;
-      });
-      mergedCostAt = snapshot.orderCostsUpdatedAt || localCostAt;
-    } else {
-      // Server sheet is strictly newer — take its membership only (no union)
-      mergedCostRows = srvCosts.map((srv) => {
-        const loc = snapCosts.find((s) => s.id === srv.id);
-        if (!loc) return srv;
-        return (srv.updatedAt || '') >= (loc.updatedAt || '') ? srv : loc;
-      });
-      mergedCostAt = serverCurrent.orderCostsUpdatedAt || serverCostAt;
+      const splitSave = splitOrdersAndRequests(mergedOrders, [
+        ...(serverCurrent.orderRequests || []),
+        ...(snapshot.orderRequests || []),
+      ]);
+
+      const payload: AppState = {
+        ...snapshot,
+        users: mergedUsers,
+        departments: mergedDepts,
+        materials: Array.from(matMap.values()),
+        orderCostRows: mergedCostRows,
+        orderCostsUpdatedAt: mergedCostAt,
+        orders: splitSave.orders,
+        orderRequests: splitSave.orderRequests,
+        notifications: pruneNotificationsAgainstOrders(
+          mergeNotificationsForSave(snapshot.notifications || [], serverCurrent.notifications || []),
+          splitSave.orders,
+          splitSave.orderRequests,
+        ),
+      };
+
+      const ok = await serverSave(payload);
+      if (!ok) {
+        await new Promise((r) => setTimeout(r, 600 * (writeAttempt + 1)));
+        continue;
+      }
+
+      const verify = await serverLoad();
+      if (verify && locationsMatchRemote(snapshot.orders || [], verify.orders || [])) {
+        wrote = true;
+        break;
+      }
+      // Another device wrote in between — merge again against the fresh server copy
+      if (verify) serverCurrent = verify;
+      await new Promise((r) => setTimeout(r, 400 * (writeAttempt + 1)));
     }
-
-    // Keep Order Request fully separate; also peel any legacy mixed records out of orders
-    const splitSave = splitOrdersAndRequests(mergedOrders, [
-      ...(serverCurrent.orderRequests || []),
-      ...(snapshot.orderRequests || []),
-    ]);
-
-    const ok = await serverSave({
-      ...snapshot,
-      users: mergedUsers,
-      departments: mergedDepts,
-      materials: Array.from(matMap.values()),
-      orderCostRows: mergedCostRows,
-      orderCostsUpdatedAt: mergedCostAt,
-      orders: splitSave.orders,
-      orderRequests: splitSave.orderRequests,
-      notifications: pruneNotificationsAgainstOrders(
-        mergeNotificationsForSave(snapshot.notifications || [], serverCurrent.notifications || []),
-        splitSave.orders,
-        splitSave.orderRequests,
-      ),
-    });
-    if (!ok) {
-      console.warn('[sync] serverSave failed — will retry on next change');
+    if (!wrote) {
+      console.warn('[sync] serverSave failed or location did not stick — will retry on next change');
     }
   }).catch((err) => {
     console.warn('[sync] save queue error', err);

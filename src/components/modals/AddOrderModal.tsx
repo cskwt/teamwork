@@ -28,6 +28,7 @@ const AddOrderModal: React.FC<AddOrderModalProps> = ({ departmentId, onClose, pr
 
   const [orderNumber, setOrderNumber] = useState('');
   const [clientName, setClientName] = useState('');
+  const [clientPhone, setClientPhone] = useState('');
   const [description, setDescription] = useState('');
   const [orderDate, setOrderDate] = useState(new Date().toISOString().slice(0, 10));
   const [dueDate, setDueDate] = useState('');
@@ -162,6 +163,7 @@ const AddOrderModal: React.FC<AddOrderModalProps> = ({ departmentId, onClose, pr
         id: generateId(),
         orderNumber: orderNumber.trim(),
         clientName: clientName.trim(),
+        clientPhone: clientPhone.trim() || undefined,
         title: `#${orderNumber.trim()} - ${clientName.trim()}`,
         description: description.trim(),
         status: 'new',
@@ -431,6 +433,18 @@ const AddOrderModal: React.FC<AddOrderModalProps> = ({ departmentId, onClose, pr
                     required
                   />
                 </div>
+              </div>
+
+              <div className="form-group">
+                <label className="form-label">واتساب العميل</label>
+                <input
+                  className="form-input"
+                  value={clientPhone}
+                  onChange={(e) => setClientPhone(e.target.value)}
+                  placeholder="94493883 أو +96594493883"
+                  inputMode="tel"
+                  dir="ltr"
+                />
               </div>
 
               <div className="form-group">

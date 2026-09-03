@@ -18,7 +18,7 @@ const TrashPage: React.FC = () => {
   const canManageTrashOrder = (_departmentId: string) => !!currentUser;
 
   const deletedOrders = orders
-    .filter((o) => !!o.deletedAt && !o.archivedAt && !o.isOrderRequest && !o.digitalPrinting && !o.largeFormat)
+    .filter((o) => !!o.deletedAt && !o.archivedAt && !o.purgedAt && !o.isOrderRequest && !o.digitalPrinting && !o.largeFormat)
     .sort((a, b) => new Date(b.deletedAt!).getTime() - new Date(a.deletedAt!).getTime());
 
   const getDaysLeft = (deletedAt: string) => {

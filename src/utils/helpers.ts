@@ -121,24 +121,24 @@ export const userDepartmentIds = (user?: {
   return user.departmentId ? [user.departmentId] : [];
 };
 
-/** True if order is shown on this department's Kanban. */
+/** True if order is shown on this department's Kanban (current departmentId only). */
 export const orderBelongsToDepartment = (
   order: { departmentId?: string; departmentIds?: string[] } | null | undefined,
   deptId: string,
 ): boolean => {
   if (!order || !deptId) return false;
-  if (order.departmentId === deptId) return true;
+  if (order.departmentId) return order.departmentId === deptId;
   return (order.departmentIds || []).includes(deptId);
 };
 
-/** True if user belongs to any department linked to the order. */
+/** True if user belongs to the order's current department. */
 export const userBelongsToOrderDepartment = (
   user: { departmentId?: string; departmentIds?: string[] } | null | undefined,
   order: { departmentId?: string; departmentIds?: string[] } | null | undefined,
 ): boolean => {
   if (!user || !order) return false;
   const uDepts = userDepartmentIds(user);
-  if (order.departmentId && uDepts.includes(order.departmentId)) return true;
+  if (order.departmentId) return uDepts.includes(order.departmentId);
   return (order.departmentIds || []).some((id) => uDepts.includes(id));
 };
 

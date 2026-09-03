@@ -67,6 +67,25 @@ export interface LargeFormatDetails {
   fileCutLocation?: string;
 }
 
+export type ArtworkApprovalStatus = 'sent' | 'approved' | 'rejected';
+
+export interface ArtworkApproval {
+  id: string;
+  round: number;
+  trackingCode: string;
+  createdAt: string;
+  sentAt: string;
+  sentBy: string;
+  customerPhone: string;
+  imageUrl: string;
+  imageName?: string;
+  message: string;
+  status: ArtworkApprovalStatus;
+  customerComment?: string;
+  repliedAt?: string;
+  messageSid?: string;
+}
+
 export interface Order {
   id: string;
   orderNumber: string;
@@ -95,6 +114,10 @@ export interface Order {
   comments: OrderComment[];
   history: OrderHistoryEntry[];
   notes?: string;
+  /** Customer WhatsApp / mobile for artwork approval */
+  clientPhone?: string;
+  /** Rounds of artwork sent to the customer via WhatsApp */
+  artworkApprovals?: ArtworkApproval[];
   /** Structured digital-printing job ticket from أمر طلبية */
   digitalPrinting?: DigitalPrintingDetails;
   /** Structured Mimaki / large-format job ticket from أمر طلبية */
@@ -105,9 +128,17 @@ export interface Order {
   sortOrder?: number;
   /** When sortOrder was last changed — merged independently so sync won't wipe column order */
   sortOrderAt?: string;
+  /**
+   * Last department / column / delete / archive change.
+   * Merged independently from updatedAt so opening a card or chatting
+   * cannot keep a moved or deleted order visible on another device.
+   */
+  locationAt?: string;
   deletedAt?: string;
   completedAt?: string;
   archivedAt?: string;
+  /** Permanent-delete tombstone — keeps the id so sync will not resurrect it */
+  purgedAt?: string;
   /** Show NEW badge in "جديد" column until a dept manager/admin opens the card */
   isNew?: boolean;
   /**
@@ -146,7 +177,7 @@ export interface KanbanColumn {
   order: number;
 }
 
-export type AppNotificationType = 'new_order' | 'assigned' | 'chat' | 'updated';
+export type AppNotificationType = 'new_order' | 'assigned' | 'chat' | 'updated' | 'approval';
 
 export interface AppNotification {
   id: string;

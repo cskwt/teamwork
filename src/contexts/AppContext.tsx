@@ -1,7 +1,7 @@
 import React, { createContext, useContext, useReducer, useEffect, useState, useRef } from 'react';
 import localforage from 'localforage';
 import { AppState, User, Department, Order, OrderComment, OrderHistoryEntry, KanbanColumn, AppNotification, OpsRow, Material, OrderCostRow } from '../types';
-import { loadLocalState, loadLocalUsers, saveState, saveSession, loadSession, touchSession, clearSession, serverLoad, repairServerIfCorrupt, mergeOpsRows, resolveOpsRowsForSave, mergeUsers } from '../utils/storage';
+import { loadLocalState, loadLocalUsers, saveState, saveSession, loadSession, touchSession, clearSession, serverLoad, repairServerIfCorrupt, mergeOpsRows, resolveOpsRowsForSave, mergeUsers, mergeOrders, toOrderTombstone } from '../utils/storage';
 import { ensureAttachmentUrl } from '../utils/files';
 import { generateId, userBelongsToOrderDepartment, userDepartmentIds } from '../utils/helpers';
 import { INITIAL_USERS, INITIAL_DEPARTMENTS, INITIAL_ORDERS, INITIAL_MATERIALS } from '../data/initialData';
@@ -174,71 +174,13 @@ const reducer = (state: AppState, action: Action): AppState => {
       };
     }
     case 'SYNC_STATE': {
-      // Server is the source of truth. Merge only allows local to win when it has
-      // a genuinely newer change (e.g. user just made an edit that hasn't saved yet).
-      // archivedAt and deletedAt are treated as high-priority flags — once set locally,
-      // they are preserved even if the server hasn't caught up yet.
-      const mergeById = <T extends { id: string; createdAt?: string }>(
-        a: T[] = [],
-        b: T[] = [],
-        sortKey?: 'createdAt',
-      ): T[] => {
-        const map = new Map<string, T>();
-        [...(a || []), ...(b || [])].forEach((item) => {
-          if (item?.id) map.set(item.id, item);
-        });
-        const arr = Array.from(map.values());
-        if (sortKey) {
-          arr.sort((x, y) => (x.createdAt || '').localeCompare(y.createdAt || ''));
-        }
-        return arr;
-      };
-
-      const mergeOrderSync = (srv: Order, loc: Order): Order => {
-        // --- Deletion priority ---
-        const srvDel = !!srv.deletedAt;
-        const locDel = !!loc.deletedAt;
-        let base: Order;
-        if (srvDel && !locDel) {
-          base = (loc.updatedAt || '') > (srv.deletedAt || '') ? loc : srv;
-        } else if (!srvDel && locDel) {
-          base = (srv.updatedAt || '') > (loc.deletedAt || '') ? srv : loc;
-        } else {
-          // --- Archive priority ---
-          const srvArc = !!srv.archivedAt;
-          const locArc = !!loc.archivedAt;
-          if (locArc && !srvArc) {
-            base = (srv.updatedAt || '') > (loc.archivedAt || '') ? srv : loc;
-          } else if (srvArc && !locArc) {
-            base = srv;
-          } else {
-            // Same state → newer wins (server wins on tie)
-            base = (srv.updatedAt || '') >= (loc.updatedAt || '') ? srv : loc;
-          }
-        }
-        // Always union comments/history so in-flight chat messages aren't wiped by poll
-        const sortOrderAt =
-          (loc.sortOrderAt || '') >= (srv.sortOrderAt || '')
-            ? (loc.sortOrderAt || srv.sortOrderAt)
-            : (srv.sortOrderAt || loc.sortOrderAt);
-        const sortOrder =
-          (loc.sortOrderAt || '') >= (srv.sortOrderAt || '')
-            ? (loc.sortOrder ?? srv.sortOrder)
-            : (srv.sortOrder ?? loc.sortOrder);
-        return {
-          ...base,
-          sortOrder,
-          sortOrderAt,
-          comments: mergeById(srv.comments, loc.comments, 'createdAt'),
-          history: mergeById(srv.history, loc.history, 'createdAt'),
-        };
-      };
-
+      // Server is the source of truth for department / delete / archive.
+      // locationAt (not updatedAt) decides where an order lives, so opening a
+      // card on a stale device cannot resurrect a transferred or deleted order.
       const serverOrders = action.payload.orders || [];
       const localOrders  = state.orders;
       const serverSplit = splitOrdersAndRequests(serverOrders, action.payload.orderRequests || []);
       const localSplit = splitOrdersAndRequests(localOrders, state.orderRequests || []);
-      const serverMap    = new Map(serverSplit.orders.map((o: Order) => [o.id, o]));
       const localMap     = new Map(localSplit.orders.map((o: Order) => [o.id, o]));
 
       // Union file lists + enrich urls/dataUrls, but honor deletedAttachmentIds tombstones
@@ -285,27 +227,12 @@ const reducer = (state: AppState, action: Action): AppState => {
         };
       };
 
-      // Start with server department orders as base (server is authoritative)
-      const mergedOrders: Order[] = serverSplit.orders.map((srv: Order) => {
-        const loc = localMap.get(srv.id);
-        if (!loc) return srv;
-        const merged = mergeOrderSync(srv, loc);
-        return restoreDataUrls(merged, loc, srv);
-      });
-      // Keep local-only department orders while save/sync is in flight (15 min), or if newer
-      // than anything on the server. Tight 30s window was dropping new orders before
-      // serverSave finished — other departments never saw them.
-      const recentThreshold = new Date(Date.now() - 15 * 60 * 1000).toISOString();
-      const srvMaxUpdated = serverSplit.orders.reduce(
-        (m: string, o: Order) => ((o.updatedAt || '') > m ? o.updatedAt || '' : m),
-        '',
-      );
-      localSplit.orders.forEach((loc: Order) => {
-        if (serverMap.has(loc.id) || loc.deletedAt || loc.archivedAt) return;
-        const stamp = loc.updatedAt || loc.createdAt || '';
-        if (stamp >= recentThreshold || stamp > srvMaxUpdated) {
-          mergedOrders.push(loc);
-        }
+      const mergedOrders: Order[] = mergeOrders(serverSplit.orders, localSplit.orders).map((merged) => {
+        if (merged.purgedAt) return merged;
+        const loc = localMap.get(merged.id);
+        const srv = serverSplit.orders.find((o) => o.id === merged.id);
+        if (!loc) return merged;
+        return restoreDataUrls(merged, loc, srv || merged);
       });
 
       // Merge Order Request list separately (never mixed into Kanban orders)
@@ -453,7 +380,15 @@ const reducer = (state: AppState, action: Action): AppState => {
         const req = { ...action.payload, isOrderRequest: true };
         return { ...state, orderRequests: [...(state.orderRequests || []), req] };
       }
-      const order = { ...action.payload, isNew: action.payload.isNew !== false, isOrderRequest: false };
+      const order = {
+        ...action.payload,
+        isNew: action.payload.isNew !== false,
+        isOrderRequest: false,
+        locationAt: action.payload.locationAt || action.payload.updatedAt || action.payload.createdAt,
+        departmentIds: action.payload.departmentId
+          ? [action.payload.departmentId]
+          : action.payload.departmentIds,
+      };
       const actorId = action.triggerUserId || order.createdBy;
       const actor =
         resolveActor(state, actorId) ||
@@ -514,7 +449,22 @@ const reducer = (state: AppState, action: Action): AppState => {
         };
       }
       if (action.silent) {
-        return { ...state, orders: state.orders.map((o) => (o.id === updated.id ? updated : o)) };
+        const prev = state.orders.find((o) => o.id === updated.id);
+        const locChanged = !!(prev && (
+          prev.departmentId !== updated.departmentId ||
+          prev.status !== updated.status ||
+          !!prev.deletedAt !== !!updated.deletedAt ||
+          !!prev.archivedAt !== !!updated.archivedAt
+        ));
+        const now = new Date().toISOString();
+        const next = {
+          ...updated,
+          departmentIds: updated.departmentId
+            ? [updated.departmentId]
+            : updated.departmentIds,
+          ...(locChanged ? { locationAt: updated.locationAt || now } : {}),
+        };
+        return { ...state, orders: state.orders.map((o) => (o.id === next.id ? next : o)) };
       }
       const newlyAssigned = (updated.assignedUsers || []).filter(
         (uid) => !(action.prevAssignedUsers || []).includes(uid) && uid !== action.triggerUserId
@@ -531,9 +481,22 @@ const reducer = (state: AppState, action: Action): AppState => {
           return makeNotif('assigned', uid, updated, `تم تعيينك في طلبية: ${updated.clientName} — رقم ${updated.orderNumber}`, actor);
         return makeNotif('updated', uid, updated, `تم تعديل طلبية: ${updated.clientName} — رقم ${updated.orderNumber}`, actor);
       });
+      const prev = state.orders.find((o) => o.id === updated.id);
+      const locChanged = !!(prev && (
+        prev.departmentId !== updated.departmentId ||
+        prev.status !== updated.status ||
+        !!prev.deletedAt !== !!updated.deletedAt ||
+        !!prev.archivedAt !== !!updated.archivedAt
+      ));
+      const now = new Date().toISOString();
+      const next = {
+        ...updated,
+        departmentIds: updated.departmentId ? [updated.departmentId] : updated.departmentIds,
+        ...(locChanged ? { locationAt: updated.locationAt || now } : {}),
+      };
       return {
         ...state,
-        orders: state.orders.map((o) => (o.id === updated.id ? updated : o)),
+        orders: state.orders.map((o) => (o.id === next.id ? next : o)),
         notifications: [...state.notifications, ...updateNotifs],
       };
     }
@@ -553,7 +516,7 @@ const reducer = (state: AppState, action: Action): AppState => {
       return {
         ...state,
         orders: state.orders.map((o) =>
-          o.id === action.payload ? { ...o, deletedAt: now, updatedAt: now } : o
+          o.id === action.payload ? { ...o, deletedAt: now, updatedAt: now, locationAt: now } : o
         ),
       };
     }
@@ -569,6 +532,7 @@ const reducer = (state: AppState, action: Action): AppState => {
             deletedAt: now,
             archivedAt: now,
             updatedAt: now,
+            locationAt: now,
             invoice: undefined,
             invoices: [],
             orderForms: [],
@@ -577,10 +541,19 @@ const reducer = (state: AppState, action: Action): AppState => {
       };
     }
     case 'CLEAR_ARCHIVE': {
-      // Permanently remove all archived orders from state to free memory
+      const now = new Date().toISOString();
       return {
         ...state,
-        orders: state.orders.filter((o) => !o.archivedAt && !(o.deletedAt && o.status === 'done')),
+        orders: state.orders.map((o) => {
+          if (!o.archivedAt && !(o.deletedAt && o.status === 'done')) return o;
+          return toOrderTombstone({
+            ...o,
+            purgedAt: o.purgedAt || now,
+            deletedAt: o.deletedAt || now,
+            updatedAt: now,
+            locationAt: o.locationAt || now,
+          });
+        }),
       };
     }
     case 'SET_OPS_ROWS':
@@ -593,16 +566,32 @@ const reducer = (state: AppState, action: Action): AppState => {
       return {
         ...state,
         orders: state.orders.map((o) =>
-          o.id === action.payload ? { ...o, deletedAt: undefined, updatedAt: new Date().toISOString() } : o
+          o.id === action.payload
+            ? { ...o, deletedAt: undefined, purgedAt: undefined, updatedAt: new Date().toISOString(), locationAt: new Date().toISOString() }
+            : o
         ),
       };
-    case 'PERMANENT_DELETE':
-      return { ...state, orders: state.orders.filter((o) => o.id !== action.payload) };
-    case 'PURGE_OLD_TRASH': {
-      const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
+    case 'PERMANENT_DELETE': {
+      const now = new Date().toISOString();
       return {
         ...state,
-        orders: state.orders.filter((o) => !o.deletedAt || o.deletedAt > thirtyDaysAgo),
+        orders: state.orders.map((o) =>
+          o.id === action.payload
+            ? toOrderTombstone({ ...o, purgedAt: now, deletedAt: o.deletedAt || now, updatedAt: now, locationAt: now })
+            : o
+        ),
+      };
+    }
+    case 'PURGE_OLD_TRASH': {
+      const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
+      const now = new Date().toISOString();
+      return {
+        ...state,
+        orders: state.orders.map((o) => {
+          if (!o.deletedAt || o.deletedAt > thirtyDaysAgo) return o;
+          if (o.purgedAt) return toOrderTombstone(o);
+          return toOrderTombstone({ ...o, purgedAt: now, updatedAt: now, locationAt: o.locationAt || now });
+        }),
       };
     }
     case 'MOVE_ORDER': {
@@ -635,16 +624,15 @@ const reducer = (state: AppState, action: Action): AppState => {
         ...state,
         orders: state.orders.map((o) => {
           if (o.id !== action.payload.orderId) return o;
+          const now = new Date().toISOString();
           const newDeptId = action.payload.departmentId ?? o.departmentId;
-          const newDeptIds = action.payload.departmentId
-            ? [action.payload.departmentId]
-            : o.departmentIds;
           return {
             ...o,
             status: action.payload.status as any,
             departmentId: newDeptId,
-            departmentIds: newDeptIds,
-            updatedAt: new Date().toISOString(),
+            departmentIds: newDeptId ? [newDeptId] : o.departmentIds,
+            updatedAt: now,
+            locationAt: now,
             // Highlight as NEW when transferred to another dept or placed in "جديد"
             isNew: (action.payload.departmentId && action.payload.departmentId !== o.departmentId)
               || action.payload.status === 'new'
@@ -656,13 +644,12 @@ const reducer = (state: AppState, action: Action): AppState => {
       };
     }
     case 'ACKNOWLEDGE_NEW_ORDER': {
-      const now = new Date().toISOString();
       return {
         ...state,
         orders: state.orders.map((o) => {
           if (o.id !== action.payload.orderId) return o;
           if (o.isNew === false) return o;
-          return { ...o, isNew: false, updatedAt: now };
+          return { ...o, isNew: false };
         }),
       };
     }
@@ -808,6 +795,7 @@ const AppContext = createContext<AppContextType | null>(null);
 
 // Actions that come FROM the server — should NOT be saved back to the server
 const SERVER_DRIVEN_ACTIONS = new Set(['SYNC_STATE', 'INIT_STATE', 'PURGE_OLD_TRASH']);
+const LOCAL_ONLY_ACTIONS = new Set(['LOGIN', 'LOGOUT']);
 
 export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [state, dispatch] = useReducer(reducer, DEFAULT_STATE);
@@ -974,7 +962,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   useEffect(() => {
     if (!loaded) return;
     const action = lastActionRef.current;
-    if (SERVER_DRIVEN_ACTIONS.has(action)) {
+    if (SERVER_DRIVEN_ACTIONS.has(action) || LOCAL_ONLY_ACTIONS.has(action)) {
       // Never persist a bare default INIT over a richer IndexedDB (timeout race used to wipe users)
       const isBareDefault =
         action === 'INIT_STATE' &&
@@ -1029,11 +1017,23 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         for (let i = 0; i < Math.min(o.id.length, 8); i++) v += o.id.charCodeAt(i);
         return (h + v) % 999983;
       }, 0);
+      const locHash = orders.reduce((h, o) => {
+        const s = `${o.id}:${o.departmentId || ''}:${o.status}:${o.deletedAt ? 1 : 0}:${o.archivedAt ? 1 : 0}:${o.purgedAt ? 1 : 0}:${o.locationAt || ''}`;
+        let v = 0;
+        for (let i = 0; i < s.length; i++) v += s.charCodeAt(i);
+        return (h + v) % 999983;
+      }, 0);
+      const apprHash = orders.reduce((h, o) => {
+        const bits = (o.artworkApprovals || []).map((a) => `${a.id}:${a.status}:${a.repliedAt || ''}`).join('|');
+        let v = 0;
+        for (let i = 0; i < bits.length; i++) v += bits.charCodeAt(i);
+        return (h + v) % 999983;
+      }, 0);
       const opsRows = s.opsRows || [];
       const opsHash = opsRows.map((r) =>
         [r.id, r.customer, r.job, r.qty, r.target, r.finishedQty, r.finish, r.date, r.updatedAt || ''].join(',')
       ).join('|');
-      return `${orders.length}:${maxOrderUpdated}:${sortSum}:${deletedCount}:${archivedCount}:${idHash}|req:${reqs.length}:${maxReqUpdated}:${reqHash}|${depts.length}:${maxDeptUpdated}|mat:${mats.length}:${maxMatUpdated}|cost:${costs.length}:${maxCostUpdated}|ops:${s.opsUpdatedAt || ''}:${opsRows.length}:${opsHash.length}:${opsHash.slice(0, 120)}`;
+      return `${orders.length}:${maxOrderUpdated}:${sortSum}:${deletedCount}:${archivedCount}:${idHash}:${locHash}:${apprHash}|req:${reqs.length}:${maxReqUpdated}:${reqHash}|${depts.length}:${maxDeptUpdated}|mat:${mats.length}:${maxMatUpdated}|cost:${costs.length}:${maxCostUpdated}|ops:${s.opsUpdatedAt || ''}:${opsRows.length}:${opsHash.length}:${opsHash.slice(0, 120)}`;
     };
 
     const poll = async () => {
@@ -1048,10 +1048,16 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       } catch { /* silent */ }
     };
 
-    // Poll quickly now that server state is compact (~0.5MB)
-    poll(); // immediate
-    const interval = setInterval(poll, 4000);
-    return () => clearInterval(interval);
+    poll();
+    const interval = setInterval(poll, 3000);
+    const onVisible = () => {
+      if (document.visibilityState === 'visible') poll();
+    };
+    document.addEventListener('visibilitychange', onVisible);
+    return () => {
+      clearInterval(interval);
+      document.removeEventListener('visibilitychange', onVisible);
+    };
   }, [loaded]);
 
   // تحديث lastActivity عند أي تفاعل من المستخدم

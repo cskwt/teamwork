@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useCallback } from 'react';
+import React, { useState, useMemo, useCallback, useEffect } from 'react';
 import {
   DndContext, DragEndEvent, DragOverlay, DragStartEvent,
   closestCorners, pointerWithin, rectIntersection,
@@ -21,6 +21,7 @@ import OrderDetailModal from '../modals/OrderDetailModal';
 import AddOrderModal from '../modals/AddOrderModal';
 import Header from '../layout/Header';
 import { orderBelongsToDepartment } from '../../utils/helpers';
+import { consumeOpenOrderIntent, peekOpenOrderIntent, OrderModalTab } from '../../utils/openOrderIntent';
 
 interface KanbanBoardProps {
   department: Department;
@@ -97,6 +98,7 @@ const KanbanBoard: React.FC<KanbanBoardProps> = ({ department, onBack }) => {
   const { tr } = useLang();
   const [activeOrder, setActiveOrder] = useState<Order | null>(null);
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
+  const [orderModalTab, setOrderModalTab] = useState<OrderModalTab>('details');
   const [showAddModal, setShowAddModal] = useState(false);
   const [showAddCol, setShowAddCol] = useState(false);
   const [newColTitle, setNewColTitle] = useState('');
@@ -125,8 +127,24 @@ const KanbanBoard: React.FC<KanbanBoardProps> = ({ department, onBack }) => {
     if (o.status === 'new' && o.isNew !== false && currentUser && canAcknowledgeNew(currentUser, o)) {
       dispatch({ type: 'ACKNOWLEDGE_NEW_ORDER', payload: { orderId: o.id, userId: currentUser.id } });
     }
+    setOrderModalTab('details');
     setSelectedOrder(o);
   };
+
+  useEffect(() => {
+    const openFromIntent = () => {
+      const intent = peekOpenOrderIntent();
+      if (!intent?.orderId) return;
+      const match = orders.find((o) => o.id === intent.orderId && !o.deletedAt && !o.purgedAt);
+      if (!match) return;
+      consumeOpenOrderIntent();
+      setOrderModalTab(intent.tab || 'approval');
+      setSelectedOrder(match);
+    };
+    openFromIntent();
+    window.addEventListener('tw-open-order', openFromIntent);
+    return () => window.removeEventListener('tw-open-order', openFromIntent);
+  }, [department.id, orders]);
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: isPhone ? 10 : 5 } }),
@@ -144,6 +162,7 @@ const KanbanBoard: React.FC<KanbanBoardProps> = ({ department, onBack }) => {
       orderBelongsToDepartment(o, department.id) &&
       !o.deletedAt &&
       !o.archivedAt &&
+      !o.purgedAt &&
       !o.isOrderRequest &&
       !o.digitalPrinting &&
       !o.largeFormat,
@@ -496,9 +515,11 @@ const KanbanBoard: React.FC<KanbanBoardProps> = ({ department, onBack }) => {
 
       {selectedOrder && (
         <OrderDetailModal
+          key={`${selectedOrder.id}-${orderModalTab}`}
           order={selectedOrder}
-          onClose={() => setSelectedOrder(null)}
+          onClose={() => { setSelectedOrder(null); setOrderModalTab('details'); }}
           department={department}
+          initialTab={orderModalTab}
         />
       )}
       {showAddModal && (

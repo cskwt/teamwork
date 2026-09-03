@@ -87,7 +87,7 @@ const DepartmentsPage: React.FC = () => {
         <div className="dept-cards-grid">
           {departments.map((dept) => {
             const manager = users.find((u) => u.id === dept.managerId);
-            const deptOrders = orders.filter((o) => orderBelongsToDepartment(o, dept.id) && !o.isOrderRequest && !o.digitalPrinting && !o.largeFormat);
+            const deptOrders = orders.filter((o) => orderBelongsToDepartment(o, dept.id) && !o.deletedAt && !o.archivedAt && !o.purgedAt && !o.isOrderRequest && !o.digitalPrinting && !o.largeFormat);
             const deptMembers = users.filter((u) => userDepartmentIds(u).includes(dept.id));
             return (
               <div key={dept.id} className="dept-card" style={{ '--dept-color': dept.color } as any}>

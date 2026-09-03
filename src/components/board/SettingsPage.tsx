@@ -1,8 +1,9 @@
-import React, { useState, useRef } from 'react';
-import { User, Lock, Download, Upload, Trash2, Camera, Save, Eye, EyeOff, AlertTriangle, RefreshCw, Archive } from 'lucide-react';
+import React, { useState, useRef, useEffect } from 'react';
+import { User, Lock, Download, Upload, Trash2, Camera, Save, Eye, EyeOff, AlertTriangle, RefreshCw, Archive, MessageCircle } from 'lucide-react';
 import { useApp } from '../../contexts/AppContext';
 import Header from '../layout/Header';
 import { clearState, saveState } from '../../utils/storage';
+import { DEFAULT_WHATSAPP_FROM, loadWhatsAppConfig, saveWhatsAppConfig } from '../../utils/whatsapp';
 
 const SettingsPage: React.FC = () => {
   const { state, dispatch } = useApp();
@@ -62,6 +63,21 @@ const SettingsPage: React.FC = () => {
 
   const [syncing, setSyncing] = useState(false);
   const [syncMsg, setSyncMsg] = useState('');
+  const [twSid, setTwSid] = useState('');
+  const [twToken, setTwToken] = useState('');
+  const [twFrom, setTwFrom] = useState(DEFAULT_WHATSAPP_FROM);
+  const [twMasked, setTwMasked] = useState('');
+  const [twConfigured, setTwConfigured] = useState(false);
+  const [twMsg, setTwMsg] = useState('');
+  const [twSaving, setTwSaving] = useState(false);
+
+  useEffect(() => {
+    loadWhatsAppConfig().then((c) => {
+      setTwConfigured(c.configured);
+      setTwFrom(c.from || DEFAULT_WHATSAPP_FROM);
+      setTwMasked(c.accountSidMasked || '');
+    });
+  }, []);
 
   const handleSync = async () => {
     setSyncing(true);
@@ -181,6 +197,58 @@ const SettingsPage: React.FC = () => {
               <button className="btn-primary" onClick={handleChangePassword}><Lock size={15} /> تغيير كلمة المرور</button>
             </div>
           </div>
+
+          {/* Data - Admin only */}
+          {currentUser?.role === 'admin' && <div className="settings-card">
+            <div className="settings-card-header">
+              <MessageCircle size={18} />
+              <h3>واتساب اعتماد التصميم (Twilio)</h3>
+            </div>
+            <div className="settings-form">
+              <p className="settings-data-desc" style={{ marginBottom: 12 }}>
+                هذه الصفحة هي مكان ربط واتساب. انسخ Account SID و Auth Token من لوحة Twilio
+                (نفس القيم المستخدمة مع الرقم {DEFAULT_WHATSAPP_FROM}) ثم الصقهما هنا واحفظ.
+                {twConfigured && twMasked ? ` — مربوط حالياً: ${twMasked}` : ' — غير مربوط بعد'}
+              </p>
+              <p className="settings-data-desc" style={{ marginBottom: 12 }}>
+                بعد رفع الملفات إلى Hostinger، ضع رابط الـ Webhook في Twilio:
+                {' '}
+                <span dir="ltr">https://www.csapp.io/teamwork-api/whatsapp-webhook.php</span>
+              </p>
+              <div className="form-group">
+                <label className="form-label">Account SID</label>
+                <input className="form-input" value={twSid} onChange={(e) => setTwSid(e.target.value)} placeholder={twMasked || 'ACxxxxxxxx'} dir="ltr" />
+              </div>
+              <div className="form-group">
+                <label className="form-label">Auth Token</label>
+                <input className="form-input" type="password" value={twToken} onChange={(e) => setTwToken(e.target.value)} placeholder="••••••••" dir="ltr" />
+              </div>
+              <div className="form-group">
+                <label className="form-label">رقم واتساب المرسل</label>
+                <input className="form-input" value={twFrom} onChange={(e) => setTwFrom(e.target.value)} dir="ltr" />
+              </div>
+              {twMsg && <p className={`settings-msg ${twMsg.includes('✓') ? 'msg-success' : 'msg-error'}`}>{twMsg}</p>}
+              <button
+                className="btn-primary"
+                disabled={twSaving}
+                onClick={async () => {
+                  setTwSaving(true);
+                  const res = await saveWhatsAppConfig({ accountSid: twSid, authToken: twToken, from: twFrom });
+                  setTwSaving(false);
+                  if (res.ok) {
+                    setTwConfigured(true);
+                    setTwMsg('تم حفظ إعدادات واتساب ✓');
+                    setTwToken('');
+                  } else {
+                    setTwMsg(res.error || 'تعذر الحفظ — ارفع whatsapp-api.php إلى Hostinger');
+                  }
+                  setTimeout(() => setTwMsg(''), 5000);
+                }}
+              >
+                <Save size={15} /> {twSaving ? 'جاري الحفظ...' : 'حفظ إعدادات واتساب'}
+              </button>
+            </div>
+          </div>}
 
           {/* Data - Admin only */}
           {currentUser?.role === 'admin' && <div className="settings-card">

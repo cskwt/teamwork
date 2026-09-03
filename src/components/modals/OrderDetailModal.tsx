@@ -2,13 +2,14 @@ import React, { useState, useEffect } from 'react';
 import {
   X, MessageSquare, Clock, Send, ArrowRightLeft,
   Trash2, Calendar, FileText, Image, Download, User, Users,
-  Building2, Tag, Hash, Save, Pencil, Archive, CheckCheck, Upload, Gauge
+  Building2, Tag, Hash, Save, Pencil, Archive, CheckCheck, Upload, Gauge, Stamp
 } from 'lucide-react';
 import { Order, Department, OrderPriority, OrderStatus } from '../../types';
 import { useApp } from '../../contexts/AppContext';
 import { useLang } from '../../contexts/LanguageContext';
 import { getPriorityConfig, getColumnStatus, formatDate, generateId } from '../../utils/helpers';
 import { getFileSource, uploadRawFileWithLocalFallback, downloadFileToDevice } from '../../utils/files';
+import ArtworkApprovalTab from './ArtworkApprovalTab';
 
 const COL_NAME_MAP: Record<string, string> = {
   'الطلبيات الجديدة': 'New Orders',
@@ -36,9 +37,10 @@ interface OrderDetailModalProps {
   order: Order;
   onClose: () => void;
   department: Department;
+  initialTab?: 'details' | 'approval' | 'files' | 'chat' | 'history';
 }
 
-const OrderDetailModal: React.FC<OrderDetailModalProps> = ({ order, onClose, department }) => {
+const OrderDetailModal: React.FC<OrderDetailModalProps> = ({ order, onClose, department, initialTab = 'details' }) => {
   const { state, dispatch, addHistoryEntry } = useApp();
   const { lang, tr } = useLang();
   const translateCol = (name: string) => lang === 'en' ? (COL_NAME_MAP[name] || name) : name;
@@ -47,7 +49,7 @@ const OrderDetailModal: React.FC<OrderDetailModalProps> = ({ order, onClose, dep
   const currentUser =
     (sessionUser && users.find((u) => u.id === sessionUser.id && !u.deletedAt)) || sessionUser;
   const priorityConfig = getPriorityConfig(lang);
-  const [activeTab, setActiveTab] = useState<'details' | 'files' | 'chat' | 'history'>('details');
+  const [activeTab, setActiveTab] = useState<'details' | 'approval' | 'files' | 'chat' | 'history'>(initialTab);
   const [comment, setComment] = useState('');
   const [transferDepts, setTransferDepts] = useState<string[]>([]);
   const [showTransferPopover, setShowTransferPopover] = useState(false);
@@ -62,6 +64,7 @@ const OrderDetailModal: React.FC<OrderDetailModalProps> = ({ order, onClose, dep
   } | null>(null);
   const [archiveClicked, setArchiveClicked] = useState(false);
   const [uploadingFiles, setUploadingFiles] = useState(false);
+  const [phoneDraft, setPhoneDraft] = useState(order.clientPhone || '');
 
   const rawOrder = state.orders.find((o) => o.id === order.id) || order;
   const currentOrder = {
@@ -74,6 +77,10 @@ const OrderDetailModal: React.FC<OrderDetailModalProps> = ({ order, onClose, dep
     assignedUsers: rawOrder.assignedUsers || [],
     tags: rawOrder.tags || [],
   };
+
+  useEffect(() => {
+    setPhoneDraft(currentOrder.clientPhone || '');
+  }, [currentOrder.clientPhone, currentOrder.id]);
 
   const [editData, setEditData] = useState({
     orderNumber: currentOrder.orderNumber,
@@ -469,6 +476,7 @@ const OrderDetailModal: React.FC<OrderDetailModalProps> = ({ order, onClose, dep
             completedAt: undefined,
             isNew: true,
             updatedAt: now,
+            locationAt: now,
           },
           silent: true,
         } as any);
@@ -490,6 +498,7 @@ const OrderDetailModal: React.FC<OrderDetailModalProps> = ({ order, onClose, dep
           status: 'new' as any,
           completedAt: isDelivery ? currentOrder.completedAt : undefined,
           updatedAt: now,
+          locationAt: now,
           comments: [],
           history: [],
           isNew: true,
@@ -564,8 +573,10 @@ const OrderDetailModal: React.FC<OrderDetailModalProps> = ({ order, onClose, dep
   const canManageOrder = !!currentUser;
   const canTransfer = canManageOrder;
 
+  const pendingApproval = (currentOrder.artworkApprovals || []).some((a) => a.status === 'sent' || a.status === 'rejected');
   const tabs = [
     { id: 'details',  label: tr.tabs.details },
+    { id: 'approval', label: tr.tabs.approval, pending: pendingApproval },
     { id: 'files',    label: `${tr.tabs.files} (${(currentOrder.orderForms?.length || 0) + (currentOrder.invoices?.length || 0) + (currentOrder.invoice ? 1 : 0)})` },
     { id: 'chat',     label: `${tr.tabs.chat} (${currentOrder.comments.length})` },
     { id: 'history',  label: tr.tabs.history },
@@ -881,10 +892,12 @@ const OrderDetailModal: React.FC<OrderDetailModalProps> = ({ order, onClose, dep
           {tabs.map((t) => (
             <button
               key={t.id}
-              className={`modal-tab ${activeTab === t.id ? 'tab-active' : ''}`}
+              className={`modal-tab ${activeTab === t.id ? 'tab-active' : ''} ${t.id === 'approval' ? 'modal-tab--approval' : ''}`}
               onClick={() => setActiveTab(t.id)}
             >
+              {t.id === 'approval' && <Stamp size={13} />}
               {t.label}
+              {'pending' in t && t.pending ? <span className="modal-tab-dot" /> : null}
             </button>
           ))}
         </div>
@@ -906,6 +919,26 @@ const OrderDetailModal: React.FC<OrderDetailModalProps> = ({ order, onClose, dep
                 {editing ? (
                   <input className="od-edit-input" value={editData.orderNumber} onChange={(e) => setEditData(p => ({ ...p, orderNumber: e.target.value }))} />
                 ) : renderInlineField('orderNumber', { display: currentOrder.orderNumber || '—' })}
+              </div>
+              <div className="od-detail-item">
+                <span className="od-label">{tr.clientPhone}</span>
+                <input
+                  className="od-edit-input"
+                  value={phoneDraft}
+                  onChange={(e) => setPhoneDraft(e.target.value)}
+                  onBlur={() => {
+                    const clientPhone = phoneDraft.trim();
+                    if (clientPhone === (currentOrder.clientPhone || '')) return;
+                    dispatch({
+                      type: 'UPDATE_ORDER',
+                      payload: { ...currentOrder, clientPhone, updatedAt: new Date().toISOString() },
+                      silent: true,
+                    } as any);
+                  }}
+                  placeholder="94493883 أو +965..."
+                  inputMode="tel"
+                  dir="ltr"
+                />
               </div>
               <div className="od-detail-item">
                 <span className="od-label"><FileText size={13} /> {tr.description}</span>
@@ -1066,6 +1099,10 @@ const OrderDetailModal: React.FC<OrderDetailModalProps> = ({ order, onClose, dep
               </div>
             </div>
             </>
+          )}
+
+          {activeTab === 'approval' && (
+            <ArtworkApprovalTab order={currentOrder} />
           )}
 
           {/* ── FILES TAB ───────────────────────────── */}

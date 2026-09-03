@@ -10,7 +10,7 @@ import NotifActorAvatar, { resolveNotifActor } from './NotifActorAvatar';
 
 interface TopBarProps {
   onNavigate: (page: string) => void;
-  onOpenOrder?: (departmentId?: string) => void;
+  onOpenOrder?: (departmentId?: string, orderId?: string) => void;
   onToggleSidebar?: () => void;
   sidebarOpen?: boolean;
 }
@@ -36,6 +36,7 @@ const TopBar: React.FC<TopBarProps> = ({ onNavigate, onOpenOrder, onToggleSideba
     ? orders.filter((o) =>
         !o.deletedAt &&
         !o.archivedAt &&
+        !o.purgedAt &&
         !o.isOrderRequest &&
         !o.digitalPrinting &&
         !o.largeFormat &&
@@ -173,7 +174,7 @@ const TopBar: React.FC<TopBarProps> = ({ onNavigate, onOpenOrder, onToggleSideba
                           n.departmentId ||
                           orders.find((o) => o.id === n.orderId)?.departmentId ||
                           (orderRequests || []).find((o) => o.id === n.orderId)?.departmentId;
-                        onOpenOrder?.(deptId);
+                        onOpenOrder?.(deptId, n.orderId);
                         setShowNotif(false);
                         if (currentUser) dispatch({ type: 'MARK_NOTIFICATIONS_READ', payload: currentUser.id });
                       }}
@@ -190,6 +191,7 @@ const TopBar: React.FC<TopBarProps> = ({ onNavigate, onOpenOrder, onToggleSideba
                       <div className="notif-item-body">
                         {actor.name && <p className="notif-item-sub">{actor.name}</p>}
                         <p className="notif-item-title">{n.message}</p>
+                        {n.commentText && <p className="notif-item-comment">«{n.commentText}»</p>}
                         <p className="notif-item-date">{formatDate(n.createdAt)}</p>
                       </div>
                     </div>

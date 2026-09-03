@@ -1,0 +1,16 @@
+WhatsApp artwork approval — upload to Hostinger
+==============================================
+
+Upload these three files to public_html/teamwork-api/ (replace if present):
+
+1) hostinger-api/whatsapp-lib.php      → whatsapp-lib.php
+2) hostinger-api/whatsapp-api.php      → whatsapp-api.php
+3) hostinger-api/whatsapp-webhook.php  → whatsapp-webhook.php
+
+Then in Teamwork → Settings, paste the same Twilio Account SID + Auth Token
+used in the accounting app. Sender number defaults to:
+  whatsapp:+18387333651
+
+In Twilio Console, set the WhatsApp sender webhook (when a message comes in) to:
+  https://www.csapp.io/teamwork-api/whatsapp-webhook.php
+Method: HTTP POST
