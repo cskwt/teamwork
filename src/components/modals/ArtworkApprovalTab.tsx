@@ -25,7 +25,7 @@ const statusLabel: Record<ArtworkApproval['status'], { ar: string; color: string
 const ArtworkApprovalTab: React.FC<Props> = ({ order }) => {
   const { state, dispatch, addHistoryEntry } = useApp();
   const { currentUser } = state;
-  const approvals = order.artworkApprovals || [];
+  const approvals = useMemo(() => order.artworkApprovals || [], [order.artworkApprovals]);
   const imageForms = (order.orderForms || []).filter(
     (f) => (f.url || f.dataUrl) && (f.type?.startsWith('image/') || /\.(png|jpe?g|webp|gif)$/i.test(f.name || '')),
   );
@@ -46,6 +46,8 @@ const ArtworkApprovalTab: React.FC<Props> = ({ order }) => {
 
   useEffect(() => {
     setMessage(buildApprovalMessage(order, code));
+    // Rebuild when the order identity or tracking code changes, not on every poll.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [order.id, order.clientName, order.orderNumber, code]);
 
   useEffect(() => {
