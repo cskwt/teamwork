@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { Bell, X } from 'lucide-react';
 import { useApp } from '../../contexts/AppContext';
 import { AppNotification } from '../../types';
+import { formatDate } from '../../utils/helpers';
 import NotifActorAvatar, { resolveNotifActor } from './NotifActorAvatar';
 
 interface NotificationPopupProps {
@@ -84,6 +85,9 @@ const NotificationPopup: React.FC<NotificationPopupProps> = ({ onOpenOrder }) =>
                   <p className="notif-popup-actor-name">{singleActor.name}</p>
                 )}
                 <p className="notif-popup-msg">{single.message}</p>
+                <time className="notif-popup-date" dateTime={single.createdAt} dir="ltr">
+                  {formatDate(single.createdAt)}
+                </time>
               </div>
             </div>
             {single.commentText && (
@@ -126,9 +130,14 @@ const NotificationPopup: React.FC<NotificationPopupProps> = ({ onOpenOrder }) =>
                         {n.clientName && <span className="notif-popup-table-client">{n.clientName}</span>}
                       </td>
                       <td className="notif-popup-table-msg">
-                        {actor.name && (
-                          <span className="notif-popup-table-client" style={{ marginBottom: 2 }}>{actor.name}</span>
-                        )}
+                        <div className="notif-popup-meta">
+                          {actor.name && (
+                            <span className="notif-popup-table-client">{actor.name}</span>
+                          )}
+                          <time className="notif-popup-date" dateTime={n.createdAt} dir="ltr">
+                            {formatDate(n.createdAt)}
+                          </time>
+                        </div>
                         {n.message}
                         {n.commentText && (
                           <span className="notif-popup-table-comment">"{n.commentText}"</span>

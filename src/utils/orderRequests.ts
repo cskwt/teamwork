@@ -10,6 +10,21 @@ export const isOrderRequestRecord = (o: Order | null | undefined): boolean => {
   );
 };
 
+/** Requests have no restore action: a deletion must survive stale edits and sync. */
+export const mergeOrderRequests = (...lists: Order[][]): Order[] => {
+  const map = new Map<string, Order>();
+  lists.forEach((list) => list.forEach((order) => {
+    if (!order?.id) return;
+    const previous = map.get(order.id);
+    const newer = !previous ||
+      (order.updatedAt || order.createdAt || '') >= (previous.updatedAt || previous.createdAt || '')
+      ? order : previous;
+    const deletedAt = [previous?.deletedAt, order.deletedAt].filter(Boolean).sort().pop();
+    map.set(order.id, { ...newer, isOrderRequest: true, ...(deletedAt ? { deletedAt } : {}) });
+  }));
+  return Array.from(map.values());
+};
+
 /**
  * Split legacy mixed `orders[]` into department orders + order requests.
  * Order Request records are tagged `isOrderRequest: true` and removed from Kanban.
@@ -28,18 +43,5 @@ export const splitOrdersAndRequests = (
     }
   });
 
-  const map = new Map<string, Order>();
-  [...(existingRequests || []), ...fromOrders].forEach((o) => {
-    if (!o?.id) return;
-    const prev = map.get(o.id);
-    if (!prev) {
-      map.set(o.id, { ...o, isOrderRequest: true });
-      return;
-    }
-    const newer =
-      (o.updatedAt || o.createdAt || '') >= (prev.updatedAt || prev.createdAt || '') ? o : prev;
-    map.set(o.id, { ...newer, isOrderRequest: true });
-  });
-
-  return { orders: dept, orderRequests: Array.from(map.values()) };
+  return { orders: dept, orderRequests: mergeOrderRequests(existingRequests || [], fromOrders) };
 };

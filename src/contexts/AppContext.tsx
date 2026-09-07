@@ -1,11 +1,12 @@
+import { mergeNotifications } from '../utils/notifications';
 import React, { createContext, useContext, useReducer, useEffect, useState, useRef } from 'react';
 import localforage from 'localforage';
 import { AppState, User, Department, Order, OrderComment, OrderHistoryEntry, KanbanColumn, AppNotification, OpsRow, Material, OrderCostRow } from '../types';
-import { loadLocalState, loadLocalUsers, saveState, saveSession, loadSession, touchSession, clearSession, serverLoad, repairServerIfCorrupt, mergeOpsRows, resolveOpsRowsForSave, mergeUsers, mergeOrders, toOrderTombstone } from '../utils/storage';
+import { loadLocalState, loadLocalUsers, saveState, saveSession, loadSession, touchSession, clearSession, serverLoad, repairServerIfCorrupt, mergeOpsRows, resolveOpsRowsForSave, mergeUsers, mergeOrders, toOrderTombstone, markOrderCreated } from '../utils/storage';
 import { ensureAttachmentUrl } from '../utils/files';
 import { generateId, userBelongsToOrderDepartment, userDepartmentIds } from '../utils/helpers';
 import { INITIAL_USERS, INITIAL_DEPARTMENTS, INITIAL_ORDERS, INITIAL_MATERIALS } from '../data/initialData';
-import { splitOrdersAndRequests } from '../utils/orderRequests';
+import { mergeOrderRequests, splitOrdersAndRequests } from '../utils/orderRequests';
 
 const DEFAULT_STATE: AppState = {
   users: INITIAL_USERS,
@@ -80,26 +81,8 @@ const resolveActor = (state: AppState, actorId?: string | null): User | null => 
   return null;
 };
 
-/** Prefer unread when the same notification id appears on both sides. */
-const mergeNotificationsById = (
-  a: AppNotification[] = [],
-  b: AppNotification[] = [],
-): AppNotification[] => {
-  const map = new Map<string, AppNotification>();
-  [...a, ...b].forEach((n) => {
-    if (!n?.id) return;
-    const prev = map.get(n.id);
-    if (!prev) {
-      map.set(n.id, n);
-      return;
-    }
-    // Keep unread if either side has unread; otherwise keep newer
-    if (!prev.read && n.read) map.set(n.id, prev);
-    else if (prev.read && !n.read) map.set(n.id, n);
-    else if ((n.createdAt || '') >= (prev.createdAt || '')) map.set(n.id, n);
-  });
-  return Array.from(map.values());
-};
+
+
 
 const pruneOrphanNotifications = (
   notifications: AppNotification[],
@@ -236,27 +219,10 @@ const reducer = (state: AppState, action: Action): AppState => {
       });
 
       // Merge Order Request list separately (never mixed into Kanban orders)
-      const reqMap = new Map<string, Order>();
-      const mergeReq = (o: Order) => {
-        if (!o?.id) return;
-        const tagged = { ...o, isOrderRequest: true as const };
-        const prev = reqMap.get(o.id);
-        if (!prev) {
-          reqMap.set(o.id, tagged);
-          return;
-        }
-        const newer =
-          (tagged.updatedAt || tagged.createdAt || '') >= (prev.updatedAt || prev.createdAt || '')
-            ? tagged
-            : prev;
-        // Prefer non-deleted when timestamps tie awkwardly
-        if (prev.deletedAt && !tagged.deletedAt) reqMap.set(o.id, tagged);
-        else if (!prev.deletedAt && tagged.deletedAt) reqMap.set(o.id, prev);
-        else reqMap.set(o.id, newer);
-      };
-      serverSplit.orderRequests.forEach(mergeReq);
-      localSplit.orderRequests.forEach(mergeReq);
-      const mergedOrderRequests = Array.from(reqMap.values());
+      const mergedOrderRequests = mergeOrderRequests(
+        serverSplit.orderRequests,
+        localSplit.orderRequests,
+      );
 
       // Merge departments: server is primary; local wins only if explicitly newer
       const serverDepts: Department[] = action.payload.departments || [];
@@ -322,7 +288,7 @@ const reducer = (state: AppState, action: Action): AppState => {
 
       const mergedUsers = mergeUsers(action.payload.users || [], state.users || []);
       const refreshedUser = state.currentUser
-        ? (mergedUsers.find((u) => u.id === state.currentUser!.id && !u.deletedAt) || state.currentUser)
+        ? (mergedUsers.find((u) => u.id === state.currentUser!.id && !u.deletedAt) || null)
         : null;
 
       return {
@@ -357,7 +323,7 @@ const reducer = (state: AppState, action: Action): AppState => {
           return { opsRows: ops.opsRows, opsUpdatedAt: ops.opsUpdatedAt };
         })(),
         notifications: pruneOrphanNotifications(
-          mergeNotificationsById(state.notifications, action.payload.notifications || []),
+          mergeNotifications(state.notifications, action.payload.notifications || []),
           mergedOrders,
           mergedOrderRequests,
         ),
@@ -462,7 +428,7 @@ const reducer = (state: AppState, action: Action): AppState => {
           departmentIds: updated.departmentId
             ? [updated.departmentId]
             : updated.departmentIds,
-          ...(locChanged ? { locationAt: updated.locationAt || now } : {}),
+          ...(locChanged ? { locationAt: now } : {}),
         };
         return { ...state, orders: state.orders.map((o) => (o.id === next.id ? next : o)) };
       }
@@ -492,7 +458,7 @@ const reducer = (state: AppState, action: Action): AppState => {
       const next = {
         ...updated,
         departmentIds: updated.departmentId ? [updated.departmentId] : updated.departmentIds,
-        ...(locChanged ? { locationAt: updated.locationAt || now } : {}),
+        ...(locChanged ? { locationAt: now } : {}),
       };
       return {
         ...state,
@@ -719,12 +685,14 @@ const reducer = (state: AppState, action: Action): AppState => {
       };
     case 'ADD_USER':
       return { ...state, users: [...state.users, action.payload] };
-    case 'UPDATE_USER':
+    case 'UPDATE_USER': {
+      const updated = { ...action.payload, updatedAt: new Date().toISOString() };
       return {
         ...state,
-        users: state.users.map((u) => (u.id === action.payload.id ? action.payload : u)),
-        currentUser: state.currentUser?.id === action.payload.id ? action.payload : state.currentUser,
+        users: state.users.map((u) => (u.id === updated.id ? updated : u)),
+        currentUser: state.currentUser?.id === updated.id ? updated : state.currentUser,
       };
+    }
     case 'DELETE_USER':
       return {
         ...state,
@@ -801,13 +769,16 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [state, dispatch] = useReducer(reducer, DEFAULT_STATE);
   const [loaded, setLoaded] = useState(false);
   const stateRef = useRef(state);
-  const lastActionRef = useRef<string>('');
+  const lastActionRef = useRef<string>('INIT_STATE');
+  const dirtyRef = useRef(false);
 
   useEffect(() => { stateRef.current = state; }, [state]);
 
   // Wrap dispatch to track the last action type
   const trackedDispatch: typeof dispatch = (action: any) => {
     lastActionRef.current = action.type || '';
+    if (action.type === 'ADD_ORDER' && !action.payload.isOrderRequest && !action.payload.digitalPrinting && !action.payload.largeFormat) markOrderCreated(action.payload.id);
+    if (!SERVER_DRIVEN_ACTIONS.has(action.type) && !LOCAL_ONLY_ACTIONS.has(action.type)) dirtyRef.current = true;
     dispatch(action);
   };
 
@@ -962,7 +933,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   useEffect(() => {
     if (!loaded) return;
     const action = lastActionRef.current;
-    if (SERVER_DRIVEN_ACTIONS.has(action) || LOCAL_ONLY_ACTIONS.has(action)) {
+    if (!dirtyRef.current) {
       // Never persist a bare default INIT over a richer IndexedDB (timeout race used to wipe users)
       const isBareDefault =
         action === 'INIT_STATE' &&
@@ -973,6 +944,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         localforage.setItem('teamwork_app_data_v5', { ...state, currentUser: null }).catch(() => {});
       }
     } else {
+      dirtyRef.current = false;
       saveState(state);
     }
   }, [state, loaded]);
@@ -981,71 +953,25 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   useEffect(() => {
     if (!loaded) return;
 
-    const getSignature = (s: AppState) => {
-      const orders = s.orders || [];
-      const reqs = s.orderRequests || [];
-      const depts  = s.departments || [];
-      const mats   = s.materials || [];
-      const costs  = s.orderCostRows || [];
-      const maxOrderUpdated = orders.length
-        ? orders.reduce((m, o) => (o.updatedAt > m ? o.updatedAt : m), '')
-        : '';
-      const maxReqUpdated = reqs.length
-        ? reqs.reduce((m, o) => ((o.updatedAt || '') > m ? (o.updatedAt || '') : m), '')
-        : '';
-      const maxDeptUpdated = depts.length
-        ? depts.reduce((m, d) => ((d.updatedAt || '') > m ? (d.updatedAt || '') : m), '')
-        : '';
-      const maxMatUpdated = mats.length
-        ? mats.reduce((m, x) => ((x.updatedAt || x.createdAt || '') > m ? (x.updatedAt || x.createdAt || '') : m), '')
-        : '';
-      const maxCostUpdated = s.orderCostsUpdatedAt || (costs.length
-        ? costs.reduce((m, x) => ((x.updatedAt || '') > m ? (x.updatedAt || '') : m), '')
-        : '');
-      const sortSum      = orders.reduce((s, o) => s + (o.sortOrder ?? 0), 0);
-      const deletedCount = orders.filter((o) => !!o.deletedAt).length;
-      const archivedCount = orders.filter((o) => !!o.archivedAt).length;
-      // Lightweight ID hash — prevents false "equal" signatures when order sets differ
-      // (e.g. one device has 3 orders A,B,C while server has 3 orders A,C,D)
-      const idHash = orders.reduce((h, o) => {
-        let v = 0;
-        for (let i = 0; i < Math.min(o.id.length, 8); i++) v += o.id.charCodeAt(i);
-        return (h + v) % 999983;
-      }, 0);
-      const reqHash = reqs.reduce((h, o) => {
-        let v = 0;
-        for (let i = 0; i < Math.min(o.id.length, 8); i++) v += o.id.charCodeAt(i);
-        return (h + v) % 999983;
-      }, 0);
-      const locHash = orders.reduce((h, o) => {
-        const s = `${o.id}:${o.departmentId || ''}:${o.status}:${o.deletedAt ? 1 : 0}:${o.archivedAt ? 1 : 0}:${o.purgedAt ? 1 : 0}:${o.locationAt || ''}`;
-        let v = 0;
-        for (let i = 0; i < s.length; i++) v += s.charCodeAt(i);
-        return (h + v) % 999983;
-      }, 0);
-      const apprHash = orders.reduce((h, o) => {
-        const bits = (o.artworkApprovals || []).map((a) => `${a.id}:${a.status}:${a.repliedAt || ''}`).join('|');
-        let v = 0;
-        for (let i = 0; i < bits.length; i++) v += bits.charCodeAt(i);
-        return (h + v) % 999983;
-      }, 0);
-      const opsRows = s.opsRows || [];
-      const opsHash = opsRows.map((r) =>
-        [r.id, r.customer, r.job, r.qty, r.target, r.finishedQty, r.finish, r.date, r.updatedAt || ''].join(',')
-      ).join('|');
-      return `${orders.length}:${maxOrderUpdated}:${sortSum}:${deletedCount}:${archivedCount}:${idHash}:${locHash}:${apprHash}|req:${reqs.length}:${maxReqUpdated}:${reqHash}|${depts.length}:${maxDeptUpdated}|mat:${mats.length}:${maxMatUpdated}|cost:${costs.length}:${maxCostUpdated}|ops:${s.opsUpdatedAt || ''}:${opsRows.length}:${opsHash.length}:${opsHash.slice(0, 120)}`;
-    };
-
+    let lastServerSignature = '';
+    let inFlight = false;
+    let cancelled = false;
     const poll = async () => {
+      if (inFlight || cancelled) return;
+      inFlight = true;
       try {
-        const serverData = await serverLoad();
-        if (!serverData) return;
-        const serverSig = getSignature(serverData);
-        const localSig  = getSignature(stateRef.current);
-        if (serverSig !== localSig) {
+        const serverData = await serverLoad(true);
+        if (!serverData || cancelled) return;
+        // Compare the complete remote snapshot: counts/max timestamps miss
+        // user edits, read receipts, and changes to older records.
+        const signature = serverData._syncRevision || JSON.stringify(serverData);
+        if (signature !== lastServerSignature) {
+          lastServerSignature = signature;
           trackedDispatch({ type: 'SYNC_STATE', payload: serverData });
         }
-      } catch { /* silent */ }
+      } finally {
+        inFlight = false;
+      }
     };
 
     poll();
@@ -1055,6 +981,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     };
     document.addEventListener('visibilitychange', onVisible);
     return () => {
+      cancelled = true;
       clearInterval(interval);
       document.removeEventListener('visibilitychange', onVisible);
     };

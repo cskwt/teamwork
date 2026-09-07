@@ -10,6 +10,7 @@ export interface User {
   departmentIds?: string[]; // new multi-department support
   avatar?: string;
   createdAt: string;
+  updatedAt?: string;
   /** Soft-delete — keeps tombstone so sync won't resurrect the user */
   deletedAt?: string;
 }
@@ -281,6 +282,8 @@ export interface OrderCostRow {
 }
 
 export interface AppState {
+  /** Server revision used for atomic conditional writes. */
+  _syncRevision?: string;
   users: User[];
   departments: Department[];
   /** Department Kanban / workflow orders only */

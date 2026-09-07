@@ -1,26 +1,10 @@
+import { mergeNotifications } from './notifications';
 import localforage from 'localforage';
 import { AppState, AppNotification, OpsRow, User, Order, ArtworkApproval } from '../types';
 import { INITIAL_USERS, INITIAL_DEPARTMENTS, INITIAL_ORDERS, INITIAL_MATERIALS } from '../data/initialData';
 import { splitOrdersAndRequests } from './orderRequests';
 
-const mergeNotificationsForSave = (
-  a: AppNotification[] = [],
-  b: AppNotification[] = [],
-): AppNotification[] => {
-  const map = new Map<string, AppNotification>();
-  [...a, ...b].forEach((n) => {
-    if (!n?.id) return;
-    const prev = map.get(n.id);
-    if (!prev) {
-      map.set(n.id, n);
-      return;
-    }
-    if (!prev.read && n.read) map.set(n.id, prev);
-    else if (prev.read && !n.read) map.set(n.id, n);
-    else if ((n.createdAt || '') >= (prev.createdAt || '')) map.set(n.id, n);
-  });
-  return Array.from(map.values());
-};
+
 
 const pruneNotificationsAgainstOrders = (
   notifications: AppNotification[],
@@ -303,20 +287,28 @@ export const isCorruptAppStatePayload = (data: any): boolean => {
   return Array.isArray(data.departments) === false && data.orders === undefined;
 };
 
-export const serverLoad = async (): Promise<AppState | null> => {
+let cachedServerState: AppState | null = null;
+export const serverLoad = async (conditional = false): Promise<AppState | null> => {
   try {
     const controller = new AbortController();
     // After compacting state (~0.5MB) this should be fast; keep 30s safety margin
     const timer = setTimeout(() => controller.abort(), 30000);
     try {
       const res = await fetch(API_URL, {
-        headers: { 'X-API-Key': API_KEY },
+        headers: {
+          'X-API-Key': API_KEY,
+          ...(conditional && cachedServerState?._syncRevision ? { 'If-None-Match': cachedServerState._syncRevision } : {}),
+        },
         signal: controller.signal,
         cache: 'no-store',
       });
+      if (res.status === 304) return cachedServerState;
       if (!res.ok) return null;
       const data = await res.json();
-      if (isValidAppState(data)) return data as AppState;
+      if (isValidAppState(data)) {
+        cachedServerState = data as AppState;
+        return cachedServerState;
+      }
       return null;
     } finally {
       clearTimeout(timer);
@@ -484,7 +476,7 @@ const mergeOrdersForSave = (
       }
       // Local-only live order: keep only if it looks like an in-flight create.
       // Otherwise it was removed on the server (delete/transfer copies) and must stay gone.
-      if (isRecentLocalCreate(loc, 5 * 60 * 1000)) {
+      if (outstandingOrderIds.has(loc.id) || isRecentLocalCreate(loc, 5 * 60 * 1000)) {
         result.push(loc);
         seen.add(loc.id);
       }
@@ -503,6 +495,33 @@ const mergeOrdersForSave = (
 // Serialize server writes — concurrent saveState calls were racing and wiping orders
 let saveQueue: Promise<void> = Promise.resolve();
 let pendingSave: AppState | null = null;
+let retryTimer: ReturnType<typeof setTimeout> | undefined;
+let localSaveQueue: Promise<unknown> = Promise.resolve();
+const OUTBOX_KEY = 'teamwork_pending_save_v1';
+const outstandingOrderIds = new Set<string>();
+export const markOrderCreated = (id: string) => { outstandingOrderIds.add(id); };
+interface PendingState { state: AppState; createdOrderIds: string[]; }
+
+export type SyncStatus = 'idle' | 'saving' | 'pending' | 'saved';
+let syncStatus: SyncStatus = 'idle';
+const syncListeners = new Set<() => void>();
+export const getSyncStatus = () => syncStatus;
+export const subscribeSyncStatus = (listener: () => void) => {
+  syncListeners.add(listener);
+  return () => { syncListeners.delete(listener); };
+};
+const setSyncStatus = (status: SyncStatus) => {
+  syncStatus = status;
+  syncListeners.forEach((listener) => listener());
+};
+
+const retryPendingSave = () => {
+  if (retryTimer || !pendingSave) return;
+  retryTimer = setTimeout(() => {
+    retryTimer = undefined;
+    if (pendingSave) void saveState(pendingSave);
+  }, 10000);
+};
 
 // ─── Local fallback (IndexedDB) ───────────────────────────────────────────────
 const DB_KEY = 'teamwork_app_data_v5';
@@ -801,7 +820,7 @@ export const mergeOrders = (server: AppState['orders'], local: AppState['orders'
   (local || []).forEach((loc) => {
     if (srvMap.has(loc.id) || loc.deletedAt || loc.archivedAt || loc.purgedAt) return;
     const stamp = loc.createdAt || loc.updatedAt || '';
-    if (stamp >= recentThreshold) result.push(loc);
+    if (outstandingOrderIds.has(loc.id) || stamp >= recentThreshold) result.push(loc);
   });
   return result;
 };
@@ -813,7 +832,12 @@ export const mergeOrders = (server: AppState['orders'], local: AppState['orders'
  */
 export const loadLocalState = async (): Promise<AppState> => {
   try {
-    const local = (await localforage.getItem<AppState>(DB_KEY).catch(() => null)) as AppState | null;
+    const outbox = await localforage.getItem<PendingState>(OUTBOX_KEY).catch(() => null);
+    if (outbox?.state) {
+      (outbox.createdOrderIds || []).forEach(markOrderCreated);
+      void saveState(outbox.state);
+    }
+    const local = outbox?.state || await localforage.getItem<AppState>(DB_KEY).catch(() => null);
     if (local && local.departments?.length) {
       const split = splitOrdersAndRequests(local.orders || [], local.orderRequests || []);
       return {
@@ -837,7 +861,12 @@ export const loadLocalState = async (): Promise<AppState> => {
 /** Direct IndexedDB read for login (no defaults, no timeout). */
 export const loadLocalUsers = async (): Promise<User[]> => {
   try {
-    const local = (await localforage.getItem<AppState>(DB_KEY).catch(() => null)) as AppState | null;
+    const outbox = await localforage.getItem<PendingState>(OUTBOX_KEY).catch(() => null);
+    if (outbox?.state) {
+      (outbox.createdOrderIds || []).forEach(markOrderCreated);
+      void saveState(outbox.state);
+    }
+    const local = outbox?.state || await localforage.getItem<AppState>(DB_KEY).catch(() => null);
     return Array.isArray(local?.users) ? local!.users! : [];
   } catch {
     return [];
@@ -855,7 +884,7 @@ export const repairServerIfCorrupt = async (local: AppState): Promise<boolean> =
     local.users.length > 0;
   if (!localOk) return false;
   console.warn('[sync] repairing corrupted server app_state from local device');
-  return serverSave({ ...local, currentUser: null });
+  return serverSave({ ...local, currentUser: null, _syncRevision: raw.data?._syncRevision });
 };
 
 export const loadState = async (): Promise<AppState> => {
@@ -975,7 +1004,7 @@ export const loadState = async (): Promise<AppState> => {
       orderRequests: split.orderRequests,
       currentUser: null,
       notifications: pruneNotificationsAgainstOrders(
-        mergeNotificationsForSave(fromServer.notifications || [], local?.notifications || []),
+        mergeNotifications(fromServer.notifications || [], local?.notifications || []),
         split.orders,
         split.orderRequests,
       ),
@@ -1058,21 +1087,9 @@ export const mergeUsers = (server: AppState['users'], local: AppState['users']):
       map.set(u.id, (u.deletedAt || '') >= (prev.deletedAt || '') ? u : prev);
       return;
     }
-    // Both active — prefer local profile edits when they differ
-    if (
-      u.password !== prev.password ||
-      u.avatar !== prev.avatar ||
-      u.fullName !== prev.fullName ||
-      u.username !== prev.username ||
-      u.role !== prev.role ||
-      u.departmentId !== prev.departmentId ||
-      JSON.stringify(u.departmentIds || []) !== JSON.stringify(prev.departmentIds || [])
-    ) {
-      // Prefer the one that looks like a local edit: keep whichever was passed later (local is added second)
-      map.set(u.id, u);
-      return;
-    }
-    map.set(u.id, prev);
+    // A stale device must not overwrite another user's profile/permissions.
+    // Server wins ties and legacy profiles with no edit timestamp.
+    map.set(u.id, (u.updatedAt || '') > (prev.updatedAt || '') ? u : prev);
   };
   (server || []).forEach(add);
   (local || []).forEach(add);
@@ -1081,9 +1098,14 @@ export const mergeUsers = (server: AppState['users'], local: AppState['users']):
 
 export const saveState = async (state: AppState): Promise<void> => {
   const toSave = { ...state, currentUser: null };
+  setSyncStatus('saving');
 
   // Always persist locally first (instant, offline-safe)
-  localforage.setItem(DB_KEY, toSave).catch(() => {});
+  const createdOrderIds = Array.from(outstandingOrderIds);
+  localSaveQueue = localSaveQueue.catch(() => {}).then(async () => {
+    await localforage.setItem(DB_KEY, toSave);
+    await localforage.setItem(OUTBOX_KEY, { state: toSave, createdOrderIds });
+  });
 
   // Coalesce rapid saves: keep only the latest pending snapshot
   pendingSave = toSave;
@@ -1091,6 +1113,12 @@ export const saveState = async (state: AppState): Promise<void> => {
     const snapshot = pendingSave;
     if (!snapshot) return;
     pendingSave = null;
+    const snapshotCreatedIds = Array.from(outstandingOrderIds);
+    const retainForRetry = () => {
+      setSyncStatus('pending');
+      if (!pendingSave) pendingSave = snapshot;
+      retryPendingSave();
+    };
 
     // MUST load server before write. If load fails, RETRY — never overwrite blindly
     // (blind overwrite was wiping other devices' new orders).
@@ -1112,12 +1140,13 @@ export const saveState = async (state: AppState): Promise<void> => {
         snapshot.users.length > 0;
       if (corrupt && localOk) {
         console.warn('[sync] repairing corrupted server app_state from local device');
-        const ok = await serverSave(snapshot);
-        if (!ok) console.warn('[sync] repair save failed');
+        const ok = await serverSave({ ...snapshot, _syncRevision: raw?.data?._syncRevision });
+        if (!ok) retainForRetry();
         return;
       }
       // Network / empty — keep local only; do NOT wipe server.
-      console.warn('[sync] serverLoad failed — skip server write to protect other devices');
+      console.warn('[sync] serverLoad failed — keeping changes for retry');
+      retainForRetry();
       return;
     }
 
@@ -1181,6 +1210,7 @@ export const saveState = async (state: AppState): Promise<void> => {
 
       const payload: AppState = {
         ...snapshot,
+        _syncRevision: serverCurrent._syncRevision,
         users: mergedUsers,
         departments: mergedDepts,
         materials: Array.from(matMap.values()),
@@ -1189,7 +1219,7 @@ export const saveState = async (state: AppState): Promise<void> => {
         orders: splitSave.orders,
         orderRequests: splitSave.orderRequests,
         notifications: pruneNotificationsAgainstOrders(
-          mergeNotificationsForSave(snapshot.notifications || [], serverCurrent.notifications || []),
+          mergeNotifications(snapshot.notifications || [], serverCurrent.notifications || []),
           splitSave.orders,
           splitSave.orderRequests,
         ),
@@ -1202,7 +1232,12 @@ export const saveState = async (state: AppState): Promise<void> => {
       }
 
       const verify = await serverLoad();
-      if (verify && locationsMatchRemote(snapshot.orders || [], verify.orders || [])) {
+      if (verify && locationsMatchRemote(snapshot.orders || [], verify.orders || []) &&
+          splitSave.orderRequests.every((request) => {
+            const remote = (verify.orderRequests || []).find((r) => r.id === request.id);
+            return !!remote && (!request.deletedAt || !!remote.deletedAt) &&
+              (remote.updatedAt || remote.createdAt || '') >= (request.updatedAt || request.createdAt || '');
+          })) {
         wrote = true;
         break;
       }
@@ -1211,13 +1246,27 @@ export const saveState = async (state: AppState): Promise<void> => {
       await new Promise((r) => setTimeout(r, 400 * (writeAttempt + 1)));
     }
     if (!wrote) {
-      console.warn('[sync] serverSave failed or location did not stick — will retry on next change');
+      console.warn('[sync] serverSave failed — keeping changes for retry');
+      retainForRetry();
+    } else {
+      localSaveQueue = localSaveQueue.catch(() => {}).then(async () => {
+        const persisted = await localforage.getItem<PendingState>(OUTBOX_KEY);
+        if (JSON.stringify(persisted?.state) === JSON.stringify(snapshot)) await localforage.removeItem(OUTBOX_KEY);
+      });
+      snapshotCreatedIds.forEach((id) => outstandingOrderIds.delete(id));
+      if (!pendingSave) {
+        setSyncStatus('saved');
+      }
     }
   }).catch((err) => {
+    setSyncStatus('pending');
     console.warn('[sync] save queue error', err);
+    if (!pendingSave) pendingSave = toSave;
+    retryPendingSave();
   });
 
   await saveQueue;
+  await localSaveQueue.catch(() => {});
 };
 
 export const clearState = async (): Promise<void> => {

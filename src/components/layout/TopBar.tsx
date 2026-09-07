@@ -1,4 +1,5 @@
-import React, { useState, useRef, useEffect } from 'react';
+import { getSyncStatus, subscribeSyncStatus } from '../../utils/storage';
+import React, { useState, useRef, useEffect, useSyncExternalStore } from 'react';
 import { Home, Bell, Search, X, RefreshCw, Languages, Smartphone, Monitor, Menu } from 'lucide-react';
 import { useApp } from '../../contexts/AppContext';
 import { useLang } from '../../contexts/LanguageContext';
@@ -20,6 +21,7 @@ const TopBar: React.FC<TopBarProps> = ({ onNavigate, onOpenOrder, onToggleSideba
   const { lang, toggleLang, tr } = useLang();
   const { isPhone, toggleViewMode } = useViewMode();
   const priorityConfig = getPriorityConfig(lang);
+  const syncStatus = useSyncExternalStore(subscribeSyncStatus, getSyncStatus);
   const [refreshing, setRefreshing] = useState(false);
   const { orders, orderRequests, departments, currentUser, notifications: allNotifs, users } = state;
   const [showNotif, setShowNotif] = useState(false);
@@ -141,6 +143,15 @@ const TopBar: React.FC<TopBarProps> = ({ onNavigate, onOpenOrder, onToggleSideba
             </span>
           )}
         </button>
+        {syncStatus !== 'idle' && (
+          <span role="status" style={{ fontSize: 11, color: syncStatus === 'pending' ? '#b45309' : '#64748b', maxWidth: 150 }}>
+            {syncStatus === 'pending'
+              ? (lang === 'ar' ? 'لم تكتمل المزامنة — جارٍ إعادة المحاولة' : 'Sync pending — retrying')
+              : syncStatus === 'saving'
+                ? (lang === 'ar' ? 'جارٍ الحفظ…' : 'Saving…')
+                : (lang === 'ar' ? 'تم الحفظ' : 'Saved')}
+          </span>
+        )}
         <div className="notif-wrap" ref={notifRef}>
           <button className="topbar-icon-btn notif-btn" onClick={handleOpenNotif} title={tr.notifications}>
             <Bell size={isPhone ? 22 : 18} strokeWidth={isPhone ? 1.75 : 2} color={unreadCount > 0 ? '#ef4444' : undefined} />

@@ -1,21 +1,15 @@
 <?php
 // Allow requests from the React app
 $origin = $_SERVER['HTTP_ORIGIN'] ?? '';
-$allowed = [
-    'https://teamwork.csapp.io',
-    'https://csapp.io',
-    'https://acc.csapp.io',
-    'http://localhost:3000',
-    'http://127.0.0.1:8765',
-    'http://localhost:8765',
-];
+$allowed = ['https://teamwork.csapp.io', 'https://csapp.io', 'http://localhost:3000'];
 if (in_array($origin, $allowed)) {
     header("Access-Control-Allow-Origin: $origin");
 } else {
     header("Access-Control-Allow-Origin: https://teamwork.csapp.io");
 }
 header('Access-Control-Allow-Methods: GET, POST, OPTIONS');
-header('Access-Control-Allow-Headers: Content-Type, X-API-Key');
+header('Access-Control-Allow-Headers: Content-Type, X-API-Key, If-None-Match');
+header('Access-Control-Max-Age: 600');
 
 if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
     http_response_code(200);
@@ -254,7 +248,21 @@ $pdo->exec("CREATE TABLE IF NOT EXISTS app_state (
 if ($_SERVER['REQUEST_METHOD'] === 'GET') {
     $stmt = $pdo->query("SELECT state_json FROM app_state WHERE id = 1");
     $row  = $stmt->fetch(PDO::FETCH_ASSOC);
-    echo $row ? $row['state_json'] : 'null';
+    header('Cache-Control: no-store');
+    $stored = $row ? $row['state_json'] : 'null';
+    $revision = hash('sha256', $stored);
+    header('ETag: "' . $revision . '"');
+    if (trim($_SERVER['HTTP_IF_NONE_MATCH'] ?? '', '"') === $revision) {
+        http_response_code(304);
+        exit();
+    }
+    $state = json_decode($stored, true);
+    if (is_array($state)) {
+        $state['_syncRevision'] = $revision;
+        echo json_encode($state, JSON_UNESCAPED_UNICODE);
+    } else {
+        echo 'null';
+    }
 
 } elseif ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $body = file_get_contents('php://input');
@@ -275,12 +283,39 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET') {
         ]);
         exit();
     }
-    $stmt = $pdo->prepare(
-        "INSERT INTO app_state (id, state_json) VALUES (1, ?)
-         ON DUPLICATE KEY UPDATE state_json = VALUES(state_json), updated_at = NOW()"
-    );
-    $stmt->execute([$body]);
-    echo json_encode(['success' => true]);
+    // Reject stale snapshots atomically. A GET followed by an unconditional
+    // POST loses updates when two users save concurrently.
+    $expected = $decoded['_syncRevision'] ?? null;
+    if (!is_string($expected) || !preg_match('/^[a-f0-9]{64}$/', $expected)) {
+        http_response_code(428);
+        echo json_encode(['error' => 'Refresh required before saving', 'code' => 'revision_required']);
+        exit();
+    }
+    unset($decoded['_syncRevision']);
+    try {
+        $pdo->beginTransaction();
+        $stmt = $pdo->query("SELECT state_json FROM app_state WHERE id = 1 FOR UPDATE");
+        $row = $stmt->fetch(PDO::FETCH_ASSOC);
+        $actual = hash('sha256', $row ? $row['state_json'] : 'null');
+        if (!hash_equals($actual, $expected)) {
+            $pdo->rollBack();
+            http_response_code(409);
+            echo json_encode(['error' => 'State changed; reload and merge', 'code' => 'revision_conflict']);
+            exit();
+        }
+        $clean = json_encode($decoded, JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR);
+        $stmt = $pdo->prepare(
+            "INSERT INTO app_state (id, state_json) VALUES (1, ?)
+             ON DUPLICATE KEY UPDATE state_json = VALUES(state_json), updated_at = NOW()"
+        );
+        $stmt->execute([$clean]);
+        $pdo->commit();
+        echo json_encode(['success' => true]);
+    } catch (\Throwable $e) {
+        if ($pdo->inTransaction()) $pdo->rollBack();
+        http_response_code(500);
+        echo json_encode(['error' => 'State save failed']);
+    }
 
 } else {
     http_response_code(405);
