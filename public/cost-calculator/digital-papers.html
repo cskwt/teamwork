@@ -1,0 +1,984 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl"><head><link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" crossorigin="anonymous"><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>أوراق - طباعة الديجيتال - حاسبة التكاليف</title><style>
+@import url('https://fonts.googleapis.com/css2?family=Cairo:wght@300;400;500;600;700;800&display=swap');
+:root{
+  --primary:#4f46e5;
+  --primary-dark:#3730a3;
+  --primary-light:#eef2ff;
+  --success:#10b981;
+  --warning:#f59e0b;
+  --danger:#ef4444;
+  --purple:#8b5cf6;
+  --border:#e5e7eb;
+  --bg:#f5f6fa;
+  --surface:#ffffff;
+  --text:#111827;
+  --text-muted:#6b7280;
+  --radius:10px;
+  --shadow:0 1px 4px rgba(0,0,0,.08),0 4px 16px rgba(0,0,0,.05);
+  --font:'Cairo',sans-serif;
+}
+body{margin:0;padding:16px;background:var(--bg);color:var(--text);font-family:var(--font),Tahoma,Arial,sans-serif}
+button,input,select,textarea{font-family:inherit}
+.cost-calc-wrap{max-width:980px;margin:0 auto;background:var(--surface);border-radius:14px;padding:20px 22px;box-shadow:var(--shadow)}
+.cc-logo-bar{text-align:center;margin:0 0 18px;padding-bottom:16px;border-bottom:1px solid var(--border)}
+.cc-logo-bar img{max-height:80px;width:auto;max-width:min(100%,420px);display:block;margin:0 auto;object-fit:contain}
+.cc-device-picker{margin:0 0 18px}
+.cc-device-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+a.cc-device-btn{text-decoration:none;color:inherit}
+.cc-device-btn{border:2px solid var(--border);background:var(--surface);border-radius:14px;padding:12px 14px;display:flex;align-items:center;gap:12px;cursor:pointer;transition:transform .08s ease,border-color .12s ease,box-shadow .12s ease;background-clip:padding-box}
+.cc-device-btn:hover{transform:translateY(-1px);border-color:var(--primary);box-shadow:0 6px 18px rgba(79,70,229,.14)}
+.cc-device-btn[aria-pressed="true"]{border-color:var(--primary);box-shadow:0 8px 22px rgba(79,70,229,.18);background:var(--primary-light)}
+.cc-device-icon{width:64px;height:64px;border-radius:12px;display:grid;place-items:center;flex:0 0 64px;background:linear-gradient(135deg,var(--primary),var(--purple))}
+.cc-device-icon svg{width:44px;height:44px;fill:#fff}
+.cc-device-icon img{width:44px;height:44px;object-fit:contain;object-position:center;filter:brightness(0) invert(1);display:block}
+.cc-device-meta{display:flex;flex-direction:column;gap:2px;min-width:0}
+.cc-device-title{font-weight:900;color:var(--primary);font-size:15px;line-height:1.2;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;text-decoration:none}
+.cc-device-sub{font-size:12px;color:var(--text-muted);line-height:1.2;font-weight:700}
+.cc-device-hint{font-size:12px;color:var(--text-muted);margin-top:10px}
+.cost-calc-head{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:12px;margin-bottom:16px}
+.cost-calc-head h1{margin:0;color:var(--primary);font-size:1.25em;display:flex;align-items:center;gap:10px}
+.cost-calc-head h1 i{color:var(--primary)}
+.cc-title-bar{text-align:center;background:linear-gradient(135deg,var(--primary),var(--purple));color:#fff;padding:14px 16px;border-radius:var(--radius);font-size:1.35em;font-weight:800;margin-bottom:18px}
+.cc-meta{display:grid;grid-template-columns:1fr 1fr;gap:12px 20px;margin-bottom:20px;padding:14px;background:#f8fafc;border:1px solid var(--border);border-radius:var(--radius)}
+.cc-meta label{display:block;font-size:13px;font-weight:700;color:#444;margin-bottom:5px}
+.cc-meta input{width:100%;padding:10px 12px;border:2px solid #ddd;border-radius:8px;font-size:15px;font-family:inherit;box-sizing:border-box}
+.cc-meta input:focus{outline:none;border-color:var(--primary);box-shadow:0 0 0 3px rgba(79,70,229,.16)}
+.cc-meta input.cc-ro,#dgQty[readonly]{background:#f5f7fa;font-weight:700;color:var(--primary);border-color:#d0d7de;cursor:default;box-shadow:none}
+.cc-section-title{background:var(--primary-light);color:var(--primary);font-size:1.05em;font-weight:800;padding:10px 14px;border-radius:8px;margin:18px 0 10px;border-right:4px solid var(--primary)}
+.cc-section-title.cc-section-indirect{background:var(--primary-light);color:var(--primary);border-right-color:var(--primary)}
+.cc-section-title.cc-section-profit{background:#ecfdf5;color:#047857;border-right-color:var(--success)}
+.cc-table-wrap{overflow-x:auto;-webkit-overflow-scrolling:touch;margin-bottom:8px}
+.cc-table-wrap.cc-table-wrap-direct,.cc-table-wrap.cc-table-wrap-indirect{border-radius:var(--radius);border:1px solid #c7d2fe;overflow:hidden}
+.cc-table{width:100%;border-collapse:collapse;font-size:14px;min-width:640px}
+.cc-table th{background:var(--primary);color:#fff;padding:9px 8px;text-align:center;font-weight:700;white-space:nowrap}
+.cc-table td{padding:7px 6px;border-bottom:1px solid #edf0f3;vertical-align:middle}
+.cc-table.cc-table-direct tbody tr:not(.cc-total):nth-child(odd),.cc-table.cc-table-indirect tbody tr:not(.cc-total):nth-child(odd){background:#f8fafc}
+.cc-table.cc-table-direct tbody tr:not(.cc-total):nth-child(even),.cc-table.cc-table-indirect tbody tr:not(.cc-total):nth-child(even){background:var(--surface)}
+.cc-table tr.cc-total td{background:#f0f4f8;font-weight:800;color:var(--primary)}
+.cc-table tr.cc-grand td{background:var(--primary-light);font-weight:800;font-size:15px;color:var(--primary-dark)}
+.cc-table input[type="number"],.cc-table input[type="text"]{width:100%;padding:8px 6px;border:1px solid #ccc;border-radius:6px;font-size:14px;font-family:inherit;box-sizing:border-box;text-align:center}
+.cc-table input.cc-ro{background:#f5f7fa;font-weight:700;color:var(--primary);border-color:#d0d7de}
+.cc-table .cc-label{text-align:right;font-weight:700;color:#333;padding-right:10px;white-space:nowrap}
+.cc-table .cc-hint{font-size:11px;color:#888;font-weight:400}
+.cc-profit-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:12px;margin-top:14px}
+.cc-profit-card{background:#f8fafc;border:2px solid var(--border);border-radius:var(--radius);padding:12px;text-align:center}
+.cc-profit-card.highlight{border-color:var(--primary);background:var(--primary-light)}
+.cc-profit-card.pos{border-color:var(--success);background:#ecfdf5}
+.cc-profit-card.neg{border-color:var(--danger);background:#fef2f2}
+.cc-profit-label{font-size:12px;color:var(--text-muted);margin-bottom:6px;font-weight:600}
+.cc-profit-value{font-size:1.2em;font-weight:800;color:var(--primary);direction:ltr}
+.cc-profit-card.pos .cc-profit-value{color:#047857}
+.cc-profit-card.neg .cc-profit-value{color:#b91c1c}
+.cc-actions{display:flex;flex-wrap:wrap;gap:8px;margin:0}
+.cc-btn{display:inline-flex;align-items:center;gap:6px;padding:9px 16px;border:none;border-radius:8px;font-size:14px;font-weight:700;cursor:pointer;font-family:inherit;text-decoration:none;color:#fff}
+.cc-btn-clear{background:var(--text-muted)}.cc-btn-clear:hover{background:#4b5563}
+.cc-btn-print{background:#06b6d4}.cc-btn-print:hover{background:#0891b2}
+.cc-btn-dl{background:var(--primary)}.cc-btn-dl:hover{background:var(--primary-dark)}
+.cc-btn-pdf{background:var(--danger)}.cc-btn-pdf:hover{background:#dc2626}
+.cc-bottom-actions{margin-top:22px;padding-top:18px;border-top:2px solid var(--border);display:flex;flex-wrap:wrap;justify-content:center;gap:12px}
+.cc-bottom-actions .cc-btn{min-width:220px;justify-content:center;padding:12px 22px;border-radius:14px;font-size:16px}
+@media(max-width:720px){.cc-meta,.cc-profit-grid{grid-template-columns:1fr}}
+.lw-section{margin:0 0 18px;padding:16px;background:#f8fafc;border:1px solid var(--border);border-radius:12px}
+.lw-cards{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:14px}
+.lw-card{border:2px solid #c7d2fe;background:var(--surface);border-radius:12px;padding:14px;cursor:pointer;display:flex;align-items:center;gap:12px;transition:transform .1s,border-color .12s,box-shadow .12s}
+.lw-card:hover{border-color:var(--primary);transform:translateY(-1px)}
+.lw-card.active{border-color:var(--primary);background:var(--primary-light);box-shadow:0 4px 14px rgba(79,70,229,.15)}
+.lw-card i{font-size:26px;color:var(--primary);flex:0 0 auto}
+.lw-card .lw-card-t{font-weight:800;color:var(--primary);font-size:15px}
+.lw-card .lw-card-s{font-size:12px;color:var(--text-muted)}
+.lw-inputs{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:14px;margin-bottom:14px;align-items:start}
+.lw-inputs > div{min-width:0;max-width:100%}
+.lw-inputs label{display:block;font-size:12.5px;font-weight:700;color:#444;margin-bottom:5px}
+.lw-inputs input[type="number"]{width:100%;padding:9px 10px;border:2px solid #ddd;border-radius:8px;font-size:14px;font-family:inherit;box-sizing:border-box;text-align:center}
+.lw-lid-btns{display:flex;flex-wrap:wrap;gap:6px;width:100%}
+.lw-lid-btns button{flex:1 1 auto;min-width:max(42%, 88px);padding:9px 8px;border:2px solid #c7d2fe;border-radius:8px;background:var(--primary-light);color:var(--primary);font-weight:700;font-size:12.5px;cursor:pointer;font-family:inherit;white-space:nowrap}
+.lw-lid-btns button.active{background:var(--primary);color:#fff;border-color:var(--primary)}
+#lwBoxInputs{grid-template-columns:repeat(auto-fit,minmax(210px,1fr))}
+.cc-acrylic-select{width:100%;margin-top:6px;padding:8px 10px;border:2px solid #ddd;border-radius:8px;font-size:13px;font-family:inherit;box-sizing:border-box;background:#fff}
+.cc-acrylic-select:focus{outline:none;border-color:var(--primary);box-shadow:0 0 0 3px rgba(79,70,229,.16)}
+#ccAcrylicHint{font-size:11px;color:#667085;font-weight:600}
+#ccDirectTable input.cc-direct-val.cc-ro{background:#f5f7fa;font-weight:700;color:var(--primary);border-color:#d0d7de}
+
+#lwBoxInputs .lw-lid-btns button{min-width:calc(33.33% - 4px);font-size:12px;padding:8px 6px}
+.lw-stage{display:grid;gap:14px}
+.lw-stage.two{grid-template-columns:1fr 1fr}
+.lw-view{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:10px}
+.lw-view-title{text-align:center;font-size:13px;font-weight:700;color:var(--primary);margin-bottom:8px}
+.lw-view svg{width:100%;height:auto;display:block}
+.dg-nest-preview{position:relative;display:flex;align-items:center;justify-content:center;padding:10px 8px;min-height:160px;max-height:420px;overflow:auto;background:#f8fafc;border:1px dashed #d0d7e2;border-radius:var(--radius)}
+#dgNestSheet{flex:0 0 auto;width:140px!important;min-width:80px;min-height:120px;height:auto!important;max-height:none;margin:0 auto;display:block;overflow:visible;filter:drop-shadow(0 2px 6px rgba(79,70,229,.12));transform-origin:center center}
+.dg-nest-rot-chip{position:absolute;top:8px;inset-inline-start:8px;z-index:3;display:inline-flex;align-items:center;gap:8px;padding:8px 12px;border:2px solid var(--primary);border-radius:999px;background:#fff;color:var(--primary);font-weight:700;font-size:12px;cursor:pointer;font-family:inherit;box-shadow:0 2px 8px rgba(79,70,229,.14);pointer-events:auto;user-select:none}
+.dg-nest-rot-chip:hover{background:var(--primary-light)}
+.dg-nest-rot-chip.active{background:var(--primary);color:#fff;border-color:var(--primary)}
+.dg-nest-rot-chip .dg-nest-rot-text{display:flex;flex-direction:column;align-items:flex-start;line-height:1.15;text-align:start}
+.dg-nest-rot-chip .dg-nest-rot-sub{font-size:10px;font-weight:600;opacity:.9}
+.dg-nest-zoom{display:flex;align-items:center;justify-content:center;gap:8px;margin:8px 0 0}
+.dg-nest-zoom button{padding:6px 12px;border:2px solid var(--primary);background:var(--surface);color:var(--primary);border-radius:8px;font-weight:700;cursor:pointer;font-family:inherit;font-size:13px}
+.dg-nest-zoom button:hover{background:var(--primary-light)}
+.dg-nest-zoom button:disabled{opacity:.4;cursor:default}
+.dg-nest-zoom span{font-weight:800;color:var(--primary);min-width:52px;text-align:center;font-size:13px}
+#dgNestSection .lw-view{background:transparent;border:none;padding:0}
+#dgNestSection .lw-view-title{margin-bottom:10px}
+.lw-stats{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px;margin-top:14px}
+.lw-stat{background:var(--surface);border:1px solid var(--border);border-right:4px solid var(--primary);border-radius:8px;padding:10px 12px}
+.lw-stat .lw-stat-l{font-size:11.5px;color:var(--text-muted);font-weight:600}
+.lw-stat .lw-stat-v{font-size:1.05em;font-weight:800;color:var(--primary);direction:rtl}
+.lw-sheet-nav{display:flex;align-items:center;justify-content:center;gap:12px;margin-top:10px}
+.lw-sheet-nav button{padding:6px 16px;border:2px solid var(--primary);background:var(--surface);color:var(--primary);border-radius:8px;font-weight:700;cursor:pointer;font-family:inherit}
+.lw-sheet-nav button:hover:not(:disabled){background:var(--primary-light)}
+.lw-sheet-nav button:disabled{opacity:.4;cursor:default}
+.lw-sheet-nav span{font-weight:800;color:var(--primary);min-width:96px;text-align:center}
+@media(max-width:720px){.lw-stage.two{grid-template-columns:1fr}.lw-cards{grid-template-columns:1fr}}
+.cc-print-only{display:none!important}
+.dg-choice-print{display:none!important}
+@media print{
+.cc-no-print{display:none!important}
+body.cc-digital{padding:10px;background:#fff}
+body.cc-digital .cost-calc-wrap{box-shadow:none;border-radius:0;padding:12px}
+body.cc-digital .cc-profit-grid{grid-template-columns:repeat(2,1fr);gap:10px}
+body.cc-digital .cc-profit-card,body.cc-digital .cc-profit-card.pos,body.cc-digital .cc-profit-card.neg,body.cc-digital .cc-profit-card.highlight{-webkit-print-color-adjust:exact;print-color-adjust:exact;break-inside:avoid}
+body.cc-digital .cc-hint{display:none!important}
+body.cc-digital .dg-choice-wrap{display:none!important}
+body.cc-digital .dg-choice-print{display:block!important;width:100%;padding:8px 10px;border:1px solid #ccc;border-radius:6px;background:#f5f7fa;font-weight:700;text-align:center;box-sizing:border-box}
+body.cc-digital .cc-table input[type="number"]{border:none;background:transparent;font-weight:700}
+body.cc-digital select{appearance:none;border:none;background:transparent;font-weight:700}
+}
+</style></head><body class="cc-standalone cc-digital"><div class="cost-calc-wrap">
+<div class="cc-logo-bar cc-no-print"><img src="/logo.png" alt="Creative Solutions"></div>
+<div class="cost-calc-head cc-no-print">
+<h1><i class="fa-solid fa-print"></i> حاسبة تكاليف طباعة الديجيتال — أوراق</h1>
+<div class="cc-actions">
+<a href="/cost-calculator/digital" class="cc-btn cc-btn-clear"><i class="fa-solid fa-arrow-right"></i> رجوع</a>
+<button type="button" class="cc-btn cc-btn-clear" id="dgClear"><i class="fa-solid fa-eraser"></i> مسح</button>
+</div></div>
+<div class="cc-title-bar">نموذج تسعير — أوراق</div>
+
+<div class="cc-meta">
+  <div><label>اسم العميل</label><input type="text" id="dgCustomer" placeholder="اسم العميل"></div>
+  <div><label>وصف المنتج</label><input type="text" id="dgDescription" placeholder="وصف المنتج"></div>
+  <div><label>تاريخ عرض السعر</label><input type="date" id="dgDate"></div>
+</div>
+
+<div class="cc-meta">
+  <div>
+    <label>قيمة التصميم</label>
+    <input type="number" id="dgDesignTotal" min="0" step="0.001" value="">
+  </div>
+  <div>
+    <label>قياس الورق</label>
+    <select id="dgSheet" style="width:100%;padding:10px 12px;border:2px solid #ddd;border-radius:8px;font-size:15px;font-family:inherit;box-sizing:border-box">
+      <option value="" selected disabled>-- اختر --</option>
+    </select>
+  </div>
+  <div>
+    <label>نوع الورق</label>
+    <select id="dgMaterial" style="width:100%;padding:10px 12px;border:2px solid #ddd;border-radius:8px;font-size:15px;font-family:inherit;box-sizing:border-box">
+      <option value="" selected disabled>-- اختر --</option>
+    </select>
+  </div>
+  <div>
+    <label>جهات الطباعة</label>
+    <div class="dg-choice-wrap" style="display:flex;gap:10px;align-items:center;justify-content:flex-start;padding:10px 12px;border:2px solid #ddd;border-radius:8px;background:#fff">
+      <button type="button" id="dgSideOne" class="cc-btn cc-btn-clear" style="color:#4f46e5;background:#eef2ff;padding:8px 12px;border-radius:10px">
+        <i class="fa-regular fa-square-check"></i> جهة واحدة
+      </button>
+      <button type="button" id="dgSideTwo" class="cc-btn cc-btn-clear" style="color:#4f46e5;background:#eef2ff;padding:8px 12px;border-radius:10px">
+        <i class="fa-regular fa-square"></i> جهتين
+      </button>
+      <input type="hidden" id="dgSides" value="one">
+    </div>
+    <input type="text" class="cc-ro dg-choice-print" id="dgSidesPrint" readonly tabindex="-1" value="جهة واحدة">
+  </div>
+  <div>
+    <label>نوع التغليف</label>
+    <select id="dgLamType" style="width:100%;padding:10px 12px;border:2px solid #ddd;border-radius:8px;font-size:15px;font-family:inherit;box-sizing:border-box">
+      <option value="none" selected>لا يوجد</option>
+      <option value="glossy">لامع</option>
+      <option value="matte">مطفي</option>
+    </select>
+  </div>
+  <div>
+    <label>تغليف</label>
+    <div id="dgLamSidesWrap" style="display:flex;gap:10px;align-items:center;justify-content:flex-start;padding:10px 12px;border:2px solid #ddd;border-radius:8px;background:#fff;opacity:.55">
+      <button type="button" id="dgLamSideOne" class="cc-btn cc-btn-clear" style="color:#4f46e5;background:#eef2ff;padding:8px 12px;border-radius:10px">
+        <i class="fa-regular fa-square-check"></i> جهة واحدة
+      </button>
+      <button type="button" id="dgLamSideTwo" class="cc-btn cc-btn-clear" style="color:#4f46e5;background:#eef2ff;padding:8px 12px;border-radius:10px">
+        <i class="fa-regular fa-square"></i> جهتين
+      </button>
+      <input type="hidden" id="dgLamSides" value="one">
+    </div>
+  </div>
+  <div>
+    <label>القص</label>
+    <div style="display:flex;gap:10px;align-items:center;justify-content:flex-start;padding:10px 12px;border:2px solid #ddd;border-radius:8px;background:#fff">
+      <button type="button" id="dgCutNone" class="cc-btn cc-btn-clear" style="color:#4f46e5;background:#eef2ff;padding:8px 12px;border-radius:10px">
+        <i class="fa-regular fa-square-check"></i> لا يوجد
+      </button>
+      <button type="button" id="dgCutScissors" class="cc-btn cc-btn-clear" style="color:#4f46e5;background:#eef2ff;padding:8px 12px;border-radius:10px">
+        <i class="fa-regular fa-square"></i> مقص
+      </button>
+      <button type="button" id="dgCutGraphtec" class="cc-btn cc-btn-clear" style="color:#4f46e5;background:#eef2ff;padding:8px 12px;border-radius:10px">
+        <i class="fa-regular fa-square"></i> Graphtec
+      </button>
+      <input type="hidden" id="dgCut" value="none">
+    </div>
+  </div>
+  <div>
+    <label>تكلفة التجميع</label>
+    <input type="number" id="dgAssemblyTotal" min="0" step="0.001" value="">
+  </div>
+</div>
+
+<div class="cc-section-title cc-no-print">حساب عدد القطع في الصفحة</div>
+<div class="lw-section cc-no-print" id="dgNestSection">
+  <label style="display:block;font-size:12.5px;font-weight:700;color:#444;margin-bottom:6px">شكل القطعة</label>
+  <div class="lw-lid-btns" style="max-width:380px;margin-bottom:12px">
+    <button type="button" id="dgNestShapeRect" class="active"><i class="fa-solid fa-vector-square"></i> مستطيل / مربع</button>
+    <button type="button" id="dgNestShapeCircle"><i class="fa-solid fa-circle"></i> دائري</button>
+  </div>
+  <input type="hidden" id="dgNestShape" value="rect">
+  <div class="lw-inputs">
+    <div id="dgNestRectL"><label>الطول (سم)</label><input type="number" id="dgNestL" min="0" step="0.1" placeholder="مثال: 20"></div>
+    <div id="dgNestRectW"><label>العرض (سم)</label><input type="number" id="dgNestW" min="0" step="0.1" placeholder="مثال: 15"></div>
+    <div id="dgNestCircD" style="display:none"><label>القطر (سم)</label><input type="number" id="dgNestD" min="0" step="0.1" placeholder="مثال: 10"></div>
+    <div><label>عدد القطع</label><input type="number" id="dgNestN" min="1" step="1" value="1"></div>
+  </div>
+  <div class="lw-view">
+    <div class="lw-view-title" id="dgNestSheetTitle">اختر قياس الورق من المخزون</div>
+    <div class="dg-nest-preview">
+      <button type="button" id="dgNestRotBtn" class="dg-nest-rot-chip cc-no-print" title="اضغط لتبديل اتجاه القطع 90°">
+        <i class="fa-solid fa-rotate" aria-hidden="true"></i>
+        <span class="dg-nest-rot-text">
+          <span id="dgNestRotLabel">أصلي</span>
+          <span class="dg-nest-rot-sub" id="dgNestRotSub">اضغط للتدوير 90°</span>
+        </span>
+      </button>
+      <input type="hidden" id="dgNestAllowRot" value="0">
+      <svg id="dgNestSheet" viewBox="0 0 1000 700" preserveAspectRatio="xMidYMid meet"></svg>
+    </div>
+    <div class="dg-nest-zoom cc-no-print" id="dgNestZoomBar">
+      <button type="button" id="dgNestZoomOut" title="تصغير"><i class="fa-solid fa-magnifying-glass-minus"></i></button>
+      <span id="dgNestZoomLabel">100%</span>
+      <button type="button" id="dgNestZoomIn" title="تكبير"><i class="fa-solid fa-magnifying-glass-plus"></i></button>
+      <button type="button" id="dgNestZoomReset" title="إعادة الحجم">إعادة</button>
+    </div>
+    <div class="lw-sheet-nav" id="dgNestSheetNav" style="display:none">
+      <button type="button" id="dgNestSheetPrev">&rsaquo; السابق</button>
+      <span id="dgNestSheetInfo">الصفحة 1 / 1</span>
+      <button type="button" id="dgNestSheetNext">التالي &lsaquo;</button>
+    </div>
+  </div>
+  <div class="lw-stats" id="dgNestStats"></div>
+  <div class="dg-nest-qty" style="margin-top:14px;padding:12px;background:#fff;border:1px solid var(--border,#e5e7eb);border-radius:10px;border-right:4px solid var(--primary,#4f46e5)">
+    <label style="display:block;font-size:12.5px;font-weight:700;color:#444;margin-bottom:6px">عدد الصفحات <span style="font-weight:600;color:#6b7280;font-size:11px">(تلقائي من التوزيع)</span></label>
+    <input type="number" id="dgQty" class="cc-ro" min="0" step="1" value="" readonly tabindex="-1" title="يُحسب تلقائياً عند توزيع أبعاد المنتج في صفحة العرض" style="width:100%;max-width:220px;padding:10px 12px;border:2px solid #d0d7de;border-radius:8px;font-size:15px;font-family:inherit;box-sizing:border-box;background:#f5f7fa;font-weight:700;color:var(--primary,#4f46e5)">
+    <div style="margin-top:8px;font-size:12px;color:#667085;font-weight:600">يُحدَّث تلقائياً حسب عدد الصفحات اللازمة للقطع في صفحة العرض.</div>
+  </div>
+</div>
+
+<div class="cc-section-title cc-section-direct">حساب التكاليف</div>
+<div class="cc-table-wrap cc-table-wrap-direct">
+<table class="cc-table" id="dgAutoTable">
+  <thead><tr><th>البند</th><th>التكلفة لإجمالي الطلب</th></tr></thead>
+  <tbody>
+    <tr><td class="cc-label">التصميم</td><td><input type="text" class="cc-ro" id="dgDesignCost" readonly tabindex="-1" value=""></td></tr>
+    <tr><td class="cc-label">التجميع</td><td><input type="text" class="cc-ro" id="dgAssemblyCost" readonly tabindex="-1" value=""></td></tr>
+    <tr><td class="cc-label">تكلفة الورق</td><td><input type="text" class="cc-ro" id="dgMatPer" readonly tabindex="-1" value=""></td></tr>
+    <tr><td class="cc-label">تكلفة الطباعة</td><td><input type="text" class="cc-ro" id="dgPrintPer" readonly tabindex="-1" value=""></td></tr>
+    <tr><td class="cc-label">تغليف</td><td><input type="text" class="cc-ro" id="dgLamPer" readonly tabindex="-1" value=""></td></tr>
+    <tr><td class="cc-label">قص</td><td><input type="text" class="cc-ro" id="dgDiePer" readonly tabindex="-1" value=""></td></tr>
+    <tr class="cc-total"><td class="cc-label">إجمالي تكلفة الطلب</td><td><input type="text" class="cc-ro" id="dgTotalPer" readonly tabindex="-1" value=""></td></tr>
+  </tbody>
+</table>
+</div>
+
+<input type="hidden" id="dgSellTotal" value="">
+
+<div class="cc-section-title cc-section-profit">حساب الأرباح</div>
+<div class="cc-table-wrap">
+<table class="cc-table"><tbody>
+  <tr>
+    <td class="cc-label">نسبة الربح %</td>
+    <td><input type="number" id="dgProfitPct" min="0" step="0.01" value="" style="max-width:140px"></td>
+  </tr>
+</tbody></table></div>
+<div class="cc-profit-grid">
+  <div class="cc-profit-card highlight" id="dgGrossCard"><div class="cc-profit-label">سعر البيع</div><div class="cc-profit-value" id="dgSellCardValue"></div><div class="cc-hint" style="margin-top:4px">قيمة البيع النهائية للطلب</div></div>
+  <div class="cc-profit-card" id="dgUnitSellCard"><div class="cc-profit-label">سعر بيع الحبة</div><div class="cc-profit-value" id="dgUnitSellValue"></div><div class="cc-hint" style="margin-top:4px">إجمالي سعر البيع ÷ عدد القطع</div></div>
+  <div class="cc-profit-card" id="dgNetCard"><div class="cc-profit-label">صافي الربح</div><div class="cc-profit-value" id="dgNetProfit"></div><div class="cc-hint" style="margin-top:4px">سعر البيع − إجمالي تكلفة الطلب</div></div>
+  <div class="cc-profit-card" id="dgNetPctCard"><div class="cc-profit-label">نسبة صافي الربح</div><div class="cc-profit-value" id="dgNetPct"></div></div>
+</div>
+
+<div class="cc-bottom-actions cc-no-print">
+  <button type="button" class="cc-btn cc-btn-print" id="dgPrint"><i class="fa-solid fa-print"></i> طباعة</button>
+  <button type="button" class="cc-btn cc-btn-pdf" id="dgDownloadPdf"><i class="fa-solid fa-file-pdf"></i> تحميل نموذج التكلفة</button>
+</div>
+<script>
+(function(){
+var TW_API = 'https://www.csapp.io/teamwork-api/api.php';
+var TW_KEY = 'tw_Cs9kWt2026xTeAmWoRk';
+/** قياسات المخزون (Digital) — نفس DIGITAL_PRINT_SIZES في Teamwork */
+var SHEET_SIZES = [
+  {id:'33x70', label:'33 × 70 cm', pieces:3, w:33, h:70},
+  {id:'33x48', label:'33 × 48 cm', pieces:4, w:33, h:48},
+  {id:'a3', label:'A3 (42 × 29.7)', pieces:4, w:42, h:29.7},
+  {id:'a4', label:'A4 (29.7 × 21)', pieces:9, w:29.7, h:21}
+];
+var SETTINGS = {
+  printing: { // per page by inventory size id
+    '33x70': {one:0.05, two:0.1},
+    '33x48': {one:0.05, two:0.1},
+    a3: {one:0.03, two:0.06},
+    a4: {one:0.015, two:0.03}
+  },
+  finishing: {lamination:0.025, diecut:0.1},
+  overhead_per_sheet: 0.0,
+  materials: []
+};
+
+function num(v){var n=parseFloat(v);return isNaN(n)?0:n;}
+function fmt3(v){return (Math.round(num(v)*1000)/1000).toFixed(3);}
+function byId(id){return document.getElementById(id);}
+function qtySafe(){var q=num(byId('dgQty').value);return q>0?q:0;}
+function str(v){return (v==null?'':String(v));}
+
+function toWesternDigits(s){
+  return String(s==null?'':s).replace(/[٠-٩]/g,function(d){return String('٠١٢٣٤٥٦٧٨٩'.indexOf(d));})
+    .replace(/[۰-۹]/g,function(d){return String('۰۱۲۳۴۵۶۷۸۹'.indexOf(d));});
+}
+function parseCost(v){var n=parseFloat(toWesternDigits(String(v==null?'':v)).trim());return isFinite(n)?n:0;}
+function sheetCostFromPack(packCost, sheetsPerPack){
+  var pack=parseCost(packCost), pages=parseCost(sheetsPerPack);
+  if(pack<=0||pages<=0) return 0;
+  return pack/pages;
+}
+function effectiveSheetCost(m){
+  var fromPack=sheetCostFromPack(m.packCost, m.sheetsPerPack);
+  if(fromPack>0) return fromPack;
+  return parseCost(m.sheetCost);
+}
+function materialLabel(m){
+  return [m.paperType||m.name, m.paperWeight].filter(Boolean).join(' · ') || (m.name||'');
+}
+function inventoryMaterialToCalc(m){
+  var sheetKd=effectiveSheetCost(m);
+  var costs={};
+  SHEET_SIZES.forEach(function(s){
+    costs[s.id]=sheetKd>0 && s.pieces>0 ? (sheetKd/s.pieces) : 0;
+  });
+  return {name: materialLabel(m), costs: costs, id: m.id||''};
+}
+
+function dgCollectPayload(){
+  recalc();
+  return {
+    customer: str((byId('dgCustomer')||{}).value||'').trim(),
+    description: str((byId('dgDescription')||{}).value||'').trim(),
+    date: str((byId('dgDate')||{}).value||'').trim(),
+    design_total: str((byId('dgDesignTotal')||{}).value||'').trim(),
+    assembly_total: str((byId('dgAssemblyTotal')||{}).value||'').trim(),
+    sheet: str((byId('dgSheet')||{}).value||'').trim(),
+    paper: str((byId('dgMaterial')||{}).value||'').trim(),
+    pages: str((byId('dgQty')||{}).value||'').trim(),
+    print_sides: (byId('dgSides')||{}).value||'one',
+    lam_type: (byId('dgLamType')||{}).value||'none',
+    lam_sides: (byId('dgLamSides')||{}).value||'one',
+    cut: (byId('dgCut')||{}).value||'none',
+    totals: {
+      design: str((byId('dgDesignCost')||{}).value||'').trim(),
+      assembly: str((byId('dgAssemblyCost')||{}).value||'').trim(),
+      paper: str((byId('dgMatPer')||{}).value||'').trim(),
+      printing: str((byId('dgPrintPer')||{}).value||'').trim(),
+      lamination: str((byId('dgLamPer')||{}).value||'').trim(),
+      cut: str((byId('dgDiePer')||{}).value||'').trim(),
+      total_cost: str((byId('dgTotalPer')||{}).value||'').trim(),
+      profit_pct: str((byId('dgProfitPct')||{}).value||'').trim(),
+      sell_total: str((byId('dgSellTotal')||{}).value||(byId('dgSellCardValue')||{}).textContent||'').trim(),
+      unit_sell: str((byId('dgUnitSellValue')||{}).textContent||'').trim(),
+      net_profit: str((byId('dgNetProfit')||{}).textContent||'').trim(),
+      net_pct: str((byId('dgNetPct')||{}).textContent||'').trim(),
+    }
+  };
+}
+
+function dgFetchPdfBlob(){
+  return fetch('/cost-calculator-digital-pdf', {
+    method:'POST',
+    headers:{'Content-Type':'application/json;charset=utf-8'},
+    body: JSON.stringify(dgCollectPayload())
+  }).then(function(r){
+    if(!r.ok) return r.text().then(function(t){ throw new Error(t||'pdf'); });
+    return r.blob();
+  });
+}
+
+byId('dgDownloadPdf').addEventListener('click', function(){
+  var btn=this; btn.disabled=true;
+  dgFetchPdfBlob().then(function(blob){
+    var a=document.createElement('a');
+    a.href=URL.createObjectURL(blob);
+    a.download='حسبة-طباعة-الديجيتال.pdf';
+    document.body.appendChild(a); a.click();
+    setTimeout(function(){URL.revokeObjectURL(a.href);a.remove();},200);
+  }).catch(function(e){
+    alert(e && e.message ? e.message : 'تعذر إنشاء ملف PDF. حاول مرة أخرى.');
+  }).finally(function(){btn.disabled=false;});
+});
+
+byId('dgPrint').addEventListener('click', function(){
+  var btn=this; btn.disabled=true;
+  dgFetchPdfBlob().then(function(blob){
+    var url=URL.createObjectURL(blob);
+    var w=window.open(url,'_blank');
+    if(w){
+      setTimeout(function(){try{w.focus();w.print();}catch(e){}},800);
+      setTimeout(function(){URL.revokeObjectURL(url);},120000);
+    }else{
+      var iframe=document.createElement('iframe');
+      iframe.style.cssText='position:fixed;left:0;top:0;width:100%;height:100%;border:0;z-index:9999;background:#fff';
+      iframe.src=url;
+      document.body.appendChild(iframe);
+      iframe.onload=function(){
+        try{iframe.contentWindow.focus();iframe.contentWindow.print();}catch(e){}
+        setTimeout(function(){iframe.remove();URL.revokeObjectURL(url);},120000);
+      };
+    }
+  }).catch(function(e){
+    alert(e && e.message ? e.message : 'تعذر إنشاء ملف للطباعة. حاول مرة أخرى.');
+  }).finally(function(){btn.disabled=false;});
+});
+
+function materialCostPer(sheet, mat){
+  if(!mat || !sheet) return 0;
+  if(mat.costs && mat.costs[sheet]!=null) return num(mat.costs[sheet]);
+  /* legacy keys (إن وُجدت) */
+  if(sheet==='a3' || sheet==='A3') return num(mat.A3);
+  if(sheet==='a4' || sheet==='A4') return num(mat.A4);
+  return num(mat.x70);
+}
+function getSelectedMaterial(){
+  var sel = byId('dgMaterial');
+  if(!sel) return null;
+  var key = sel.value || '';
+  return SETTINGS.materials.find(function(x){return x.name===key;}) || null;
+}
+function fillPlaceholder(sel, text){
+  sel.innerHTML='';
+  var ph=document.createElement('option');
+  ph.value='';
+  ph.disabled=true;
+  ph.selected=true;
+  ph.textContent=text||'-- اختر --';
+  sel.appendChild(ph);
+}
+function fillSheets(){
+  var sel = byId('dgSheet');
+  if(!sel) return;
+  var prev = sel.value || '';
+  fillPlaceholder(sel, '-- اختر --');
+  SHEET_SIZES.forEach(function(s){
+    var opt=document.createElement('option');
+    opt.value=s.id;
+    opt.textContent=s.label;
+    sel.appendChild(opt);
+  });
+  var keep = prev && SHEET_SIZES.some(function(s){return s.id===prev;}) ? prev : (SHEET_SIZES[0] && SHEET_SIZES[0].id) || '';
+  if(keep){
+    sel.value=keep;
+    var ph=sel.querySelector('option[value=""]');
+    if(ph) ph.selected=false;
+  }
+}
+function fillMaterials(){
+  var sel = byId('dgMaterial');
+  if(!sel) return;
+  fillPlaceholder(sel, SETTINGS.materials.length ? '-- اختر --' : 'لا توجد مواد — أضفها من المخزون');
+  SETTINGS.materials.forEach(function(m){
+    var opt=document.createElement('option');
+    opt.value=m.name;
+    opt.textContent=m.name;
+    sel.appendChild(opt);
+  });
+}
+function loadInventoryMaterials(){
+  return fetch(TW_API+'?resource=app', {
+    headers:{'X-API-Key': TW_KEY},
+    cache:'no-store'
+  }).then(function(r){
+    if(!r.ok) throw new Error('inventory');
+    return r.json();
+  }).then(function(state){
+    var mats = (state && state.materials) ? state.materials : [];
+    SETTINGS.materials = mats
+      .filter(function(m){ return !m.kind || m.kind==='digital'; })
+      .map(inventoryMaterialToCalc)
+      .filter(function(m){ return !!m.name; })
+      .sort(function(a,b){ return a.name.localeCompare(b.name, 'ar', {sensitivity:'base'}); });
+    fillMaterials();
+    recalc();
+  }).catch(function(){
+    SETTINGS.materials = [];
+    fillMaterials();
+  });
+}
+
+function recalc(){
+  var sheet = (byId('dgSheet').value||'');
+  var mat = getSelectedMaterial();
+  var qty = qtySafe();
+  var designTotal = num((byId('dgDesignTotal')||{}).value);
+  var assemblyTotal = num((byId('dgAssemblyTotal')||{}).value);
+  var sides = (byId('dgSides').value||'one');
+  var lamType = (byId('dgLamType').value||'none');
+  var lamSides = (byId('dgLamSides').value||'one');
+  var cut = (byId('dgCut').value||'none');
+
+  var matPer = materialCostPer(sheet, mat);
+  var pr = SETTINGS.printing[sheet] || SETTINGS.printing.a3 || {one:0, two:0};
+  var printPer = (sides==='two') ? num(pr.two) : num(pr.one);
+  var lamPer = (lamType==='none') ? 0 : (num(SETTINGS.finishing.lamination) * (lamSides==='two' ? 2 : 1));
+  var diePer = 0;
+  if(cut==='graphtec'){diePer = 0.1;} // 100 فلس للصفحة الواحدة
+  else if(cut==='scissors'){diePer = qty>0 ? (3/qty) : 0;} // 3 دك للطلب بالمجمل
+  var totalPer = matPer+printPer+lamPer+diePer; // per page
+  var jobCost = totalPer*qty; // total job (materials/print/finish)
+  var totalJob = jobCost + (designTotal>0?designTotal:0) + (assemblyTotal>0?assemblyTotal:0);
+
+  var pctEl = byId('dgProfitPct');
+  var profitPct = num(pctEl ? pctEl.value : '');
+  var profit = profitPct/100.0;
+  var sellTotal = 0;
+  sellTotal = totalJob>0 ? (totalJob*(1+profit)) : 0;
+  var net = sellTotal - totalJob;
+  var gross = sellTotal - jobCost;
+  var netPct = sellTotal>0 ? (net/sellTotal*100) : 0;
+
+  var ready = qty>0 && sheet && mat;
+  byId('dgDesignCost').value=(designTotal>0)?fmt3(designTotal):'';
+  byId('dgAssemblyCost').value=(assemblyTotal>0)?fmt3(assemblyTotal):'';
+  byId('dgMatPer').value=ready?fmt3(matPer*qty):'';
+  byId('dgPrintPer').value=ready?fmt3(printPer*qty):'';
+  byId('dgLamPer').value=ready?fmt3(lamPer*qty):'';
+  byId('dgDiePer').value=ready?fmt3(diePer*qty):'';
+  byId('dgTotalPer').value=(ready||designTotal>0||assemblyTotal>0)?fmt3(totalJob):'';
+  byId('dgSellTotal').value=(sellTotal>0)?fmt3(sellTotal):'';
+  byId('dgSellCardValue').textContent = (sellTotal>0) ? fmt3(sellTotal) : '';
+  var pieces = Math.max(0, Math.floor(num((byId('dgNestN')||{}).value)||0));
+  var unit = (sellTotal>0 && pieces>0) ? (sellTotal/pieces) : 0;
+  if(byId('dgUnitSellValue')) byId('dgUnitSellValue').textContent = (unit>0) ? fmt3(unit) : '';
+  byId('dgNetProfit').textContent = (sellTotal>0 || totalJob>0) ? fmt3(net) : '';
+  byId('dgNetPct').textContent = (sellTotal>0) ? (Math.round(netPct*100)/100).toFixed(2)+'%' : '';
+  ['dgGrossCard','dgUnitSellCard','dgNetCard','dgNetPctCard'].forEach(function(id,idx){
+    var el=byId(id); if(!el) return;
+    var v=idx===0?gross:(idx===1?unit:net);
+    el.className=el.className.replace(/\s*(pos|neg)/g,'');
+    if(v>0.0005)el.classList.add('pos');
+    else if(v<-0.0005)el.classList.add('neg');
+  });
+}
+
+fillSheets();
+fillMaterials();
+loadInventoryMaterials();
+['dgDesignTotal','dgAssemblyTotal','dgSheet','dgMaterial','dgQty','dgSides','dgLamType','dgCut','dgProfitPct'].forEach(function(id){
+  var el=byId(id); if(!el) return;
+  el.addEventListener('input',recalc);
+  el.addEventListener('change',recalc);
+});
+byId('dgProfitPct').addEventListener('input', recalc);
+function setSides(v){
+  byId('dgSides').value=v;
+  var oneI = byId('dgSideOne').querySelector('i');
+  var twoI = byId('dgSideTwo').querySelector('i');
+  if(oneI) oneI.className = (v==='one') ? 'fa-regular fa-square-check' : 'fa-regular fa-square';
+  if(twoI) twoI.className = (v==='two') ? 'fa-regular fa-square-check' : 'fa-regular fa-square';
+  if(byId('dgSidesPrint')) byId('dgSidesPrint').value = (v==='two') ? 'جهتين' : 'جهة واحدة';
+  recalc();
+}
+byId('dgSideOne').addEventListener('click', function(){ setSides('one'); });
+byId('dgSideTwo').addEventListener('click', function(){ setSides('two'); });
+function setLamSides(v){
+  byId('dgLamSides').value=v;
+  var oneI = byId('dgLamSideOne').querySelector('i');
+  var twoI = byId('dgLamSideTwo').querySelector('i');
+  if(oneI) oneI.className = (v==='one') ? 'fa-regular fa-square-check' : 'fa-regular fa-square';
+  if(twoI) twoI.className = (v==='two') ? 'fa-regular fa-square-check' : 'fa-regular fa-square';
+  if(byId('dgLamSidesPrint')) byId('dgLamSidesPrint').value = (v==='two') ? 'جهتين' : 'جهة واحدة';
+  recalc();
+}
+byId('dgLamSideOne').addEventListener('click', function(){ setLamSides('one'); });
+byId('dgLamSideTwo').addEventListener('click', function(){ setLamSides('two'); });
+function setCut(v){
+  byId('dgCut').value=v;
+  var nI = byId('dgCutNone').querySelector('i');
+  var sI = byId('dgCutScissors').querySelector('i');
+  var gI = byId('dgCutGraphtec').querySelector('i');
+  if(nI) nI.className = (v==='none') ? 'fa-regular fa-square-check' : 'fa-regular fa-square';
+  if(sI) sI.className = (v==='scissors') ? 'fa-regular fa-square-check' : 'fa-regular fa-square';
+  if(gI) gI.className = (v==='graphtec') ? 'fa-regular fa-square-check' : 'fa-regular fa-square';
+  if(byId('dgCutPrint')){
+    byId('dgCutPrint').value = (v==='scissors') ? 'مقص' : ((v==='graphtec') ? 'Graphtec' : 'لا يوجد');
+  }
+  recalc();
+  if(typeof NEST!=='undefined' && NEST && typeof renderNest==='function') renderNest();
+}
+byId('dgCutNone').addEventListener('click', function(){ setCut('none'); });
+byId('dgCutScissors').addEventListener('click', function(){ setCut('scissors'); });
+byId('dgCutGraphtec').addEventListener('click', function(){ setCut('graphtec'); });
+function syncLamUi(){
+  var lt = (byId('dgLamType').value||'none');
+  var w = byId('dgLamSidesWrap');
+  if(!w) return;
+  var enabled = lt !== 'none';
+  w.style.opacity = enabled ? '1' : '.55';
+  ['dgLamSideOne','dgLamSideTwo'].forEach(function(id){
+    var b = byId(id); if(!b) return;
+    b.disabled = !enabled;
+    b.style.cursor = enabled ? 'pointer' : 'not-allowed';
+  });
+  if(!enabled){ setLamSides('one'); }
+}
+byId('dgLamType').addEventListener('change', syncLamUi);
+byId('dgClear').addEventListener('click',function(){
+  if(!confirm('مسح جميع الحقول؟')) return;
+  byId('dgCustomer').value='';
+  byId('dgDescription').value='';
+  byId('dgDate').value='';
+  byId('dgDesignTotal').value='';
+  byId('dgAssemblyTotal').value='';
+  byId('dgSheet').value='';
+  byId('dgMaterial').value='';
+  byId('dgQty').value='';
+  byId('dgLamType').value='none';
+  setLamSides('one');
+  setCut('none');
+  byId('dgProfitPct').value='';
+  setSides('one');
+  if(byId('dgNestL')) byId('dgNestL').value='';
+  if(byId('dgNestW')) byId('dgNestW').value='';
+  if(byId('dgNestD')) byId('dgNestD').value='';
+  if(byId('dgNestN')) byId('dgNestN').value='1';
+  setNestRot(false);
+  setNestShape('rect');
+  renderNest();
+});
+setSides('one');
+setLamSides('one');
+setCut('none');
+syncLamUi();
+try{
+  var d=new Date();
+  if(byId('dgDate')){byId('dgDate').value=d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');}
+}catch(e){}
+
+/* —— حساب عدد القطع على قياس الورق المختار من المخزون —— */
+var SVG_NS='http://www.w3.org/2000/svg';
+var NEST={GAP:0.5,MARGIN:0,FRAME_PAD:0,fillInner:false,total:1,sheetIdx:0,draw:null,zoom:1,baseW:140,vbW:1000,vbH:700};
+function nestSvgEl(tag,attrs){var e=document.createElementNS(SVG_NS,tag);for(var k in attrs)e.setAttribute(k,attrs[k]);return e;}
+function clearNestSvg(s){while(s.firstChild)s.removeChild(s.firstChild);}
+function drawGraphtecMarks(sv, vbW, vbH){
+  /* inset 2.5 سم — viewBox: 1 سم = 10 وحدات */
+  var m=25;
+  var arm=Math.max(14, Math.min(vbW, vbH)*0.045);
+  var sw=Math.max(2.4, Math.min(vbW, vbH)*0.012);
+  /* إطار منطقة القص بين العلامات */
+  sv.appendChild(nestSvgEl('rect',{
+    x:m,y:m,width:vbW-2*m,height:vbH-2*m,
+    fill:'none', stroke:'#111827', 'stroke-width':Math.max(1.2, sw*0.55)
+  }));
+  function mark(x1,y1,x2,y2,x3,y3){
+    sv.appendChild(nestSvgEl('path',{
+      d:'M '+x1+' '+y1+' L '+x2+' '+y2+' L '+x3+' '+y3,
+      fill:'none', stroke:'#111827', 'stroke-width':sw, 'stroke-linecap':'square', 'stroke-linejoin':'miter'
+    }));
+  }
+  /* زوايا Graphtec — رأس العلامة نحو ركن الصفحة */
+  mark(m, m+arm, m, m, m+arm, m);                         /* أعلى يسار */
+  mark(vbW-m-arm, m, vbW-m, m, vbW-m, m+arm);             /* أعلى يمين */
+  mark(m, vbH-m-arm, m, vbH-m, m+arm, vbH-m);             /* أسفل يسار */
+  mark(vbW-m-arm, vbH-m, vbW-m, vbH-m, vbW-m, vbH-m-arm); /* أسفل يمين */
+  /* مؤشر الأصل عند زاوية إطار Graphtec السفلى اليسرى */
+  var ox=m, oy=vbH-m, al=Math.max(12, arm*0.7);
+  sv.appendChild(nestSvgEl('line',{x1:ox,y1:oy,x2:ox+al,y2:oy,stroke:'#2563eb','stroke-width':sw,'stroke-linecap':'round'}));
+  sv.appendChild(nestSvgEl('line',{x1:ox,y1:oy,x2:ox,y2:oy-al,stroke:'#dc2626','stroke-width':sw,'stroke-linecap':'round'}));
+  var ah=Math.max(4, sw*1.5);
+  sv.appendChild(nestSvgEl('polygon',{points:(ox+al)+','+oy+' '+(ox+al-ah)+','+(oy-ah)+' '+(ox+al-ah)+','+(oy+ah), fill:'#2563eb'}));
+  sv.appendChild(nestSvgEl('polygon',{points:ox+','+(oy-al)+' '+(ox-ah)+','+(oy-al+ah)+' '+(ox+ah)+','+(oy-al+ah), fill:'#dc2626'}));
+  sv.appendChild(nestSvgEl('circle',{cx:ox,cy:oy,r:Math.max(1.8, sw*0.7), fill:'#111827'}));
+}
+function nestPageBg(sv, vbW, vbH, graphtec){
+  sv.appendChild(nestSvgEl('rect',{
+    x:0,y:0,width:vbW,height:vbH,
+    fill: graphtec ? '#ffffff' : '#f0f4fa',
+    stroke: graphtec ? '#cbd5e1' : '#3730a3',
+    'stroke-width': graphtec ? 2 : 4,
+    rx: graphtec ? 2 : 6
+  }));
+  if(graphtec) drawGraphtecMarks(sv, vbW, vbH);
+}
+function updateNestZoomUi(){
+  var lab=byId('dgNestZoomLabel'), zin=byId('dgNestZoomIn'), zout=byId('dgNestZoomOut');
+  if(lab) lab.textContent=Math.round(NEST.zoom*100)+'%';
+  if(zin) zin.disabled=NEST.zoom>=3;
+  if(zout) zout.disabled=NEST.zoom<=0.75;
+}
+function nestFitSvg(sv, vbW, vbH){
+  if(!sv) return;
+  NEST.vbW=vbW; NEST.vbH=vbH;
+  var w=Math.max(80, Math.round(NEST.baseW*NEST.zoom));
+  var h=Math.max(120, Math.round(w*vbH/Math.max(vbW,1)));
+  sv.setAttribute('viewBox','0 0 '+vbW+' '+vbH);
+  sv.setAttribute('width', String(w));
+  sv.setAttribute('height', String(h));
+  sv.style.setProperty('width', w+'px', 'important');
+  sv.style.setProperty('height', h+'px', 'important');
+  sv.style.maxHeight='none';
+  updateNestZoomUi();
+}
+function setNestZoom(z){
+  NEST.zoom=Math.max(0.75, Math.min(3, Math.round(z*100)/100));
+  nestFitSvg(byId('dgNestSheet'), NEST.vbW, NEST.vbH);
+}
+function selectedSheetSize(){
+  var id=(byId('dgSheet')&&byId('dgSheet').value)||'';
+  return SHEET_SIZES.find(function(s){return s.id===id;})||null;
+}
+function setNestStats(arr){
+  var el=byId('dgNestStats'); if(!el) return;
+  var h='';
+  arr.forEach(function(p){h+='<div class="lw-stat"><div class="lw-stat-l">'+p[0]+'</div><div class="lw-stat-v">'+p[1]+'</div></div>';});
+  el.innerHTML=h;
+}
+function nestPackOrientation(SW,SH,w,h,markRot){
+  var g=NEST.GAP, m=(NEST.MARGIN||0)+(NEST.FRAME_PAD||0), fill=!!NEST.fillInner;
+  var innerW=SW-2*m, innerH=SH-2*m;
+  if(innerW<=0||innerH<=0||w<=0||h<=0) return [];
+  var cols=Math.floor((innerW+g+1e-9)/(w+g));
+  var rows=Math.floor((innerH+g+1e-9)/(h+g));
+  if(cols<1||rows<1) return [];
+  var gapX, gapY, ox, oy, i, j, out=[];
+  if(fill){
+    gapX = cols>1 ? (innerW-cols*w)/(cols-1) : 0;
+    gapY = rows>1 ? (innerH-rows*h)/(rows-1) : 0;
+    ox = m + (cols===1 ? (innerW-w)/2 : 0);
+    oy = m + (rows===1 ? (innerH-h)/2 : 0);
+  }else{
+    gapX=g; gapY=g;
+    ox=m+(innerW-(cols*w+(cols-1)*g))/2;
+    oy=m+(innerH-(rows*h+(rows-1)*g))/2;
+  }
+  for(j=0;j<rows;j++) for(i=0;i<cols;i++){
+    out.push({x:ox+i*(w+gapX),y:oy+j*(h+gapY),w:w,h:h,rot:!!markRot});
+  }
+  return out;
+}
+function nestFillSheet(SW,SH,pw,ph,allowRot){
+  /* توافق خلفي: allowRot=true يختار الأفضل تلقائياً */
+  var a=nestPackOrientation(SW,SH,pw,ph,false);
+  var b=(allowRot && Math.abs(pw-ph)>1e-9) ? nestPackOrientation(SW,SH,ph,pw,true) : [];
+  NEST.packMeta={normal:a.length,rotated:b.length,usedRot:b.length>a.length,allowRot:!!allowRot};
+  return (b.length>a.length) ? b : a;
+}
+function nestCenterSlots(slots, SW, SH){
+  if(!slots || !slots.length) return slots;
+  var m=(NEST.MARGIN||0)+(NEST.FRAME_PAD||0);
+  var minX=Infinity, minY=Infinity, maxX=-Infinity, maxY=-Infinity, i, sl;
+  for(i=0;i<slots.length;i++){
+    sl=slots[i];
+    if(sl.x<minX) minX=sl.x;
+    if(sl.y<minY) minY=sl.y;
+    if(sl.x+sl.w>maxX) maxX=sl.x+sl.w;
+    if(sl.y+sl.h>maxY) maxY=sl.y+sl.h;
+  }
+  var dx=m+((SW-2*m)-(maxX-minX))/2-minX;
+  var dy=m+((SH-2*m)-(maxY-minY))/2-minY;
+  return slots.map(function(s){return {x:s.x+dx,y:s.y+dy,w:s.w,h:s.h,rot:s.rot};});
+}
+function nestFmt(v){return (Math.round(v*100)/100).toString();}
+function updateNestNav(){
+  var nav=byId('dgNestSheetNav'), info=byId('dgNestSheetInfo');
+  var prev=byId('dgNestSheetPrev'), next=byId('dgNestSheetNext');
+  if(!nav) return;
+  if(NEST.total<=1){nav.style.display='none'; return;}
+  nav.style.display='flex';
+  if(info) info.textContent='الصفحة '+(NEST.sheetIdx+1)+' / '+NEST.total;
+  if(prev) prev.disabled=NEST.sheetIdx<=0;
+  if(next) next.disabled=NEST.sheetIdx>=NEST.total-1;
+}
+function renderNest(){
+  var sheet=selectedSheetSize();
+  var title=byId('dgNestSheetTitle');
+  var svg=byId('dgNestSheet');
+  if(!svg) return;
+  var graphtec=((byId('dgCut')||{}).value||'')==='graphtec';
+  /* علامات Graphtec على 2.5سم؛ القطع داخل الإطار بمسافة GAP ولا تلامس الإطار */
+  NEST.MARGIN = graphtec ? 2.5 : 0;
+  NEST.FRAME_PAD = graphtec ? 0.5 : 0;
+  NEST.fillInner = false;
+  if(!sheet){
+    if(title) title.textContent='اختر قياس الورق من المخزون';
+    clearNestSvg(svg);
+    nestFitSvg(svg, 1000, 700);
+    nestPageBg(svg, 1000, 700, graphtec);
+    setNestStats([['—','اختر قياس الورق أولاً']]);
+    NEST.total=1;NEST.sheetIdx=0;NEST.draw=null;updateNestNav();
+    return;
+  }
+  var SW=sheet.w, SH=sheet.h;
+  var vbW=Math.round(SW*10), vbH=Math.round(SH*10);
+  nestFitSvg(svg, vbW, vbH);
+  if(title) title.textContent='الصفحة '+sheet.label;
+  var shape=(byId('dgNestShape')&&byId('dgNestShape').value)||'rect';
+  var n=Math.max(1,Math.floor(num(byId('dgNestN').value)||1));
+  var circle=shape==='circle', pl, pw, pieceTxt;
+  if(circle){
+    var d=num(byId('dgNestD').value);
+    if(d<=0){clearNestSvg(svg);nestPageBg(svg,vbW,vbH,graphtec);setNestStats([['—','أدخل قطر القطعة']]);return;}
+    pl=d;pw=d;pieceTxt='دائرة قطر '+d+' سم';
+  }else{
+    pl=num(byId('dgNestL').value);pw=num(byId('dgNestW').value);
+    if(pl<=0||pw<=0){clearNestSvg(svg);nestPageBg(svg,vbW,vbH,graphtec);setNestStats([['—','أدخل أبعاد القطعة']]);return;}
+    pieceTxt=pl+' × '+pw+' سم';
+  }
+  var forceRot=!circle && ((byId('dgNestAllowRot')||{}).value==='1');
+  var slotsOrig, slotsRot, slots, allowRot=forceRot;
+  if(circle){
+    slots=nestPackOrientation(SW,SH,pl,pl,false);
+    NEST.packMeta={normal:slots.length,rotated:slots.length,usedRot:false,allowRot:false};
+  }else{
+    slotsOrig=nestPackOrientation(SW,SH,pl,pw,false);
+    slotsRot=(Math.abs(pl-pw)>1e-9) ? nestPackOrientation(SW,SH,pw,pl,true) : slotsOrig.slice();
+    NEST.packMeta={normal:slotsOrig.length,rotated:slotsRot.length,usedRot:!!forceRot,allowRot:!!forceRot};
+    slots = forceRot ? slotsRot : slotsOrig;
+  }
+  var per=slots.length;
+  if(per<=0){
+    clearNestSvg(svg);
+    nestPageBg(svg,vbW,vbH,graphtec);
+    setNestStats([['القطعة',pieceTxt],['تنبيه','القطعة أكبر من الصفحة']]);
+    return;
+  }
+  var pages=Math.ceil(n/per);
+  NEST.draw=function(idx){
+    var sv=byId('dgNestSheet'); clearNestSvg(sv);
+    nestPageBg(sv, vbW, vbH, graphtec);
+    var startI=idx*per, count=Math.min(per,n-startI);
+    var pageSlots=nestCenterSlots(slots.slice(0,count), SW, SH);
+    for(var i=0;i<count;i++){
+      var sl=pageSlots[i], x=sl.x*10, y=sl.y*10, wMM=sl.w*10, hMM=sl.h*10;
+      if(circle){
+        sv.appendChild(nestSvgEl('circle',{cx:x+wMM/2,cy:y+hMM/2,r:wMM/2,fill:'#9ec5fe',stroke:'#4f46e5','stroke-width':2}));
+      }else{
+        sv.appendChild(nestSvgEl('rect',{x:x,y:y,width:wMM,height:hMM,fill:sl.rot?'#bfe0ff':'#9ec5fe',stroke:'#4f46e5','stroke-width':2,rx:3}));
+      }
+      var t=nestSvgEl('text',{x:x+wMM/2,y:y+hMM/2,'text-anchor':'middle','dominant-baseline':'middle','font-size':Math.max(10,Math.min(wMM,hMM)/3.2),fill:'#4f46e5','font-weight':'700'});
+      t.textContent=String(startI+i+1);
+      sv.appendChild(t);
+    }
+  };
+  NEST.total=pages; NEST.sheetIdx=0; NEST.draw(0); updateNestNav();
+  var stats=[
+    ['القطعة',pieceTxt],
+    ['قياس الصفحة',sheet.label],
+    ['يتسع الصفحة الواحدة',per+' قطعة'],
+    ['عدد القطع المطلوب',n+' قطعة'],
+    ['عدد الصفحات اللازمة',pages+' صفحة']
+  ];
+  if(!circle && Math.abs(pl-pw)>1e-9){
+    var pm=NEST.packMeta||{};
+    stats.push(['الاتجاه الأصلي',(pm.normal||0)+' قطعة/صفحة']);
+    stats.push(['بعد التدوير 90°',(pm.rotated||0)+' قطعة/صفحة']);
+    stats.push(['الاتجاه الحالي', forceRot ? 'مدوّر 90°' : 'أصلي']);
+    if(forceRot && (pm.rotated||0)>(pm.normal||0)){
+      stats.push(['الزيادة','+'+(pm.rotated-pm.normal)+' قطعة/صفحة']);
+    }else if(forceRot && (pm.rotated||0)<(pm.normal||0)){
+      stats.push(['ملاحظة','التدوير يقلّل العدد هنا']);
+    }
+  }
+  if(graphtec) stats.push(['علامات القص','Graphtec']);
+  setNestStats(stats);
+  syncQtyFromNest(pages);
+  updateNestRotChip();
+}
+function syncQtyFromNest(pages){
+  var qtyEl=byId('dgQty');
+  if(!qtyEl) return;
+  var next = (pages>0) ? String(pages) : '';
+  if(qtyEl.value === next) return;
+  qtyEl.value = next;
+  if(typeof recalc==='function') recalc();
+}
+function setNestRot(on){
+  if(byId('dgNestAllowRot')) byId('dgNestAllowRot').value=on?'1':'0';
+  var btn=byId('dgNestRotBtn');
+  var lab=byId('dgNestRotLabel');
+  var sub=byId('dgNestRotSub');
+  if(btn) btn.classList.toggle('active', !!on);
+  if(lab) lab.textContent = on ? 'مدوّر 90°' : 'أصلي';
+  if(sub){
+    var pm=NEST.packMeta||{};
+    if(on){
+      sub.textContent = ((pm.rotated||0)>(pm.normal||0)) ? ('+'+(pm.rotated-pm.normal)+' قطعة') : 'اضغط للأصلي';
+    }else{
+      sub.textContent = 'اضغط للتدوير 90°';
+    }
+  }
+  if(typeof renderNest==='function') renderNest();
+}
+function updateNestRotChip(){
+  var btn=byId('dgNestRotBtn');
+  var lab=byId('dgNestRotLabel');
+  var sub=byId('dgNestRotSub');
+  if(!btn) return;
+  var on=((byId('dgNestAllowRot')||{}).value)==='1';
+  var pm=NEST.packMeta||{};
+  btn.classList.toggle('active', on);
+  if(lab) lab.textContent = on ? 'مدوّر 90°' : 'أصلي';
+  if(!sub) return;
+  if(on){
+    if((pm.rotated||0)>(pm.normal||0)) sub.textContent='+'+ (pm.rotated-pm.normal) +' قطعة';
+    else if((pm.rotated||0)<(pm.normal||0)) sub.textContent=(pm.rotated||0)+' / أصل '+(pm.normal||0);
+    else sub.textContent='نفس العدد';
+  }else{
+    sub.textContent='اضغط للتدوير 90°';
+  }
+}
+function setNestShape(v){
+  if(byId('dgNestShape')) byId('dgNestShape').value=v;
+  var rect=v!=='circle';
+  if(byId('dgNestShapeRect')) byId('dgNestShapeRect').classList.toggle('active',rect);
+  if(byId('dgNestShapeCircle')) byId('dgNestShapeCircle').classList.toggle('active',!rect);
+  if(byId('dgNestRectL')) byId('dgNestRectL').style.display=rect?'':'none';
+  if(byId('dgNestRectW')) byId('dgNestRectW').style.display=rect?'':'none';
+  if(byId('dgNestCircD')) byId('dgNestCircD').style.display=rect?'none':'';
+  if(byId('dgNestRotBtn')) byId('dgNestRotBtn').style.display=rect?'':'none';
+  renderNest();
+}
+if(byId('dgNestShapeRect')) byId('dgNestShapeRect').addEventListener('click',function(){setNestShape('rect');});
+if(byId('dgNestShapeCircle')) byId('dgNestShapeCircle').addEventListener('click',function(){setNestShape('circle');});
+if(byId('dgNestRotBtn')) byId('dgNestRotBtn').addEventListener('click',function(ev){
+  if(ev){ ev.preventDefault(); ev.stopPropagation(); }
+  var on=((byId('dgNestAllowRot')||{}).value)==='1';
+  setNestRot(!on);
+});
+setNestRot(false);
+['dgNestL','dgNestW','dgNestD','dgNestN'].forEach(function(id){
+  var el=byId(id); if(!el) return;
+  el.addEventListener('input',function(){renderNest();recalc();});
+  el.addEventListener('change',function(){renderNest();recalc();});
+});
+if(byId('dgSheet')) byId('dgSheet').addEventListener('change',renderNest);
+if(byId('dgNestSheetPrev')) byId('dgNestSheetPrev').addEventListener('click',function(){if(NEST.sheetIdx>0){NEST.sheetIdx--;if(NEST.draw)NEST.draw(NEST.sheetIdx);updateNestNav();}});
+if(byId('dgNestSheetNext')) byId('dgNestSheetNext').addEventListener('click',function(){if(NEST.sheetIdx<NEST.total-1){NEST.sheetIdx++;if(NEST.draw)NEST.draw(NEST.sheetIdx);updateNestNav();}});
+if(byId('dgNestZoomIn')) byId('dgNestZoomIn').addEventListener('click',function(){setNestZoom(NEST.zoom+0.25);});
+if(byId('dgNestZoomOut')) byId('dgNestZoomOut').addEventListener('click',function(){setNestZoom(NEST.zoom-0.25);});
+if(byId('dgNestZoomReset')) byId('dgNestZoomReset').addEventListener('click',function(){setNestZoom(1);});
+updateNestZoomUi();
+renderNest();
+
+recalc();
+})();
+</script>
+</div></body></html>

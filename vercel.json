@@ -21,6 +21,18 @@
       "destination": "/cost-calculator/index.html"
     },
     {
+      "source": "/cost-calculator/digital/papers",
+      "destination": "/cost-calculator/digital-papers.html"
+    },
+    {
+      "source": "/cost-calculator/digital/magazines",
+      "destination": "/cost-calculator/digital-magazines.html"
+    },
+    {
+      "source": "/cost-calculator/digital/stickers-cards",
+      "destination": "/cost-calculator/digital-stickers-cards.html"
+    },
+    {
       "source": "/cost-calculator/digital",
       "destination": "/cost-calculator/digital.html"
     },
