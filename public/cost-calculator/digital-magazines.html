@@ -231,51 +231,9 @@ body.cc-digital select{appearance:none;border:none;background:transparent;font-w
   </div>
 </div>
 
-<div class="cc-section-title cc-no-print">حساب عدد القطع في الصفحة</div>
-<div class="lw-section cc-no-print" id="dgNestSection">
-  <label style="display:block;font-size:12.5px;font-weight:700;color:#444;margin-bottom:6px">شكل القطعة</label>
-  <div class="lw-lid-btns" style="max-width:380px;margin-bottom:12px">
-    <button type="button" id="dgNestShapeRect" class="active"><i class="fa-solid fa-vector-square"></i> مستطيل / مربع</button>
-    <button type="button" id="dgNestShapeCircle"><i class="fa-solid fa-circle"></i> دائري</button>
-  </div>
-  <input type="hidden" id="dgNestShape" value="rect">
-  <div class="lw-inputs">
-    <div id="dgNestRectL"><label>الطول (سم)</label><input type="number" id="dgNestL" min="0" step="0.1" placeholder="مثال: 20"></div>
-    <div id="dgNestRectW"><label>العرض (سم)</label><input type="number" id="dgNestW" min="0" step="0.1" placeholder="مثال: 15"></div>
-    <div id="dgNestCircD" style="display:none"><label>القطر (سم)</label><input type="number" id="dgNestD" min="0" step="0.1" placeholder="مثال: 10"></div>
-    <div><label>عدد القطع</label><input type="number" id="dgNestN" min="1" step="1" value="1"></div>
-  </div>
-  <div class="lw-view">
-    <div class="lw-view-title" id="dgNestSheetTitle">اختر قياس الورق من المخزون</div>
-    <div class="dg-nest-preview">
-      <button type="button" id="dgNestRotBtn" class="dg-nest-rot-chip cc-no-print" title="اضغط لتبديل اتجاه القطع 90°">
-        <i class="fa-solid fa-rotate" aria-hidden="true"></i>
-        <span class="dg-nest-rot-text">
-          <span id="dgNestRotLabel">أصلي</span>
-          <span class="dg-nest-rot-sub" id="dgNestRotSub">اضغط للتدوير 90°</span>
-        </span>
-      </button>
-      <input type="hidden" id="dgNestAllowRot" value="0">
-      <svg id="dgNestSheet" viewBox="0 0 1000 700" preserveAspectRatio="xMidYMid meet"></svg>
-    </div>
-    <div class="dg-nest-zoom cc-no-print" id="dgNestZoomBar">
-      <button type="button" id="dgNestZoomOut" title="تصغير"><i class="fa-solid fa-magnifying-glass-minus"></i></button>
-      <span id="dgNestZoomLabel">100%</span>
-      <button type="button" id="dgNestZoomIn" title="تكبير"><i class="fa-solid fa-magnifying-glass-plus"></i></button>
-      <button type="button" id="dgNestZoomReset" title="إعادة الحجم">إعادة</button>
-    </div>
-    <div class="lw-sheet-nav" id="dgNestSheetNav" style="display:none">
-      <button type="button" id="dgNestSheetPrev">&rsaquo; السابق</button>
-      <span id="dgNestSheetInfo">الصفحة 1 / 1</span>
-      <button type="button" id="dgNestSheetNext">التالي &lsaquo;</button>
-    </div>
-  </div>
-  <div class="lw-stats" id="dgNestStats"></div>
-  <div class="dg-nest-qty" style="margin-top:14px;padding:12px;background:#fff;border:1px solid var(--border,#e5e7eb);border-radius:10px;border-right:4px solid var(--primary,#4f46e5)">
-    <label style="display:block;font-size:12.5px;font-weight:700;color:#444;margin-bottom:6px">عدد الصفحات <span style="font-weight:600;color:#6b7280;font-size:11px">(تلقائي من التوزيع)</span></label>
-    <input type="number" id="dgQty" class="cc-ro" min="0" step="1" value="" readonly tabindex="-1" title="يُحسب تلقائياً عند توزيع أبعاد المنتج في صفحة العرض" style="width:100%;max-width:220px;padding:10px 12px;border:2px solid #d0d7de;border-radius:8px;font-size:15px;font-family:inherit;box-sizing:border-box;background:#f5f7fa;font-weight:700;color:var(--primary,#4f46e5)">
-    <div style="margin-top:8px;font-size:12px;color:#667085;font-weight:600">يُحدَّث تلقائياً حسب عدد الصفحات اللازمة للقطع في صفحة العرض.</div>
-  </div>
+<div class="cc-meta">
+  <div><label for="dgQty">عدد الصفحات</label><input type="number" id="dgQty" min="1" step="1" placeholder="أدخل عدد الصفحات"></div>
+  <div><label for="dgNestN">عدد المنتجات النهائية</label><input type="number" id="dgNestN" min="1" step="1" value="1"></div>
 </div>
 
 <div class="cc-section-title cc-section-direct">حساب التكاليف</div>
